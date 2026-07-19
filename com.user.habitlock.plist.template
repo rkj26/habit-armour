@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.user.habitlock</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>{{HOME_DIR}}/.habitlock/lock_agent.sh</string>
+    </array>
+    <key>WorkingDirectory</key>
+    <string>{{HOME_DIR}}/.habitlock</string>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PORT</key>
+        <string>{{PORT}}</string>
+        <key>PATH</key>
+        <string>/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin:/opt/homebrew/bin</string>
+    </dict>
+    <key>StandardOutPath</key>
+    <string>{{HOME_DIR}}/.habitlock/habitlock.log</string>
+    <key>StandardErrorPath</key>
+    <string>{{HOME_DIR}}/.habitlock/habitlock.err</string>
+</dict>
+</plist>
