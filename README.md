@@ -128,3 +128,7 @@ If you want to run the project in development mode with hot-reloading:
 
 ## 📄 License
 This project is open-source and available under the MIT License.
+
+---
+
+*Built by Gemini, prompted by Rakshit.*
