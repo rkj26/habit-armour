@@ -6,7 +6,6 @@
 
 Habit Armour was born out of a personal need to ensure strict adherence to tracking health and fitness metrics. When relying on willpower alone, it's easy to slip up and forget to log daily weights, sleep quality, caloric intake, or reflections. By binding Mac device access directly to completion of these daily tracking logs, Habit Armour introduces hardware-level accountability to protect health routines and enforce self-discipline.
 
----
 
 ## 🚀 Key Features
 
@@ -18,7 +17,6 @@ Habit Armour was born out of a personal need to ensure strict adherence to track
 *   **📈 Google Sheets Integration**: Syncs physical stats, sleep quality, and macro intake directly to your Google Sheets tracker.
 *   **💪 Hevy API & Gemini Gym Analysis**: Fetches your workout logs from Hevy App and uses Google Gemini AI to analyze your progressive overload and consistency.
 
----
 
 ## 🛠️ System Architecture
 
@@ -55,7 +53,7 @@ To guarantee accountability and prevent bypassing tracking routines, Habit Armor
 - **`com.user.habitlock.plist`**: Manages the lock agent `lock_agent.sh`. By configuring the plist with `<key>KeepAlive</key><true/>`, macOS continuously ensures the lock agent runs in the background. If the user tries to manually force-quit or kill the process, `launchd` immediately respawns it within milliseconds, maintaining lock state integrity.
 - **`com.user.habitserver.plist`**: Manages the API server `server.js` with `KeepAlive` enabled. If the backend fails or crashes due to network/system errors, it is instantly restarted, ensuring availability for status checking and submission.
 
----
+
 
 ## 📦 Setup & Installation
 
@@ -113,7 +111,6 @@ This script will:
 
 The web interface will now be accessible at `http://localhost:3000` (or your custom port configured in `.env`).
 
----
 
 ## 🛑 Uninstallation
 
@@ -122,7 +119,6 @@ If you wish to stop and clean up the background daemons and files from your syst
 ./uninstall.sh
 ```
 
----
 
 ## 🖥️ Local Development
 
@@ -140,11 +136,9 @@ If you want to run the project in development mode with hot-reloading:
     npm run dev
     ```
 
----
 
 ## 📄 License
 This project is open-source and available under the MIT License.
 
----
 
 *Built by Gemini, prompted by Rakshit.*
