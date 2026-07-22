@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 
 // Reusable Bezier Curve Path Generator
 const getBezierPath = (points, keyY) => {

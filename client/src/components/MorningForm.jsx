@@ -1,6 +1,14 @@
 import React from 'react';
 
 export default function MorningForm({ morningData, setMorningData, editingDate, cancelEditing, onSubmit }) {
+  const handleChange = (e) => {
+    const { name, value, type } = e.target;
+    setMorningData(prev => ({
+      ...prev,
+      [name]: type === 'range' ? parseInt(value, 10) : value
+    }));
+  };
+
   return (
     <form onSubmit={onSubmit}>
       <div className="section-title">

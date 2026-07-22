@@ -16,8 +16,8 @@ import HevyView from './components/HevyView';
 import GymView from './components/GymView';
 import SettingsView from './components/SettingsView';
 
-// API Base URL - relative paths for production, port 3000 for development
-const API_URL = window.location.hostname === 'localhost' ? 'http://localhost:3000' : '';
+// API Base URL - handle Vite dev server (port 5173) and local network IP origin
+const API_URL = import.meta.env.VITE_API_URL || (window.location.port === '5173' ? 'http://localhost:3000' : window.location.origin);
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('morning');
