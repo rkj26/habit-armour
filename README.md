@@ -22,24 +22,38 @@ Habit Armour was born out of a personal need to ensure strict adherence to track
 
 ## 🛠️ System Architecture
 
+```mermaid
+graph TD
+    subgraph macOS Client [macOS Client System]
+        launchd_lock["launchd (com.user.habitlock)"]
+        agent["Lock Agent (lock_agent.sh)"]
+        launchd_lock -->|Monitors & Restarts| agent
+    end
+
+    subgraph Node.js Backend [Local Server Environment]
+        launchd_srv["launchd (com.user.habitserver)"]
+        server["Habit Server (server.js)"]
+        launchd_srv -->|Monitors & Restarts| server
+    end
+
+    subgraph Storage [Data Storage & Sync]
+        db[("Local Database (habits_data.json)")]
+        obsidian["Obsidian Vault (Local Markdown)"]
+        sheets["Google Sheets (Apps Script API)"]
+    end
+
+    agent -->|Polls completion status (api/status)| server
+    agent -->|Locks screen / spawns browser kiosk| macOS_Lock["macOS User Session Lock"]
+    
+    server -->|Reads/Writes logs| db
+    server -->|Syncs reflections| obsidian
+    server -->|Syncs physical metrics| sheets
 ```
-                  ┌──────────────────────────────┐
-                  │          macOS Client        │
-                  │  (lock_agent.sh via launchd)  │
-                  └──────────────┬───────────────┘
-                                 │ Polling (api/status)
-                                 ▼
-┌────────────────────────────────────────────────────────────────┐
-│                        Local Node.js Server                    │
-│                        (server.js via launchd)                 │
-└────────┬──────────────────────┬──────────────────────┬─────────┘
-         │ Writes               │ Syncs                │ Syncs
-         ▼                      ▼                      ▼
-┌──────────────────┐  ┌──────────────────┐  ┌────────────────────┐
-│ Local DB         │  │ Obsidian Vault   │  │   Google Sheets    │
-│ habits_data.json │  │ (Local Markdown) │  │  (via Apps Script) │
-└──────────────────┘  └──────────────────┘  └────────────────────┘
-```
+
+### 🔒 Enforcement via launchd
+To guarantee accountability and prevent bypassing tracking routines, Habit Armor relies on macOS **`launchd`** system daemons:
+- **`com.user.habitlock.plist`**: Manages the lock agent `lock_agent.sh`. By configuring the plist with `<key>KeepAlive</key><true/>`, macOS continuously ensures the lock agent runs in the background. If the user tries to manually force-quit or kill the process, `launchd` immediately respawns it within milliseconds, maintaining lock state integrity.
+- **`com.user.habitserver.plist`**: Manages the API server `server.js` with `KeepAlive` enabled. If the backend fails or crashes due to network/system errors, it is instantly restarted, ensuring availability for status checking and submission.
 
 ---
 
