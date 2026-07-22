@@ -37,12 +37,12 @@ graph TD
     end
 
     subgraph Storage [Data Storage & Sync]
-        db[("Local Database (habits_data.json)")]
+        db["Local Database (habits_data.json)"]
         obsidian["Obsidian Vault (Local Markdown)"]
         sheets["Google Sheets (Apps Script API)"]
     end
 
-    agent -->|Polls completion status (api/status)| server
+    agent -->|Polls completion status| server
     agent -->|Locks screen / spawns browser kiosk| macOS_Lock["macOS User Session Lock"]
     
     server -->|Reads/Writes logs| db
