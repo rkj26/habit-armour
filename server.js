@@ -46,16 +46,23 @@ const DEFAULT_CONFIG = {
   journalStorage: process.env.JOURNAL_STORAGE || "none",            // "none", "obsidian", "gdoc", "both"
   obsidianVaultPath: process.env.OBSIDIAN_VAULT_PATH || "",             // e.g. "/Users/username/Documents/Obsidian"
   obsidianJournalFolder: process.env.OBSIDIAN_JOURNAL_FOLDER || "Journal",  // Subfolder in Vault
-  googleDocId: process.env.GOOGLE_DOC_ID || ""                    // Google Doc ID or URL for appending journal entries
+  googleDocId: process.env.GOOGLE_DOC_ID || "",                    // Google Doc ID or URL for appending journal entries
+  gymLockEnabled: process.env.GYM_LOCK_ENABLED !== 'false',        // default: true
+  gymLockStartHour: process.env.GYM_LOCK_START_HOUR ? parseInt(process.env.GYM_LOCK_START_HOUR, 10) : 21, // 9:00 PM
+  gymMinDurationMinutes: process.env.GYM_MIN_DURATION_MINUTES ? parseInt(process.env.GYM_MIN_DURATION_MINUTES, 10) : 30,
+  gymRoutineVerificationEnabled: process.env.GYM_ROUTINE_VERIFICATION_ENABLED !== 'false', // default: true
+  gymMinTotalSets: process.env.GYM_MIN_TOTAL_SETS ? parseInt(process.env.GYM_MIN_TOTAL_SETS, 10) : 12,
+  targetWeight: process.env.TARGET_WEIGHT ? parseFloat(process.env.TARGET_WEIGHT) : 75.0,
+  targetProtein: process.env.TARGET_PROTEIN ? parseInt(process.env.TARGET_PROTEIN, 10) : 150,
+  targetSteps: process.env.TARGET_STEPS ? parseInt(process.env.TARGET_STEPS, 10) : 10000,
+  targetCalories: process.env.TARGET_CALORIES ? parseInt(process.env.TARGET_CALORIES, 10) : 2500
 };
 
 function readDb() {
-  if (!fs.existsSync(DB_FILE)) {
-    const initialDb = { entries: {}, config: DEFAULT_CONFIG };
-    fs.writeFileSync(DB_FILE, JSON.stringify(initialDb, null, 2));
-    return initialDb;
-  }
   try {
+    if (!fs.existsSync(DB_FILE)) {
+      return { entries: {}, config: DEFAULT_CONFIG };
+    }
     const data = fs.readFileSync(DB_FILE, 'utf8');
     const parsed = JSON.parse(data);
     // Ensure all config fields are populated
@@ -75,6 +82,17 @@ function readDb() {
     if (process.env.OBSIDIAN_VAULT_PATH) parsed.config.obsidianVaultPath = process.env.OBSIDIAN_VAULT_PATH;
     if (process.env.OBSIDIAN_JOURNAL_FOLDER) parsed.config.obsidianJournalFolder = process.env.OBSIDIAN_JOURNAL_FOLDER;
     if (process.env.GOOGLE_DOC_ID) parsed.config.googleDocId = process.env.GOOGLE_DOC_ID;
+
+    if (process.env.GYM_LOCK_ENABLED) parsed.config.gymLockEnabled = process.env.GYM_LOCK_ENABLED !== 'false';
+    if (process.env.GYM_LOCK_START_HOUR) parsed.config.gymLockStartHour = parseInt(process.env.GYM_LOCK_START_HOUR, 10);
+    if (process.env.GYM_MIN_DURATION_MINUTES) parsed.config.gymMinDurationMinutes = parseInt(process.env.GYM_MIN_DURATION_MINUTES, 10);
+    if (process.env.GYM_ROUTINE_VERIFICATION_ENABLED) parsed.config.gymRoutineVerificationEnabled = process.env.GYM_ROUTINE_VERIFICATION_ENABLED !== 'false';
+    if (process.env.GYM_MIN_TOTAL_SETS) parsed.config.gymMinTotalSets = parseInt(process.env.GYM_MIN_TOTAL_SETS, 10);
+
+    if (process.env.TARGET_WEIGHT) parsed.config.targetWeight = parseFloat(process.env.TARGET_WEIGHT);
+    if (process.env.TARGET_PROTEIN) parsed.config.targetProtein = parseInt(process.env.TARGET_PROTEIN, 10);
+    if (process.env.TARGET_STEPS) parsed.config.targetSteps = parseInt(process.env.TARGET_STEPS, 10);
+    if (process.env.TARGET_CALORIES) parsed.config.targetCalories = parseInt(process.env.TARGET_CALORIES, 10);
 
     return parsed;
   } catch (err) {
@@ -173,12 +191,15 @@ let gracePeriodWindow = null;
 let gracePeriodDate = null;
 let testLockActive = false;
 let testLockExpiresAt = null;
+let lastGymCheckTime = 0;
 
-function getLocalDateString() {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, '0');
-  const day = String(now.getDate()).padStart(2, '0');
+function getLocalDateString(dateInput = new Date()) {
+  const d = new Date(dateInput);
+  // Subtract 4 hours to handle night owls (logical day transitions at 4 AM)
+  d.setHours(d.getHours() - 4);
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
 }
 
@@ -348,6 +369,9 @@ app.get('/api/status', (req, res) => {
       nightCompleted: false,
       nightJournalCompleted: false,
       weeklyCompleted: false,
+      gymCompleted: false,
+      gymWorkoutData: null,
+      gymVerificationError: null,
       morningData: null,
       morningJournalData: null,
       nightData: null,
@@ -388,14 +412,44 @@ app.get('/api/status', (req, res) => {
     activeWindow = "weekly";
   }
 
+  // Gym lock check (takes effect starting at gymLockStartHour if morning/night/weekly locks are not active)
+  if (!activeWindow && config.gymLockEnabled && hour >= config.gymLockStartHour) {
+    if (!entry.gymCompleted) {
+      // Throttle background Hevy API queries to once per 60 seconds
+      if (Date.now() - lastGymCheckTime > 60000) {
+        lastGymCheckTime = Date.now();
+        console.log(`[status] Triggering throttled background Gym verification for ${today}...`);
+        verifyGymWorkoutForDate(today, config).then(result => {
+          // Read DB again to prevent overwrite race condition
+          const currentDb = readDb();
+          if (currentDb.entries[today]) {
+            currentDb.entries[today].gymCompleted = result.verified;
+            currentDb.entries[today].gymWorkoutData = result.workout || null;
+            currentDb.entries[today].gymVerificationError = result.reason || null;
+            writeDb(currentDb);
+            console.log(`[status] Background gym verification result: ${result.verified}. Reason: ${result.reason}`);
+          }
+        }).catch(err => {
+          console.error("[status] Background gym verification failed:", err);
+        });
+      }
+      activeWindow = "gym";
+    }
+  }
+
   if (activeWindow) {
+    const isGym = activeWindow === "gym";
     return res.json({
       locked: true,
       isWarning: false,
       secondsRemaining: 0,
       window: activeWindow,
-      reason: `Device locked. Fill your ${activeWindow} log to unlock.`,
-      completed: false
+      reason: isGym 
+        ? "Gym workout not verified. Complete your routine and sync your Hevy data to unlock."
+        : `Device locked. Fill your ${activeWindow} log to unlock.`,
+      completed: false,
+      error: isGym ? (entry.gymVerificationError || null) : null,
+      entry
     });
   }
 
@@ -411,7 +465,8 @@ app.get('/api/status', (req, res) => {
     secondsRemaining: 0,
     window: null,
     reason: "Device usable. All logs for current period completed.",
-    completed: true
+    completed: true,
+    entry
   });
 });
 
@@ -544,58 +599,43 @@ ${journalData.journalEntry || ''}
 
 // Save logs for a window (morning, morningJournal, night, nightJournal, weekly)
 app.post('/api/submit', (req, res) => {
-  const { window, data } = req.body;
+  const { window, data, date } = req.body;
   if (!['morning', 'morningJournal', 'night', 'nightJournal', 'weekly'].includes(window)) {
     return res.status(400).json({ error: "Invalid window type. Must be 'morning', 'morningJournal', 'night', 'nightJournal', or 'weekly'." });
   }
 
-  // Validate that each question has >= 50 words for journal entries
+  // Validate that the journal entry has >= 100 words
   if (window === 'morningJournal' || window === 'nightJournal') {
-    if (!data || !data.journalQ1 || !data.journalQ2 || !data.journalQ3) {
-      return res.status(400).json({ error: "All 3 journal questions must be answered." });
+    if (!data || !data.journalEntry) {
+      return res.status(400).json({ error: "Journal entry is required." });
     }
     
-    const q1 = data.journalQ1.trim();
-    const q2 = data.journalQ2.trim();
-    const q3 = data.journalQ3.trim();
-    
-    if (q1 === '' || q2 === '' || q3 === '') {
-      return res.status(400).json({ error: "All 3 journal questions must be answered." });
+    const entryText = data.journalEntry.trim();
+    if (entryText === '') {
+      return res.status(400).json({ error: "Journal entry cannot be empty." });
     }
 
-    const q1Words = q1.split(/\s+/).filter(Boolean).length;
-    const q2Words = q2.split(/\s+/).filter(Boolean).length;
-    const q3Words = q3.split(/\s+/).filter(Boolean).length;
-
-    if (q1Words < 50) {
-      return res.status(400).json({ error: `Question 1 only has ${q1Words} words. A minimum of 50 words is required.` });
+    const words = entryText.split(/\s+/).filter(Boolean).length;
+    if (words < 100) {
+      return res.status(400).json({ error: `Journal entry only has ${words} words. A minimum of 100 words is required.` });
     }
-    if (q2Words < 50) {
-      return res.status(400).json({ error: `Question 2 only has ${q2Words} words. A minimum of 50 words is required.` });
-    }
-    if (q3Words < 50) {
-      return res.status(400).json({ error: `Question 3 only has ${q3Words} words. A minimum of 50 words is required.` });
-    }
-
-    // Auto-stitch the questions into journalEntry for Obsidian/Sheets/GDoc compatibility
-    const q1Label = window === 'morningJournal' ? "1. What are your top 3 priority goals for today?" : "1. What went well today and why?";
-    const q2Label = window === 'morningJournal' ? "2. How do you want to show up energetically/emotionally today?" : "2. What could have been executed better or differently?";
-    const q3Label = window === 'morningJournal' ? "3. What potential obstacles do you foresee, and how will you handle them?" : "3. What is your main priority or focus for tomorrow?";
-    
-    data.journalEntry = `${q1Label}\n${q1}\n\n${q2Label}\n${q2}\n\n${q3Label}\n${q3}`;
   }
 
   const db = readDb();
   const today = getLocalDateString();
+  const targetDate = date || today;
 
-  if (!db.entries[today]) {
-    db.entries[today] = {
-      date: today,
+  if (!db.entries[targetDate]) {
+    db.entries[targetDate] = {
+      date: targetDate,
       morningCompleted: false,
       morningJournalCompleted: false,
       nightCompleted: false,
       nightJournalCompleted: false,
       weeklyCompleted: false,
+      gymCompleted: false,
+      gymWorkoutData: null,
+      gymVerificationError: null,
       morningData: null,
       morningJournalData: null,
       nightData: null,
@@ -609,7 +649,7 @@ app.post('/api/submit', (req, res) => {
     };
   }
 
-  const entry = db.entries[today];
+  const entry = db.entries[targetDate];
 
   if (window === 'morning') {
     entry.morningData = data;
@@ -630,13 +670,13 @@ app.post('/api/submit', (req, res) => {
 
   // Trigger background sync if enabled
   if (db.config.googleSheetsEnabled && db.config.googleSheetsUrl) {
-    syncToGoogleSheets(window, today, data, db.config).then(result => {
+    syncToGoogleSheets(window, targetDate, data, db.config).then(result => {
       // Re-read DB to avoid overwrite race condition
       const currentDb = readDb();
-      if (currentDb.entries[today]) {
-        currentDb.entries[today][`${window}Synced`] = result.success;
+      if (currentDb.entries[targetDate]) {
+        currentDb.entries[targetDate][`${window}Synced`] = result.success;
         writeDb(currentDb);
-        console.log(`Background sheet sync finished for [${window}] on ${today}. Success: ${result.success}`);
+        console.log(`Background sheet sync finished for [${window}] on ${targetDate}. Success: ${result.success}`);
       }
     });
   } else {
@@ -647,11 +687,11 @@ app.post('/api/submit', (req, res) => {
 
   // Write to Obsidian Journal if enabled
   if (window === 'morning' || window === 'morningJournal' || window === 'night' || window === 'nightJournal') {
-    writeObsidianJournal(today, db.config);
+    writeObsidianJournal(targetDate, db.config);
   }
 
   // Clear grace period state since form is submitted
-  if (gracePeriodWindow === window && gracePeriodDate === today) {
+  if (gracePeriodWindow === window && gracePeriodDate === targetDate) {
     gracePeriodStart = null;
     gracePeriodWindow = null;
     gracePeriodDate = null;
@@ -678,6 +718,113 @@ app.get('/api/info', (req, res) => {
     entry,
     localIP: getLocalIP(),
     time: new Date().toLocaleTimeString()
+  });
+});
+
+// Helper to verify Hevy workout for a specific date YYYY-MM-DD
+async function verifyGymWorkoutForDate(dateStr, config) {
+  const apiKey = process.env.HEVY_API_KEY;
+  if (!apiKey) {
+    return { verified: false, reason: "HEVY_API_KEY is not configured in the .env file." };
+  }
+
+  try {
+    // 1. Fetch workouts (recent 10)
+    const workoutsResponse = await fetch('https://api.hevyapp.com/v1/workouts?page=1&page_size=10', {
+      headers: {
+        'api-key': apiKey,
+        'Accept': 'application/json'
+      }
+    });
+    if (!workoutsResponse.ok) {
+      const errText = await workoutsResponse.text();
+      return { verified: false, reason: `Failed to fetch workouts from Hevy: ${errText}` };
+    }
+    const workoutsData = await workoutsResponse.json();
+    const workoutsList = workoutsData.workouts || [];
+
+    // Filter workouts matching today's date in local time with logical day shift
+    const todayWorkouts = workoutsList.filter(w => {
+      if (!w.start_time) return false;
+      const localDateStr = getLocalDateString(w.start_time);
+      return localDateStr === dateStr;
+    });
+
+    if (todayWorkouts.length === 0) {
+      return { verified: false, reason: "No workouts logged in Hevy for today." };
+    }
+
+    // Sort today's workouts by end_time descending (usually just one, but check best first)
+    todayWorkouts.sort((a, b) => new Date(b.end_time || b.start_time) - new Date(a.end_time || a.start_time));
+    const workout = todayWorkouts[0];
+
+    // 2. Validate duration
+    const startTime = new Date(workout.start_time);
+    const endTime = workout.end_time ? new Date(workout.end_time) : new Date();
+    const durationMinutes = Math.round((endTime - startTime) / 60000);
+
+    if (durationMinutes < config.gymMinDurationMinutes) {
+      return {
+        verified: false,
+        reason: `Workout duration (${durationMinutes} mins) is less than required (${config.gymMinDurationMinutes} mins).`,
+        workout
+      };
+    }
+
+    return {
+      verified: true,
+      reason: `Workout completed and verified. Duration: ${durationMinutes} mins.`,
+      workout
+    };
+  } catch (err) {
+    console.error("Hevy verification error:", err);
+    return { verified: false, reason: `Verification threw an error: ${err.message}` };
+  }
+}
+
+// Trigger Gym workout verification immediately
+app.post('/api/hevy/verify-today', async (req, res) => {
+  const db = readDb();
+  const config = db.config;
+  const today = getLocalDateString();
+
+  // Ensure entry exists for today
+  if (!db.entries[today]) {
+    db.entries[today] = {
+      date: today,
+      morningCompleted: false,
+      morningJournalCompleted: false,
+      nightCompleted: false,
+      nightJournalCompleted: false,
+      weeklyCompleted: false,
+      morningData: null,
+      morningJournalData: null,
+      nightData: null,
+      nightJournalData: null,
+      weeklyData: null,
+      morningSynced: false,
+      morningJournalSynced: false,
+      nightSynced: false,
+      nightJournalSynced: false,
+      weeklySynced: false
+    };
+  }
+
+  const entry = db.entries[today];
+  
+  // Call verification helper
+  const result = await verifyGymWorkoutForDate(today, config);
+  
+  entry.gymCompleted = result.verified;
+  entry.gymWorkoutData = result.workout || null;
+  entry.gymVerificationError = result.reason || null;
+  
+  writeDb(db);
+  
+  res.json({
+    success: result.verified,
+    reason: result.reason,
+    workout: result.workout
   });
 });
 

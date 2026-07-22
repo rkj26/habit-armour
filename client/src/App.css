@@ -856,3 +856,53 @@
   gap: 10px;
   margin-bottom: 14px;
 }
+
+/* Morning Journal Reference Card inside Night Journal Form */
+.morning-reference-card {
+  background: rgba(14, 165, 233, 0.03);
+  border: 1px dashed rgba(14, 165, 233, 0.25);
+  border-radius: var(--radius-md);
+  padding: 16px;
+  margin-bottom: 24px;
+}
+
+.morning-reference-title {
+  margin: 0 0 12px 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #0ea5e9;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.morning-reference-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+}
+
+.morning-reference-item {
+  font-size: 0.82rem;
+  line-height: 1.4;
+}
+
+.morning-reference-item strong {
+  display: block;
+  font-size: 0.78rem;
+  color: var(--text-primary);
+  margin-bottom: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.morning-reference-item p {
+  margin: 0;
+  color: var(--text-secondary);
+  font-style: italic;
+  background: rgba(255, 255, 255, 0.6);
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  border-left: 3px solid rgba(14, 165, 233, 0.5);
+  box-shadow: 0 1px 2px rgba(0,0,0,0.02);
+}

@@ -11,7 +11,9 @@ Habit Armour was born out of a personal need to ensure strict adherence to track
 ## 🚀 Key Features
 
 *   **🔒 Hardware Lock Enforcement**: Locks the screen and isolates the browser to a local kiosk window if required logs are not complete.
-*   **📊 Web Dashboard**: Simple, premium user interface to check off habits, record metrics, and write journal entries.
+*   **📊 Bio-Analytics Dashboard**: Glassmorphic SaaS-style dashboard featuring curved bezier trend lines, glow filters, shaded goal targets, and rich hover tooltips.
+*   **✏️ Historical Log Editing & Catch-up**: Directly modify historical logs or fill in missed past dates from the log history interface.
+*   **⚙️ Custom Goal Targets**: Configure personal targets for Weight, steps, calories, and protein in the Settings panel.
 *   **📝 Obsidian & Google Docs Integration**: Syncs journal reflections automatically to a local Obsidian vault (as markdown) and/or a Google Doc.
 *   **📈 Google Sheets Integration**: Syncs physical stats, sleep quality, and macro intake directly to your Google Sheets tracker.
 *   **💪 Hevy API & Gemini Gym Analysis**: Fetches your workout logs from Hevy App and uses Google Gemini AI to analyze your progressive overload and consistency.
