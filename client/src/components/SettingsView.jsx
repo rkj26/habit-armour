@@ -8,6 +8,24 @@ export default function SettingsView({
   syncStatusMsg,
   saveConfig
 }) {
+  const [newSuppInput, setNewSuppInput] = React.useState('');
+  const suppList = config.supplementsList || ['Vitamin D3', 'Vitamin K2', 'Omega-3', 'Creatine'];
+
+  const addSupplement = (e) => {
+    e.preventDefault();
+    const trimmed = newSuppInput.trim();
+    if (!trimmed) return;
+    if (suppList.includes(trimmed)) return;
+    const updated = [...suppList, trimmed];
+    handleConfigChange({ target: { name: 'supplementsList', value: updated } });
+    setNewSuppInput('');
+  };
+
+  const removeSupplement = (suppToRemove) => {
+    const updated = suppList.filter(s => s !== suppToRemove);
+    handleConfigChange({ target: { name: 'supplementsList', value: updated } });
+  };
+
   return (
     <div className="settings-container">
       <div className="section-title">
@@ -49,6 +67,75 @@ export default function SettingsView({
             </div>
           </div>
         </div>
+
+        <hr style={{ borderColor: 'rgba(255, 255, 255, 0.1)', margin: '24px 0' }} />
+
+        {/* Weekly Spec Lock Configuration */}
+        <h4 style={{ color: 'var(--text-primary)', marginBottom: '12px' }}>📅 Weekly Spec Lock Schedule</h4>
+        <div className="form-group" style={{display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px'}}>
+          <input 
+            type="checkbox" 
+            id="weeklyLockEnabled" 
+            name="weeklyLockEnabled" 
+            checked={config.weeklyLockEnabled !== false} 
+            onChange={handleConfigChange}
+            style={{width: '18px', height: '18px', cursor: 'pointer'}}
+          />
+          <label htmlFor="weeklyLockEnabled" style={{fontWeight: 600, cursor: 'pointer', userSelect: 'none'}}>
+            Enable Weekly Spec Lock Enforcement
+          </label>
+        </div>
+
+        <div className="form-group" style={{display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px'}}>
+          <input 
+            type="checkbox" 
+            id="weeklyPhotosRequired" 
+            name="weeklyPhotosRequired" 
+            checked={config.weeklyPhotosRequired !== false} 
+            onChange={handleConfigChange}
+            style={{width: '18px', height: '18px', cursor: 'pointer'}}
+          />
+          <label htmlFor="weeklyPhotosRequired" style={{fontWeight: 600, cursor: 'pointer', userSelect: 'none'}}>
+            🔒 Require Weekly Progress Photos (Front, Back, Side) to clear Weekly Spec Lock
+          </label>
+        </div>
+
+        {config.weeklyLockEnabled !== false && (
+          <div className="form-grid">
+            <div className="form-group">
+              <label className="form-label">Lock Day of Week</label>
+              <select
+                className="form-input"
+                name="weeklyLockDay"
+                value={config.weeklyLockDay !== undefined ? config.weeklyLockDay : 0}
+                onChange={handleConfigChange}
+              >
+                <option value={0}>Sunday</option>
+                <option value={1}>Monday</option>
+                <option value={2}>Tuesday</option>
+                <option value={3}>Wednesday</option>
+                <option value={4}>Thursday</option>
+                <option value={5}>Friday</option>
+                <option value={6}>Saturday</option>
+              </select>
+              <span className="sub-label">Day on which weekly body specs lock if incomplete.</span>
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">Weekly Window (Hours)</label>
+              <div className="form-row">
+                <div>
+                  <span className="sub-label">Start Hour (0-23)</span>
+                  <input type="number" className="form-input" name="weeklyLockStartHour" value={config.weeklyLockStartHour !== undefined ? config.weeklyLockStartHour : 0} onChange={handleConfigChange} min="0" max="23" />
+                </div>
+                <div>
+                  <span className="sub-label">End Hour (0-24)</span>
+                  <input type="number" className="form-input" name="weeklyLockEndHour" value={config.weeklyLockEndHour !== undefined ? config.weeklyLockEndHour : 24} onChange={handleConfigChange} min="0" max="24" />
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Journal Sync Settings */}
@@ -192,35 +279,152 @@ export default function SettingsView({
         </div>
 
         {config.gymLockEnabled && (
-          <div className="form-grid">
-            <div className="form-group">
-              <label className="form-label">Lock Start Hour (0-23)</label>
-              <input 
-                type="number" 
-                className="form-input" 
-                name="gymLockStartHour" 
-                value={config.gymLockStartHour} 
-                onChange={handleConfigChange} 
-                min="0" 
-                max="23"
-              />
-              <span className="sub-label">The hour (e.g. 21 for 9:00 PM) at which the device will lock if the workout is not completed.</span>
+          <>
+            <div className="form-grid" style={{ marginBottom: '16px' }}>
+              <div className="form-group">
+                <label className="form-label">Lock Start Hour (0-23)</label>
+                <input 
+                  type="number" 
+                  className="form-input" 
+                  name="gymLockStartHour" 
+                  value={config.gymLockStartHour} 
+                  onChange={handleConfigChange} 
+                  min="0" 
+                  max="23"
+                />
+                <span className="sub-label">The hour (e.g. 21 for 9:00 PM) at which the lock activates if activity target is not met.</span>
+              </div>
+              
+              <div className="form-group">
+                <label className="form-label">Minimum Workout Duration (Minutes)</label>
+                <input 
+                  type="number" 
+                  className="form-input" 
+                  name="gymMinDurationMinutes" 
+                  value={config.gymMinDurationMinutes} 
+                  onChange={handleConfigChange} 
+                  min="1"
+                />
+                <span className="sub-label">Workouts shorter than this duration will fail verification.</span>
+              </div>
             </div>
-            
-            <div className="form-group">
-              <label className="form-label">Minimum Workout Duration (Minutes)</label>
-              <input 
-                type="number" 
-                className="form-input" 
-                name="gymMinDurationMinutes" 
-                value={config.gymMinDurationMinutes} 
-                onChange={handleConfigChange} 
-                min="1"
-              />
-              <span className="sub-label">Workouts shorter than this duration will fail verification.</span>
+
+            <div className="form-grid" style={{ marginBottom: '16px' }}>
+              <div className="form-group">
+                <label className="form-label">Weekly Active Days Goal</label>
+                <input 
+                  type="number" 
+                  className="form-input" 
+                  name="gymWeeklyGoal" 
+                  value={config.gymWeeklyGoal !== undefined ? config.gymWeeklyGoal : 5} 
+                  onChange={handleConfigChange} 
+                  min="1"
+                  max="7"
+                />
+                <span className="sub-label">Target active days per week (default: 5). Once reached, remaining days of the week are unlocked.</span>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Min Steps for Active Day</label>
+                <input 
+                  type="number" 
+                  className="form-input" 
+                  name="gymMinSteps" 
+                  value={config.gymMinSteps !== undefined ? config.gymMinSteps : 13000} 
+                  onChange={handleConfigChange} 
+                  min="1000"
+                  step="500"
+                />
+                <span className="sub-label">Daily steps threshold to satisfy active day criteria if no gym/cardio logged (default: 13,000).</span>
+              </div>
             </div>
-          </div>
+
+            <div className="form-group" style={{display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px'}}>
+              <input 
+                type="checkbox" 
+                id="gymRequireNoConsecutiveRestDays" 
+                name="gymRequireNoConsecutiveRestDays" 
+                checked={config.gymRequireNoConsecutiveRestDays !== false} 
+                onChange={handleConfigChange}
+                style={{width: '18px', height: '18px', cursor: 'pointer'}}
+              />
+              <label htmlFor="gymRequireNoConsecutiveRestDays" style={{fontWeight: 600, cursor: 'pointer', userSelect: 'none'}}>
+                🚫 Prevent 2 Consecutive Rest Days (Hard Forcing Function)
+              </label>
+            </div>
+          </>
         )}
+      </div>
+
+      {/* Supplement Stack Configuration */}
+      <div className="settings-section">
+        <h3 className="settings-section-title">💊 Daily Supplement Stack & Blocker</h3>
+        <p className="settings-section-desc">Manage individual items in your daily supplement stack. When blocker enforcement is active, 100% of these supplements must be checked to submit your Night Log and clear evening hardware lock.</p>
+
+        <div className="form-group" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '20px' }}>
+          <input
+            type="checkbox"
+            id="enforceSupplementsBlocker"
+            name="enforceSupplementsBlocker"
+            checked={config.enforceSupplementsBlocker !== false}
+            onChange={handleConfigChange}
+            style={{ width: '18px', height: '18px', cursor: 'pointer', accentColor: 'var(--primary)' }}
+          />
+          <label htmlFor="enforceSupplementsBlocker" style={{ fontWeight: 600, cursor: 'pointer', userSelect: 'none' }}>
+            🔒 Enforce Supplement Checklist as Night Lock Blocker (Require 100% completion to submit Night Log)
+          </label>
+        </div>
+
+        <h4 style={{ color: 'var(--text-primary)', marginBottom: '12px', fontSize: '0.95rem' }}>Configured Supplements ({suppList.length})</h4>
+        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '16px' }}>
+          {suppList.map((supp) => (
+            <span
+              key={supp}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '6px 12px',
+                background: 'rgba(255, 255, 255, 0.06)',
+                border: '1px solid rgba(255, 255, 255, 0.12)',
+                borderRadius: '20px',
+                fontSize: '0.85rem',
+                fontWeight: 500
+              }}
+            >
+              💊 {supp}
+              <button
+                type="button"
+                onClick={() => removeSupplement(supp)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: '#f87171',
+                  cursor: 'pointer',
+                  fontSize: '0.9rem',
+                  padding: '0 2px',
+                  lineHeight: 1
+                }}
+                title={`Remove ${supp}`}
+              >
+                ✕
+              </button>
+            </span>
+          ))}
+        </div>
+
+        <form onSubmit={addSupplement} style={{ display: 'flex', gap: '10px', maxWidth: '420px' }}>
+          <input
+            type="text"
+            className="form-input"
+            placeholder="Add new supplement (e.g. Magnesium)"
+            value={newSuppInput}
+            onChange={(e) => setNewSuppInput(e.target.value)}
+          />
+          <button type="submit" className="btn btn-secondary" style={{ whiteSpace: 'nowrap' }}>
+            + Add
+          </button>
+        </form>
       </div>
 
       {/* Target Metric Configuration */}

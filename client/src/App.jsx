@@ -38,7 +38,16 @@ export default function App() {
     gymLockStartHour: 21,
     gymMinDurationMinutes: 30,
     gymRoutineVerificationEnabled: true,
-    gymMinTotalSets: 12
+    gymMinTotalSets: 12,
+    gymWeeklyGoal: 5,
+    gymRequireNoConsecutiveRestDays: true,
+    gymMinSteps: 13000,
+    weeklyLockEnabled: true,
+    weeklyLockDay: 0,
+    weeklyLockStartHour: 0,
+    weeklyLockEndHour: 24,
+    supplementsList: ['Vitamin D3', 'Vitamin K2', 'Omega-3', 'Creatine'],
+    enforceSupplementsBlocker: true
   });
   const [ipInfo, setIpInfo] = useState('localhost');
   const [history, setHistory] = useState([]);
@@ -79,7 +88,12 @@ export default function App() {
     alcoholConsumed: 'No',
     hunger: 5,
     digestiveStress: 1,
-    supplements: 5,
+    supplements: {
+      'Vitamin D3': false,
+      'Vitamin K2': false,
+      'Omega-3': false,
+      'Creatine': false
+    },
     trainingDay: 'No',
     strengthPerformance: 5,
     steps: '',
@@ -97,7 +111,8 @@ export default function App() {
     quadL: '',
     quadR: '',
     glutes: '',
-    chest: ''
+    chest: '',
+    photos: { front: '', back: '', sideLeft: '', sideRight: '' }
   });
 
   // Hevy Gym & AI States
@@ -388,29 +403,47 @@ export default function App() {
       setMorningData(prev => ({ ...prev, journalEntry: entry?.morningJournalData?.journalEntry || '' }));
       setActiveTab('morningJournal');
     } else if (windowType === 'night') {
-      setNightData(entry?.nightData || {
-        calories: '',
-        protein: '',
-        carbs: '',
-        fats: '',
-        foodQuality: 5,
-        waterConsumed: '',
-        alcoholConsumed: 'No',
-        hunger: 5,
-        digestiveStress: 1,
-        supplements: 5,
-        trainingDay: 'No',
-        strengthPerformance: 5,
-        steps: '',
-        cardioPerformed: 'No',
-        journalEntry: ''
-      });
+      const suppList = config.supplementsList || ['Vitamin D3', 'Vitamin K2', 'Omega-3', 'Creatine'];
+      const defaultSuppMap = {};
+      suppList.forEach(s => { defaultSuppMap[s] = false; });
+
+      if (entry?.nightData) {
+        let loadedSupps = entry.nightData.supplements;
+        let formattedSupps = { ...defaultSuppMap };
+        if (typeof loadedSupps === 'object' && loadedSupps !== null && !Array.isArray(loadedSupps)) {
+          formattedSupps = { ...defaultSuppMap, ...loadedSupps };
+        } else if (typeof loadedSupps === 'number') {
+          suppList.forEach(s => { formattedSupps[s] = loadedSupps === 10; });
+        }
+        setNightData({ ...entry.nightData, supplements: formattedSupps });
+      } else {
+        setNightData({
+          calories: '',
+          protein: '',
+          carbs: '',
+          fats: '',
+          foodQuality: 5,
+          waterConsumed: '',
+          alcoholConsumed: 'No',
+          hunger: 5,
+          digestiveStress: 1,
+          supplements: defaultSuppMap,
+          trainingDay: 'No',
+          strengthPerformance: 5,
+          steps: '',
+          cardioPerformed: 'No',
+          journalEntry: ''
+        });
+      }
       setActiveTab('night');
     } else if (windowType === 'nightJournal') {
       setNightData(prev => ({ ...prev, journalEntry: entry?.nightJournalData?.journalEntry || '' }));
       setActiveTab('nightJournal');
     } else if (windowType === 'weekly') {
-      setWeeklyData(entry?.weeklyData || {
+      setWeeklyData(entry?.weeklyData ? {
+        ...entry.weeklyData,
+        photos: entry.weeklyData.photos || { front: '', back: '', sideLeft: '', sideRight: '' }
+      } : {
         weekCommencing: date,
         startWeight: '',
         responseAction: '',
@@ -420,7 +453,8 @@ export default function App() {
         quadL: '',
         quadR: '',
         glutes: '',
-        chest: ''
+        chest: '',
+        photos: { front: '', back: '', sideLeft: '', sideRight: '' }
       });
       setActiveTab('weekly');
     }
@@ -428,6 +462,10 @@ export default function App() {
 
   const cancelEditing = () => {
     setEditingDate(null);
+    const suppList = config.supplementsList || ['Vitamin D3', 'Vitamin K2', 'Omega-3', 'Creatine'];
+    const defaultSuppMap = {};
+    suppList.forEach(s => { defaultSuppMap[s] = false; });
+
     // Reset forms
     setMorningData({
       wakingWeight: '',
@@ -453,7 +491,7 @@ export default function App() {
       alcoholConsumed: 'No',
       hunger: 5,
       digestiveStress: 1,
-      supplements: 5,
+      supplements: defaultSuppMap,
       trainingDay: 'No',
       strengthPerformance: 5,
       steps: '',
@@ -470,7 +508,8 @@ export default function App() {
       quadL: '',
       quadR: '',
       glutes: '',
-      chest: ''
+      chest: '',
+      photos: { front: '', back: '', sideLeft: '', sideRight: '' }
     });
     setActiveTab('history');
   };
@@ -488,6 +527,29 @@ export default function App() {
       const words = (dataToSubmit.journalEntry || '').trim().split(/\s+/).filter(Boolean).length;
       if (words < 100) {
         alert(`Journal entry only has ${words} words. A minimum of 100 words is required to submit.`);
+        return;
+      }
+    }
+
+    if (windowType === 'night' && config.enforceSupplementsBlocker !== false) {
+      const suppList = config.supplementsList || ['Vitamin D3', 'Vitamin K2', 'Omega-3', 'Creatine'];
+      const userSupps = dataToSubmit.supplements || {};
+      const missing = suppList.filter(s => !userSupps[s]);
+      if (missing.length > 0) {
+        alert(`🔒 All required supplements must be taken & checked to submit your Night Log and clear the Night Lock.\n\nMissing supplements:\n• ${missing.join('\n• ')}`);
+        return;
+      }
+    }
+
+    if (windowType === 'weekly' && config.weeklyPhotosRequired !== false) {
+      const photos = dataToSubmit.photos || {};
+      const missing = [];
+      if (!photos.front) missing.push('Front Pose');
+      if (!photos.back) missing.push('Back Pose');
+      if (!photos.sideLeft) missing.push('Left Side Pose');
+      if (!photos.sideRight) missing.push('Right Side Pose');
+      if (missing.length > 0) {
+        alert(`🔒 All 4 weekly progress photos (Front, Back, Left Side, Right Side) are required to submit Weekly Specs and clear Weekly Lock.\n\nMissing photos:\n• ${missing.join('\n• ')}`);
         return;
       }
     }
@@ -613,6 +675,8 @@ export default function App() {
               <NightForm 
                 nightData={nightData}
                 setNightData={setNightData}
+                supplementsList={config.supplementsList || ['Vitamin D3', 'Vitamin K2', 'Omega-3', 'Creatine']}
+                enforceBlocker={config.enforceSupplementsBlocker !== false}
                 editingDate={editingDate}
                 cancelEditing={cancelEditing}
                 onSubmit={(e) => handleFormSubmit(e, 'night')}
@@ -634,6 +698,7 @@ export default function App() {
               <WeeklyForm 
                 weeklyData={weeklyData}
                 setWeeklyData={setWeeklyData}
+                photosRequired={config.weeklyPhotosRequired !== false}
                 editingDate={editingDate}
                 cancelEditing={cancelEditing}
                 onSubmit={(e) => handleFormSubmit(e, 'weekly')}

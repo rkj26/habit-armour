@@ -322,6 +322,28 @@ export default function HistoryView({
                             ) : (
                               <p className="text-muted" style={{ fontSize: '0.8rem', margin: 0 }}>No night journal recorded.</p>
                             )}
+                            {entry.nightCompleted && entry.nightData?.supplements && (
+                              <div style={{ marginTop: '12px', padding: '8px 12px', background: 'rgba(255, 255, 255, 0.03)', borderRadius: '6px', fontSize: '0.82rem', color: 'var(--text-primary)' }}>
+                                <strong>💊 Supplements Stack:</strong>{' '}
+                                {typeof entry.nightData.supplements === 'object' && entry.nightData.supplements !== null && !Array.isArray(entry.nightData.supplements) ? (
+                                  Object.entries(entry.nightData.supplements).filter(([_, v]) => Boolean(v)).map(([k]) => k).join(', ') || 'None'
+                                ) : (
+                                  `${entry.nightData.supplements}/10`
+                                )}
+                              </div>
+                            )}
+                            {entry.weeklyData?.photos && (entry.weeklyData.photos.front || entry.weeklyData.photos.back || entry.weeklyData.photos.sideLeft || entry.weeklyData.photos.sideRight || entry.weeklyData.photos.side) && (
+                              <div style={{ marginTop: '12px', padding: '8px 12px', background: 'rgba(255, 255, 255, 0.03)', borderRadius: '6px', fontSize: '0.82rem', color: 'var(--text-primary)' }}>
+                                <strong style={{ display: 'block', marginBottom: '6px' }}>📸 Weekly Progress Photos:</strong>
+                                <div style={{ display: 'flex', gap: '8px' }}>
+                                  {['front', 'back', 'sideLeft', 'sideRight', 'side'].map(p => entry.weeklyData.photos[p] ? (
+                                    <a key={p} href={entry.weeklyData.photos[p]} target="_blank" rel="noreferrer" title={`${p} pose`}>
+                                      <img src={entry.weeklyData.photos[p]} alt={p} style={{ width: '48px', height: '48px', objectFit: 'cover', borderRadius: '4px', border: '1px solid rgba(255,255,255,0.2)' }} />
+                                    </a>
+                                  ) : null)}
+                                </div>
+                              </div>
+                            )}
                           </div>
                         </div>
 

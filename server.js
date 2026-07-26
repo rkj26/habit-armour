@@ -22,8 +22,15 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const DB_FILE = path.join(process.cwd(), 'habits_data.json');
 
+const UPLOADS_DIR = path.join(process.cwd(), 'uploads');
+if (!fs.existsSync(UPLOADS_DIR)) {
+  fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+}
+
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '25mb' }));
+app.use(express.urlencoded({ limit: '25mb', extended: true }));
+app.use('/uploads', express.static(UPLOADS_DIR));
 
 // Logging middleware
 app.use((req, res, next) => {
@@ -52,11 +59,33 @@ const DEFAULT_CONFIG = {
   gymMinDurationMinutes: process.env.GYM_MIN_DURATION_MINUTES ? parseInt(process.env.GYM_MIN_DURATION_MINUTES, 10) : 30,
   gymRoutineVerificationEnabled: process.env.GYM_ROUTINE_VERIFICATION_ENABLED !== 'false', // default: true
   gymMinTotalSets: process.env.GYM_MIN_TOTAL_SETS ? parseInt(process.env.GYM_MIN_TOTAL_SETS, 10) : 12,
+  gymWeeklyGoal: process.env.GYM_WEEKLY_GOAL ? parseInt(process.env.GYM_WEEKLY_GOAL, 10) : 5, // 5 active days / week
+  gymRequireNoConsecutiveRestDays: process.env.GYM_NO_CONSECUTIVE_REST !== 'false', // default: true (max 1 rest day in a row)
+  gymMinSteps: process.env.GYM_MIN_STEPS ? parseInt(process.env.GYM_MIN_STEPS, 10) : 13000,
+  weeklyLockEnabled: process.env.WEEKLY_LOCK_ENABLED !== 'false',  // default: true
+  weeklyLockDay: process.env.WEEKLY_LOCK_DAY ? parseInt(process.env.WEEKLY_LOCK_DAY, 10) : 0, // 0 = Sunday
+  weeklyLockStartHour: process.env.WEEKLY_LOCK_START_HOUR ? parseInt(process.env.WEEKLY_LOCK_START_HOUR, 10) : 0, // 12:00 AM
+  weeklyLockEndHour: process.env.WEEKLY_LOCK_END_HOUR ? parseInt(process.env.WEEKLY_LOCK_END_HOUR, 10) : 24, // 12:00 AM (all day)
   targetWeight: process.env.TARGET_WEIGHT ? parseFloat(process.env.TARGET_WEIGHT) : 75.0,
   targetProtein: process.env.TARGET_PROTEIN ? parseInt(process.env.TARGET_PROTEIN, 10) : 150,
-  targetSteps: process.env.TARGET_STEPS ? parseInt(process.env.TARGET_STEPS, 10) : 10000,
-  targetCalories: process.env.TARGET_CALORIES ? parseInt(process.env.TARGET_CALORIES, 10) : 2500
+  targetSteps: process.env.TARGET_STEPS ? parseInt(process.env.TARGET_STEPS, 10) : 13000,
+  targetCalories: process.env.TARGET_CALORIES ? parseInt(process.env.TARGET_CALORIES, 10) : 2500,
+  supplementsList: ['Vitamin D3', 'Vitamin K2', 'Omega-3', 'Creatine'],
+  enforceSupplementsBlocker: true,
+  weeklyPhotosRequired: true
 };
+
+function isDayActive(entry, minSteps = 13000) {
+  if (!entry) return false;
+  if (entry.gymCompleted) return true;
+  if (entry.nightData) {
+    if (entry.nightData.trainingDay === 'Yes') return true;
+    if (entry.nightData.cardioPerformed === 'Yes') return true;
+    const steps = parseInt(entry.nightData.steps, 10);
+    if (!isNaN(steps) && steps >= minSteps) return true;
+  }
+  return false;
+}
 
 function readDb() {
   try {
@@ -88,11 +117,29 @@ function readDb() {
     if (process.env.GYM_MIN_DURATION_MINUTES) parsed.config.gymMinDurationMinutes = parseInt(process.env.GYM_MIN_DURATION_MINUTES, 10);
     if (process.env.GYM_ROUTINE_VERIFICATION_ENABLED) parsed.config.gymRoutineVerificationEnabled = process.env.GYM_ROUTINE_VERIFICATION_ENABLED !== 'false';
     if (process.env.GYM_MIN_TOTAL_SETS) parsed.config.gymMinTotalSets = parseInt(process.env.GYM_MIN_TOTAL_SETS, 10);
+    if (process.env.GYM_WEEKLY_GOAL) parsed.config.gymWeeklyGoal = parseInt(process.env.GYM_WEEKLY_GOAL, 10);
+    if (process.env.GYM_NO_CONSECUTIVE_REST) parsed.config.gymRequireNoConsecutiveRestDays = process.env.GYM_NO_CONSECUTIVE_REST !== 'false';
+    if (process.env.GYM_MIN_STEPS) parsed.config.gymMinSteps = parseInt(process.env.GYM_MIN_STEPS, 10);
+
+    if (process.env.WEEKLY_LOCK_ENABLED) parsed.config.weeklyLockEnabled = process.env.WEEKLY_LOCK_ENABLED !== 'false';
+    if (process.env.WEEKLY_LOCK_DAY) parsed.config.weeklyLockDay = parseInt(process.env.WEEKLY_LOCK_DAY, 10);
+    if (process.env.WEEKLY_LOCK_START_HOUR) parsed.config.weeklyLockStartHour = parseInt(process.env.WEEKLY_LOCK_START_HOUR, 10);
+    if (process.env.WEEKLY_LOCK_END_HOUR) parsed.config.weeklyLockEndHour = parseInt(process.env.WEEKLY_LOCK_END_HOUR, 10);
 
     if (process.env.TARGET_WEIGHT) parsed.config.targetWeight = parseFloat(process.env.TARGET_WEIGHT);
     if (process.env.TARGET_PROTEIN) parsed.config.targetProtein = parseInt(process.env.TARGET_PROTEIN, 10);
     if (process.env.TARGET_STEPS) parsed.config.targetSteps = parseInt(process.env.TARGET_STEPS, 10);
     if (process.env.TARGET_CALORIES) parsed.config.targetCalories = parseInt(process.env.TARGET_CALORIES, 10);
+
+    if (!parsed.config.supplementsList || !Array.isArray(parsed.config.supplementsList) || parsed.config.supplementsList.length === 0) {
+      parsed.config.supplementsList = ['Vitamin D3', 'Vitamin K2', 'Omega-3', 'Creatine'];
+    }
+    if (parsed.config.enforceSupplementsBlocker === undefined) {
+      parsed.config.enforceSupplementsBlocker = true;
+    }
+    if (parsed.config.weeklyPhotosRequired === undefined) {
+      parsed.config.weeklyPhotosRequired = true;
+    }
 
     return parsed;
   } catch (err) {
@@ -393,7 +440,7 @@ app.get('/api/status', (req, res) => {
   }
 
   const entry = db.entries[today];
-  let activeWindow = null;
+  const pendingWindows = [];
 
   // Determine if inside morning or night locking window
   const isMorningWindow = hour >= config.morningStart && hour < config.morningEnd;
@@ -402,31 +449,74 @@ app.get('/api/status', (req, res) => {
   const dateObj = new Date(today + 'T00:00:00');
   const dayOfWeek = dateObj.getDay(); // 0 = Sunday
 
+  // 1. Check Morning Window
   if (isMorningWindow) {
     if (!entry.morningCompleted) {
-      activeWindow = "morning";
+      pendingWindows.push("morning");
     } else if (!entry.morningJournalCompleted) {
-      activeWindow = "morningJournal";
+      pendingWindows.push("morningJournal");
     }
-  } else if (isNightWindow) {
-    if (!entry.nightCompleted) {
-      activeWindow = "night";
-    } else if (!entry.nightJournalCompleted) {
-      activeWindow = "nightJournal";
-    }
-  } else if (dayOfWeek === 0 && !entry.weeklyCompleted) {
-    activeWindow = "weekly";
   }
 
-  // Gym lock check (takes effect starting at gymLockStartHour if morning/night/weekly locks are not active)
-  if (!activeWindow && config.gymLockEnabled && hour >= config.gymLockStartHour) {
-    if (!entry.gymCompleted) {
+  // 2. Check Night Window
+  if (isNightWindow) {
+    if (!entry.nightCompleted) {
+      pendingWindows.push("night");
+    } else if (!entry.nightJournalCompleted) {
+      pendingWindows.push("nightJournal");
+    }
+  }
+
+  // 3. Check Weekly Spec Lock Window
+  const weeklyEnabled = config.weeklyLockEnabled !== false;
+  const weeklyDay = config.weeklyLockDay !== undefined ? config.weeklyLockDay : 0;
+  const weeklyStart = config.weeklyLockStartHour !== undefined ? config.weeklyLockStartHour : 0;
+  const weeklyEnd = config.weeklyLockEndHour !== undefined ? config.weeklyLockEndHour : 24;
+  const isWeeklyWindow = weeklyEnabled && dayOfWeek === weeklyDay && hour >= weeklyStart && hour < weeklyEnd;
+
+  if (isWeeklyWindow && !entry.weeklyCompleted) {
+    pendingWindows.push("weekly");
+  }
+
+  // 4. Gym & Physical Activity Lock Check
+  const todayDate = new Date(today + 'T00:00:00');
+  const dayIdx = (todayDate.getDay() + 6) % 7; // 0 = Monday, 6 = Sunday
+  const mondayDate = new Date(todayDate);
+  mondayDate.setDate(todayDate.getDate() - dayIdx);
+
+  let weeklyActiveCount = 0;
+  for (let i = 0; i < 7; i++) {
+    const dObj = new Date(mondayDate);
+    dObj.setDate(mondayDate.getDate() + i);
+    const dStr = dObj.toISOString().split('T')[0];
+    if (isDayActive(db.entries[dStr], config.gymMinSteps || 13000)) {
+      weeklyActiveCount++;
+    }
+  }
+
+  const yesterdayObj = new Date(todayDate);
+  yesterdayObj.setDate(todayDate.getDate() - 1);
+  const yesterdayStr = yesterdayObj.toISOString().split('T')[0];
+  const isYesterdayActive = isDayActive(db.entries[yesterdayStr], config.gymMinSteps || 13000);
+  const isTodayActive = isDayActive(entry, config.gymMinSteps || 13000);
+
+  if (isTodayActive && !entry.gymCompleted) {
+    entry.gymCompleted = true;
+    writeDb(db);
+  }
+
+  const gymWeeklyGoal = config.gymWeeklyGoal || 5;
+  const noConsecutiveRest = config.gymRequireNoConsecutiveRestDays !== false;
+  const isWeeklyGoalReached = weeklyActiveCount >= gymWeeklyGoal;
+  const isTodayMandatory = !isTodayActive && (!isYesterdayActive || (7 - dayIdx <= (gymWeeklyGoal - weeklyActiveCount)));
+
+  if (config.gymLockEnabled && hour >= config.gymLockStartHour) {
+    if (!isTodayActive && !isWeeklyGoalReached && (noConsecutiveRest && !isYesterdayActive || isTodayMandatory)) {
       // Throttle background Hevy API queries to once per 60 seconds
       if (Date.now() - lastGymCheckTime > 60000) {
         lastGymCheckTime = Date.now();
         console.log(`[status] Triggering throttled background Gym verification for ${today}...`);
         verifyGymWorkoutForDate(today, config).then(result => {
-          // Read DB again to prevent overwrite race condition
           const currentDb = readDb();
           if (currentDb.entries[today]) {
             currentDb.entries[today].gymCompleted = result.verified;
@@ -439,34 +529,53 @@ app.get('/api/status', (req, res) => {
           console.error("[status] Background gym verification failed:", err);
         });
       }
-      activeWindow = "gym";
+      pendingWindows.push("gym");
     }
   }
 
-  if (activeWindow) {
+  const lockCount = pendingWindows.length;
+  const locked = lockCount > 0;
+  const activeWindow = pendingWindows[0] || null;
+
+  if (locked) {
     const isGym = activeWindow === "gym";
+    const gymReasonText = !isYesterdayActive
+      ? `Yesterday was a rest day (No consecutive rest days allowed!). Complete a workout, cardio, or 10k steps to clear.`
+      : `Weekly Activity Goal: ${weeklyActiveCount}/${gymWeeklyGoal} active days completed.`;
+
     return res.json({
       locked: true,
+      lockCount,
+      pendingWindows,
+      weeklyActiveCount,
+      gymWeeklyGoal,
+      isYesterdayActive,
+      isTodayMandatory,
       isWarning: false,
       secondsRemaining: 0,
       window: activeWindow,
       reason: isGym 
-        ? "Gym workout not verified. Complete your routine and sync your Hevy data to unlock."
-        : `Device locked. Fill your ${activeWindow} log to unlock.`,
+        ? `Physical activity requirement not met. ${gymReasonText}`
+        : `Device locked (${lockCount} active ${lockCount === 1 ? 'breach' : 'breaches'}). Fill your ${activeWindow} log to clear.`,
       completed: false,
       error: isGym ? (entry.gymVerificationError || null) : null,
       entry
     });
   }
 
-  // If we reach here, we are either outside windows, or logs are completed
-  // Reset grace period memory
+  // If we reach here, lockCount is 0 and Mac is unlocked
   gracePeriodStart = null;
   gracePeriodWindow = null;
   gracePeriodDate = null;
 
   res.json({
     locked: false,
+    lockCount: 0,
+    pendingWindows: [],
+    weeklyActiveCount,
+    gymWeeklyGoal,
+    isYesterdayActive,
+    isTodayMandatory,
     isWarning: false,
     secondsRemaining: 0,
     window: null,
@@ -560,11 +669,19 @@ ${journalData.journalEntry || ''}
     if (entry.nightCompleted || entry.nightJournalCompleted) {
       const data = entry.nightData || {};
       const journalData = entry.nightJournalData || {};
+      let suppText = '-';
+      if (typeof data.supplements === 'object' && data.supplements !== null && !Array.isArray(data.supplements)) {
+        const checked = Object.entries(data.supplements).filter(([_, v]) => Boolean(v)).map(([k]) => k);
+        suppText = checked.length > 0 ? checked.join(', ') : 'None';
+      } else if (data.supplements !== undefined && data.supplements !== null) {
+        suppText = `${data.supplements}/10`;
+      }
       nightSection = `<!-- HABIT_ARMOR_NIGHT_START -->
 ## ${nightHeading}
 - **Calories**: ${data.calories || '-'} kcal (P: ${data.protein || '-'}g, C: ${data.carbs || '-'}g, F: ${data.fats || '-'}g)
 - **Steps**: ${data.steps || '-'} | **Water**: ${data.waterConsumed || '-'} L
 - **Food Quality**: ${data.foodQuality || '-'}/10 | **Appetite**: ${data.hunger || '-'}/10
+- **Supplements**: ${suppText}
 
 ### ${nightPrompt}
 ${journalData.journalEntry || ''}
@@ -603,6 +720,40 @@ ${journalData.journalEntry || ''}
   }
 }
 
+// Upload Weekly Progress Photo
+app.post('/api/upload-photo', (req, res) => {
+  try {
+    const { date, pose, dataUrl } = req.body;
+    if (!date || !pose || !dataUrl) {
+      return res.status(400).json({ error: "date, pose, and dataUrl are required." });
+    }
+
+    if (!fs.existsSync(UPLOADS_DIR)) {
+      fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+    }
+
+    const matches = dataUrl.match(/^data:image\/([a-zA-Z0-9]+);base64,(.+)$/);
+    if (!matches || matches.length !== 3) {
+      return res.status(400).json({ error: "Invalid image base64 format." });
+    }
+
+    const ext = matches[1] === 'jpeg' ? 'jpg' : matches[1];
+    const base64Data = matches[2];
+    const safeDate = date.replace(/[^a-zA-Z0-9_-]/g, '_');
+    const filename = `weekly_${safeDate}_${pose}_${Date.now()}.${ext}`;
+    const filePath = path.join(UPLOADS_DIR, filename);
+
+    fs.writeFileSync(filePath, Buffer.from(base64Data, 'base64'));
+    const photoUrl = `/uploads/${filename}`;
+    console.log(`[upload-photo] Saved photo for ${date} [${pose}] -> ${filePath}`);
+
+    return res.json({ success: true, url: photoUrl });
+  } catch (err) {
+    console.error("[upload-photo] Error saving photo:", err);
+    return res.status(500).json({ error: "Failed to upload photo." });
+  }
+});
+
 // Save logs for a window (morning, morningJournal, night, nightJournal, weekly)
 app.post('/api/submit', (req, res) => {
   const { window, data, date } = req.body;
@@ -628,6 +779,46 @@ app.post('/api/submit', (req, res) => {
   }
 
   const db = readDb();
+
+  // Validate weekly progress photos if required
+  if (window === 'weekly' && db.config.weeklyPhotosRequired !== false) {
+    const photos = data?.photos || {};
+    const missing = [];
+    if (!photos.front) missing.push('Front Pose');
+    if (!photos.back) missing.push('Back Pose');
+    if (!photos.sideLeft) missing.push('Left Side Pose');
+    if (!photos.sideRight) missing.push('Right Side Pose');
+
+    if (missing.length > 0) {
+      return res.status(400).json({ error: `All 4 weekly progress photos (Front, Back, Left Side, Right Side) are required to clear Weekly Lock. Missing: ${missing.join(', ')}` });
+    }
+  }
+
+  // Validate supplement checklist if night log submission
+  if (window === 'night' && db.config.enforceSupplementsBlocker !== false) {
+    const suppList = db.config.supplementsList || ['Vitamin D3', 'Vitamin K2', 'Omega-3', 'Creatine'];
+    const userSupps = data?.supplements || {};
+    let missing = [];
+
+    if (typeof userSupps === 'object' && userSupps !== null && !Array.isArray(userSupps)) {
+      for (const supp of suppList) {
+        if (!userSupps[supp]) {
+          missing.push(supp);
+        }
+      }
+    } else if (typeof userSupps === 'number') {
+      if (userSupps < 10 && suppList.length > 0) {
+        missing = suppList;
+      }
+    } else {
+      missing = suppList;
+    }
+
+    if (missing.length > 0) {
+      return res.status(400).json({ error: `All required supplements must be taken & checked to clear Night Lock. Missing: ${missing.join(', ')}` });
+    }
+  }
+
   const today = getLocalDateString();
   const targetDate = date || today;
 

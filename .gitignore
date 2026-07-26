@@ -22,3 +22,7 @@ com.user.habitserver.plist
 
 # Production build artifacts
 client/dist/
+
+# Uploaded user images
+uploads/*
+!uploads/.gitkeep

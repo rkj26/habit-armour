@@ -1070,6 +1070,136 @@ export default function DashboardView({ stats, history, config }) {
           </div>
         </div>
       )}
+
+      {/* Weekly Body Specs & Measurements Section */}
+      {(() => {
+        const weeklyLogs = [...history]
+          .filter(h => h.weeklyData && (h.weeklyData.weekCommencing || h.weeklyData.startWeight))
+          .sort((a, b) => new Date(a.weeklyData?.weekCommencing || a.date) - new Date(b.weeklyData?.weekCommencing || b.date));
+
+        const latestWeekly = weeklyLogs.length > 0 ? weeklyLogs[weeklyLogs.length - 1].weeklyData : null;
+
+        return (
+          <div style={{ marginTop: '36px' }}>
+            <div className="section-title" style={{ marginBottom: '16px' }}>
+              <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 700, fontFamily: 'var(--font-heading)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                📐 Weekly Body Specs & Measurements
+              </h3>
+              <p style={{ margin: '4px 0 0 0', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                Track weekly body composition, circumference changes, and trainer response notes.
+              </p>
+            </div>
+
+            {/* Quick Metrics Grid for Latest Weekly Check-in */}
+            {latestWeekly && (
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
+                gap: '14px',
+                marginBottom: '24px'
+              }}>
+                <div style={{ background: 'rgba(255, 255, 255, 0.02)', border: '1px solid rgba(255, 255, 255, 0.07)', borderLeft: '4px solid #a855f7', padding: '16px', borderRadius: 'var(--radius-sm)' }}>
+                  <span style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: 600, display: 'block' }}>Start Weight</span>
+                  <div style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--text-primary)', marginTop: '4px' }}>{latestWeekly.startWeight ? `${latestWeekly.startWeight} kg` : '-'}</div>
+                  <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>w/c {latestWeekly.weekCommencing || 'latest'}</span>
+                </div>
+
+                <div style={{ background: 'rgba(255, 255, 255, 0.02)', border: '1px solid rgba(255, 255, 255, 0.07)', borderLeft: '4px solid #3b82f6', padding: '16px', borderRadius: 'var(--radius-sm)' }}>
+                  <span style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: 600, display: 'block' }}>Waist (Umbilical)</span>
+                  <div style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--text-primary)', marginTop: '4px' }}>{latestWeekly.umbilical ? `${latestWeekly.umbilical} cm` : '-'}</div>
+                </div>
+
+                <div style={{ background: 'rgba(255, 255, 255, 0.02)', border: '1px solid rgba(255, 255, 255, 0.07)', borderLeft: '4px solid #10b981', padding: '16px', borderRadius: 'var(--radius-sm)' }}>
+                  <span style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: 600, display: 'block' }}>Biceps (L / R)</span>
+                  <div style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--text-primary)', marginTop: '4px' }}>
+                    {latestWeekly.bicepL || latestWeekly.bicepR ? `${latestWeekly.bicepL || '-'}/${latestWeekly.bicepR || '-'} cm` : '-'}
+                  </div>
+                </div>
+
+                <div style={{ background: 'rgba(255, 255, 255, 0.02)', border: '1px solid rgba(255, 255, 255, 0.07)', borderLeft: '4px solid #f59e0b', padding: '16px', borderRadius: 'var(--radius-sm)' }}>
+                  <span style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: 600, display: 'block' }}>Quads (L / R)</span>
+                  <div style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--text-primary)', marginTop: '4px' }}>
+                    {latestWeekly.quadL || latestWeekly.quadR ? `${latestWeekly.quadL || '-'}/${latestWeekly.quadR || '-'} cm` : '-'}
+                  </div>
+                </div>
+
+                <div style={{ background: 'rgba(255, 255, 255, 0.02)', border: '1px solid rgba(255, 255, 255, 0.07)', borderLeft: '4px solid #ec4899', padding: '16px', borderRadius: 'var(--radius-sm)' }}>
+                  <span style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: 600, display: 'block' }}>Glutes & Chest</span>
+                  <div style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--text-primary)', marginTop: '4px' }}>
+                    G: {latestWeekly.glutes || '-'} | C: {latestWeekly.chest || '-'} cm
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Weekly Log Table */}
+            <div className="chart-card glass-card" style={{
+              background: 'rgba(255, 255, 255, 0.01)',
+              border: '1px solid rgba(255, 255, 255, 0.06)',
+              padding: '24px',
+              borderRadius: 'var(--radius-md)',
+              boxShadow: '0 10px 40px rgba(0,0,0,0.15)',
+              marginBottom: '24px'
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '10px' }}>
+                <h4 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 700, fontFamily: 'var(--font-heading)' }}>Weekly Check-in History ({weeklyLogs.length})</h4>
+              </div>
+
+              {weeklyLogs.length < 1 ? (
+                <p className="text-muted text-center py-10" style={{ padding: '30px 0', margin: 0 }}>
+                  No weekly specs recorded yet. Submit your weekly check-in via the <strong>Weekly Specs</strong> tab.
+                </p>
+              ) : (
+                <div style={{ overflowX: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+                    <thead>
+                      <tr style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.1)', color: 'var(--text-muted)', textAlign: 'left' }}>
+                        <th style={{ padding: '10px' }}>Week Commencing</th>
+                        <th style={{ padding: '10px' }}>Start Weight</th>
+                        <th style={{ padding: '10px' }}>Umbilical (Waist)</th>
+                        <th style={{ padding: '10px' }}>Biceps (L / R)</th>
+                        <th style={{ padding: '10px' }}>Quads (L / R)</th>
+                        <th style={{ padding: '10px' }}>Glutes</th>
+                        <th style={{ padding: '10px' }}>Chest</th>
+                        <th style={{ padding: '10px' }}>Progress Photos</th>
+                        <th style={{ padding: '10px' }}>Response Notes</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {[...weeklyLogs].reverse().map((wLog, i) => {
+                        const w = wLog.weeklyData;
+                        return (
+                          <tr key={i} style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.04)', color: 'var(--text-primary)' }}>
+                            <td style={{ padding: '10px', fontWeight: 600 }}>{w.weekCommencing || wLog.date}</td>
+                            <td style={{ padding: '10px' }}>{w.startWeight ? `${w.startWeight} kg` : '-'}</td>
+                            <td style={{ padding: '10px' }}>{w.umbilical ? `${w.umbilical} cm` : '-'}</td>
+                            <td style={{ padding: '10px' }}>{w.bicepL || w.bicepR ? `${w.bicepL || '-'}/${w.bicepR || '-'} cm` : '-'}</td>
+                            <td style={{ padding: '10px' }}>{w.quadL || w.quadR ? `${w.quadL || '-'}/${w.quadR || '-'} cm` : '-'}</td>
+                            <td style={{ padding: '10px' }}>{w.glutes ? `${w.glutes} cm` : '-'}</td>
+                            <td style={{ padding: '10px' }}>{w.chest ? `${w.chest} cm` : '-'}</td>
+                            <td style={{ padding: '10px' }}>
+                              {w.photos && (w.photos.front || w.photos.back || w.photos.sideLeft || w.photos.sideRight || w.photos.side) ? (
+                                <div style={{ display: 'flex', gap: '6px' }}>
+                                  {['front', 'back', 'sideLeft', 'sideRight', 'side'].map(p => w.photos[p] ? (
+                                    <a key={p} href={w.photos[p]} target="_blank" rel="noreferrer" title={`${p} pose`}>
+                                      <img src={w.photos[p]} alt={p} style={{ width: '36px', height: '36px', objectFit: 'cover', borderRadius: '4px', border: '1px solid rgba(255,255,255,0.2)' }} />
+                                    </a>
+                                  ) : null)}
+                                </div>
+                              ) : <span style={{ color: 'var(--text-muted)', fontSize: '0.78rem' }}>None</span>}
+                            </td>
+                            <td style={{ padding: '10px', color: 'var(--text-secondary)', fontStyle: 'italic', maxWidth: '180px' }}>{w.responseAction || '-'}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
