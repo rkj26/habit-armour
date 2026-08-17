@@ -74,15 +74,6 @@ function isDayActive(entry, minSteps = 13000) {
   return false;
 }
 
-function writeDb(data) {
-  try {
-    const tmpFile = `${DB_FILE}.tmp`;
-    fs.writeFileSync(tmpFile, JSON.stringify(data, null, 2), 'utf8');
-    fs.renameSync(tmpFile, DB_FILE);
-  } catch (err) {
-    console.error("Error writing database file atomically:", err);
-  }
-}
 
 // Helper to perform HTTP POST while manually following redirects to keep POST method & body
 async function fetchPostWithRedirect(url, body) {

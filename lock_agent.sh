@@ -1,11 +1,63 @@
 #!/bin/bash
 
-# Configuration
+# ==============================================================================
+# Habit Armour macOS Lock Agent
+# Monitors local habit status and enforces kiosk / screen locking when overdue.
+# ==============================================================================
+
 PORT="${PORT:-3000}"
 API_URL="${API_URL:-http://localhost:${PORT}/api/status}"
-FRONTEND_URL="${FRONTEND_URL:-http://localhost:${PORT}}"
+FRONTEND_URL="${FRONTEND_URL:-http://localhost:5174}"
 
-echo "Habit Armor Lock Agent started..."
+echo "[$(date '+%Y-%m-%d %H:%M:%S')] Habit Armour Lock Agent started on port ${PORT}..."
+
+# Helper to trigger macOS lock screen immediately
+lock_mac_screen() {
+  # Trigger native lock screen via AppleScript keystroke
+  osascript -e 'tell application "System Events" to keystroke "q" using {control down, command down}' 2>/dev/null
+  # Put display to sleep as immediate fallback
+  pmset displaysleepnow 2>/dev/null
+}
+
+# Helper to check if macOS screen is currently locked
+is_screen_locked() {
+  if ioreg -n Root -d1 -a 2>/dev/null | grep -A 1 "IOConsoleLocked" | grep -q "<true/>"; then
+    return 0
+  fi
+  return 1
+}
+
+# Helper to check if a browser URL points to the Habit Armour dashboard/form
+is_habit_url() {
+  local u="$1"
+  if [[ "$u" == *"localhost:3000"* ]] || [[ "$u" == *"localhost:5173"* ]] || [[ "$u" == *"localhost:5174"* ]] || \
+     [[ "$u" == *"127.0.0.1:3000"* ]] || [[ "$u" == *"127.0.0.1:5173"* ]] || [[ "$u" == *"127.0.0.1:5174"* ]] || \
+     [[ "$u" == *":${PORT}"* ]]; then
+    return 0
+  fi
+  return 1
+}
+
+# Helper to parse status JSON cleanly via Node.js
+parse_status_json() {
+  local json="$1"
+  node -e '
+    try {
+      const d = JSON.parse(process.argv[1]);
+      const locked = d.locked === true ? "true" : "false";
+      const isWarning = d.isWarning === true ? "true" : "false";
+      const remaining = Number(d.secondsRemaining) || 0;
+      const window = d.window || "habits";
+      const reason = d.reason || "";
+      const hasError = (d.error && d.error !== "null" && typeof d.error === "string") ? "true" : "false";
+      console.log(`${locked}|${isWarning}|${remaining}|${window}|${hasError}|${reason}`);
+    } catch (e) {
+      console.log("false|false|0|habits|true|parse_error");
+    }
+  ' "$json" 2>/dev/null
+}
+
+WAS_LOCKED=false
 
 while true; do
   # Fetch status from local server
@@ -13,129 +65,110 @@ while true; do
   CURL_STATUS=$?
 
   if [ $CURL_STATUS -ne 0 ] || [ -z "$RESPONSE" ]; then
-    echo "Local server is unreachable (exit code: $CURL_STATUS). Retrying in 15 seconds..."
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] Local server unreachable (exit code: $CURL_STATUS). Retrying in 10s..."
+    sleep 10
+    continue
+  fi
+
+  PARSED=$(parse_status_json "$RESPONSE")
+  IFS='|' read -r LOCKED WARNING REMAINING WINDOW HAS_ERROR REASON <<< "$PARSED"
+
+  if [ "$HAS_ERROR" = "true" ]; then
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] Server error detected. Fail-safe unlock active."
     sleep 15
     continue
   fi
 
-  # Parse fields using simple grep patterns
-  HAS_ERROR=$(echo "$RESPONSE" | grep -o '"error":')
-  if [ ! -z "$HAS_ERROR" ]; then
-    echo "SERVER ERROR DETECTED: Fail-safe unlock active."
-    sleep 15
-    continue
-  fi
+  if [ "$LOCKED" = "true" ]; then
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] LOCK ACTIVE: $REASON"
 
-  LOCKED=$(echo "$RESPONSE" | grep -o '"locked":true')
-  WARNING=$(echo "$RESPONSE" | grep -o '"isWarning":true')
-  REMAINING=$(echo "$RESPONSE" | grep -o '"secondsRemaining":[0-9]*' | cut -d: -f2)
-  WINDOW=$(echo "$RESPONSE" | grep -o '"window":"[a-zA-Z]*"' | cut -d: -f2 | tr -d '"')
+    # Send notification and open frontend
+    osascript -e 'display notification "Habit lock active! Complete your logs to unlock." with title "Habit Armour"' 2>/dev/null
+    open "$FRONTEND_URL" 2>/dev/null || open "http://localhost:${PORT}" 2>/dev/null
 
-  if [ ! -z "$LOCKED" ]; then
-    echo "LOCK ACTIVE: Habits not completed for [$WINDOW] window. Enforcing lock..."
-    
-    # Lock the screen initially if it's not already locked
-    if ! ioreg -n Root -d1 -a | grep -A 1 "IOConsoleLocked" | grep -q "<true/>"; then
-      osascript -e 'display notification "Habit lock active! Complete your '"$WINDOW"' log to unlock." with title "Habit Armor"'
-      open "$FRONTEND_URL"
-      pmset displaysleepnow
+    # If screen is not locked, lock it now
+    if ! is_screen_locked; then
+      lock_mac_screen
     fi
-    
+
     WAS_LOCKED=true
-    
-    # Tight enforcement loop while the lock is active
+
+    # Tight enforcement kiosk loop while locked
     while true; do
-      # 1. Fetch status to check if user has submitted the form and unlocked
+      # 1. Fetch current status
       RESPONSE=$(curl -s --max-time 3 "$API_URL")
       CURL_STATUS=$?
+
       if [ $CURL_STATUS -eq 0 ] && [ ! -z "$RESPONSE" ]; then
-        STILL_LOCKED=$(echo "$RESPONSE" | grep -o '"locked":true')
-        STILL_ERROR=$(echo "$RESPONSE" | grep -o '"error":')
-        if [ -z "$STILL_LOCKED" ] || [ ! -z "$STILL_ERROR" ]; then
-          echo "STATUS: Habits completed or server error. Unlocking device..."
+        PARSED=$(parse_status_json "$RESPONSE")
+        IFS='|' read -r STILL_LOCKED STILL_WARNING STILL_REMAINING STILL_WINDOW STILL_ERROR STILL_REASON <<< "$PARSED"
+
+        if [ "$STILL_LOCKED" != "true" ] || [ "$STILL_ERROR" = "true" ]; then
+          echo "[$(date '+%Y-%m-%d %H:%M:%S')] STATUS: Habits completed or override applied. Mac unlocked!"
+          WAS_LOCKED=false
           break
         fi
       fi
-      
-      # 2. Check if screen is locked
-      if ioreg -n Root -d1 -a | grep -A 1 "IOConsoleLocked" | grep -q "<true/>"; then
+
+      # 2. If screen is locked, wait and continue monitoring
+      if is_screen_locked; then
         WAS_LOCKED=true
         sleep 1
         continue
       fi
-      
-      # 3. Screen is unlocked. Enforce single-webpage kiosk behavior.
+
+      # 3. User just entered password to unlock. Give grace period to focus browser.
       if [ "$WAS_LOCKED" = "true" ]; then
-        # Just unlocked! Give 5 seconds grace to open the URL and let browser load/focus
-        echo "Device unlocked. Opening habits page..."
-        open "$FRONTEND_URL"
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')] Device unlocked by user. Opening Habit Armour..."
+        open "$FRONTEND_URL" 2>/dev/null || open "http://localhost:${PORT}" 2>/dev/null
         WAS_LOCKED=false
         sleep 5
         continue
       fi
-      
-      # Determine active application and URL
-      FRONT_APP=$(osascript -e 'tell application "System Events" to name of first process whose frontmost is true' 2>/dev/null)
-      FRONT_APP=$(echo "$FRONT_APP" | xargs)
-      
-      IS_ALLOWED_BROWSER=false
-      URL=""
-      
+
+      # 4. Enforce kiosk behavior: check frontmost application
+      FRONT_APP=$(osascript -e 'tell application "System Events" to name of first process whose frontmost is true' 2>/dev/null | xargs)
+
+      IS_ALLOWED=false
+      ACTIVE_URL=""
+
       if [ "$FRONT_APP" = "Google Chrome" ]; then
-        IS_ALLOWED_BROWSER=true
-        URL=$(osascript -e 'tell application "Google Chrome" to if (count of windows) > 0 then get URL of active tab of first window' 2>/dev/null)
+        ACTIVE_URL=$(osascript -e 'tell application "Google Chrome" to if (count of windows) > 0 then get URL of active tab of first window' 2>/dev/null)
+        if is_habit_url "$ACTIVE_URL"; then IS_ALLOWED=true; fi
       elif [ "$FRONT_APP" = "Safari" ]; then
-        IS_ALLOWED_BROWSER=true
-        URL=$(osascript -e 'tell application "Safari" to if (count of windows) > 0 then get URL of front document' 2>/dev/null)
+        ACTIVE_URL=$(osascript -e 'tell application "Safari" to if (count of windows) > 0 then get URL of front document' 2>/dev/null)
+        if is_habit_url "$ACTIVE_URL"; then IS_ALLOWED=true; fi
       elif [ "$FRONT_APP" = "Arc" ]; then
-        IS_ALLOWED_BROWSER=true
-        URL=$(osascript -e 'tell application "Arc" to if (count of windows) > 0 then get URL of active tab of first window' 2>/dev/null)
+        ACTIVE_URL=$(osascript -e 'tell application "Arc" to if (count of windows) > 0 then get URL of active tab of first window' 2>/dev/null)
+        if is_habit_url "$ACTIVE_URL"; then IS_ALLOWED=true; fi
       elif [ "$FRONT_APP" = "Brave Browser" ]; then
-        IS_ALLOWED_BROWSER=true
-        URL=$(osascript -e 'tell application "Brave Browser" to if (count of windows) > 0 then get URL of active tab of first window' 2>/dev/null)
+        ACTIVE_URL=$(osascript -e 'tell application "Brave Browser" to if (count of windows) > 0 then get URL of active tab of first window' 2>/dev/null)
+        if is_habit_url "$ACTIVE_URL"; then IS_ALLOWED=true; fi
       elif [ "$FRONT_APP" = "Microsoft Edge" ]; then
-        IS_ALLOWED_BROWSER=true
-        URL=$(osascript -e 'tell application "Microsoft Edge" to if (count of windows) > 0 then get URL of active tab of first window' 2>/dev/null)
+        ACTIVE_URL=$(osascript -e 'tell application "Microsoft Edge" to if (count of windows) > 0 then get URL of active tab of first window' 2>/dev/null)
+        if is_habit_url "$ACTIVE_URL"; then IS_ALLOWED=true; fi
+      elif [ "$FRONT_APP" = "Anki" ] || [ "$FRONT_APP" = "Obsidian" ] || [ "$FRONT_APP" = "Antigravity IDE" ]; then
+        IS_ALLOWED=true
       fi
-      
-      IS_ALLOWED_ANKI=false
-      if [ "$FRONT_APP" = "Anki" ]; then
-        IS_ALLOWED_ANKI=true
-      fi
-      
-      # Normalize URL to check if it points to the local habit tracker
-      IS_HABIT_URL=false
-      CLEAN_HOST=$(echo "$FRONTEND_URL" | sed -E 's/https?:\/\///')
-      if [[ "$URL" == *"$CLEAN_HOST"* ]] || [[ "$URL" == *"127.0.0.1:${PORT}"* ]] || [[ "$URL" == *":${PORT}"* ]]; then
-        IS_HABIT_URL=true
-      fi
-      
-      if { [ "$IS_ALLOWED_BROWSER" = "true" ] && [ "$IS_HABIT_URL" = "true" ]; } || [ "$IS_ALLOWED_ANKI" = "true" ]; then
-        # User is actively on the lock screen form or studying in Anki. Let them be.
+
+      if [ "$IS_ALLOWED" = "true" ]; then
+        # User is actively on Habit Armour, Anki, or writing journal. Allow interaction.
         sleep 1
       else
-        # User tried to switch to another app/tab, or closed the browser. Lock immediately!
-        echo "Lock violation: active app is [$FRONT_APP] with URL [$URL]. Re-locking..."
-        open "$FRONTEND_URL"
-        pmset displaysleepnow
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')] Kiosk violation: active app is [$FRONT_APP] (URL: $ACTIVE_URL). Re-locking..."
+        open "$FRONTEND_URL" 2>/dev/null || open "http://localhost:${PORT}" 2>/dev/null
+        lock_mac_screen
         WAS_LOCKED=true
         sleep 1
       fi
     done
-  elif [ ! -z "$WARNING" ]; then
-    echo "WARNING: Habits incomplete for [$WINDOW]. $REMAINING seconds remaining..."
-    
-    # Send a macOS system notification
-    osascript -e 'display notification "Complete your '"$WINDOW"' log! '"$REMAINING"'s remaining." with title "Habit Armor"'
-    
-    # Force open the browser tab if not already there
-    open "$FRONTEND_URL"
-    
-    # Wait 15 seconds before checking again
+
+  elif [ "$WARNING" = "true" ]; then
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] WARNING: [$WINDOW] log incomplete. $REMAINING seconds remaining."
+    osascript -e 'display notification "Complete your '"$WINDOW"' log! '"$REMAINING"'s remaining." with title "Habit Armour"' 2>/dev/null
     sleep 15
   else
-    echo "STATUS: Habits completed or outside tracking window. Mac is unlocked."
-    # Check again in 30 seconds
-    sleep 30
+    # Mac is unlocked and outside active violation window
+    sleep 10
   fi
 done
