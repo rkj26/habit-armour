@@ -53,17 +53,7 @@ export default function HistoryView({
         <p>All recorded bio-feedback, sleep, nutrition and measurements.</p>
       </div>
 
-      {config.googleSheetsEnabled && config.googleSheetsUrl && history.length > 0 && (
-        <div className="sync-header-actions">
-          <button 
-            className="btn btn-secondary sync-btn-small" 
-            onClick={syncAllUnsynced}
-            disabled={syncingAll}
-          >
-            {syncingAll ? 'Syncing...' : '🔄 Sync All Unsynced Logs to Sheets'}
-          </button>
-        </div>
-      )}
+
 
       {/* Log a Past/Missed Day widget */}
       <div className="glass-card" style={{ 
@@ -137,7 +127,6 @@ export default function HistoryView({
                 <th>Sleep</th>
                 <th>Calories</th>
                 <th>Steps</th>
-                {config.googleSheetsEnabled && config.googleSheetsUrl && <th>Actions</th>}
               </tr>
             </thead>
             <tbody>
@@ -160,101 +149,31 @@ export default function HistoryView({
                     <td>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                         {getLogStatusBadge(entry.date, 'morning', entry.morningCompleted)}
-                        {config.googleSheetsEnabled && config.googleSheetsUrl && entry.morningCompleted && (
-                          <span 
-                            className={`sync-status-icon ${entry.morningSynced ? 'synced' : 'unsynced'}`}
-                            title={entry.morningSynced ? "Synced to Google Sheets" : "Unsynced"}
-                          >
-                            {entry.morningSynced ? '✓' : '•'}
-                          </span>
-                        )}
                       </div>
                     </td>
                     <td>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                         {getLogStatusBadge(entry.date, 'morningJournal', entry.morningJournalCompleted)}
-                        {config.googleSheetsEnabled && config.googleSheetsUrl && entry.morningJournalCompleted && (
-                          <span 
-                            className={`sync-status-icon ${entry.morningJournalSynced ? 'synced' : 'unsynced'}`}
-                            title={entry.morningJournalSynced ? "Synced to Google Sheets" : "Unsynced"}
-                          >
-                            {entry.morningJournalSynced ? '✓' : '•'}
-                          </span>
-                        )}
                       </div>
                     </td>
                     <td>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                         {getLogStatusBadge(entry.date, 'night', entry.nightCompleted)}
-                        {config.googleSheetsEnabled && config.googleSheetsUrl && entry.nightCompleted && (
-                          <span 
-                            className={`sync-status-icon ${entry.nightSynced ? 'synced' : 'unsynced'}`}
-                            title={entry.nightSynced ? "Synced to Google Sheets" : "Unsynced"}
-                          >
-                            {entry.nightSynced ? '✓' : '•'}
-                          </span>
-                        )}
                       </div>
                     </td>
                     <td>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                         {getLogStatusBadge(entry.date, 'nightJournal', entry.nightJournalCompleted)}
-                        {config.googleSheetsEnabled && config.googleSheetsUrl && entry.nightJournalCompleted && (
-                          <span 
-                            className={`sync-status-icon ${entry.nightJournalSynced ? 'synced' : 'unsynced'}`}
-                            title={entry.nightJournalSynced ? "Synced to Google Sheets" : "Unsynced"}
-                          >
-                            {entry.nightJournalSynced ? '✓' : '•'}
-                          </span>
-                        )}
                       </div>
                     </td>
                     <td>{entry.morningData?.wakingWeight ? `${entry.morningData.wakingWeight} kg` : '-'}</td>
                     <td>{entry.morningData?.sleepHours ? `${entry.morningData.sleepHours} hrs` : '-'}</td>
                     <td>{entry.nightData?.calories ? `${entry.nightData.calories} kcal` : '-'}</td>
                     <td>{entry.nightData?.steps ? parseInt(entry.nightData.steps).toLocaleString() : '-'}</td>
-                    {config.googleSheetsEnabled && config.googleSheetsUrl && (
-                      <td onClick={(e) => e.stopPropagation()}>
-                        <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                          {entry.morningCompleted && !entry.morningSynced && (
-                            <button 
-                              className="btn btn-secondary sync-btn-small"
-                              onClick={() => syncLogEntry(entry.date, 'morning')}
-                            >
-                              Sync Morning
-                            </button>
-                          )}
-                          {entry.morningJournalCompleted && !entry.morningJournalSynced && (
-                            <button 
-                              className="btn btn-secondary sync-btn-small"
-                              onClick={() => syncLogEntry(entry.date, 'morningJournal')}
-                            >
-                              Sync Morning Journal
-                            </button>
-                          )}
-                          {entry.nightCompleted && !entry.nightSynced && (
-                            <button 
-                              className="btn btn-secondary sync-btn-small"
-                              onClick={() => syncLogEntry(entry.date, 'night')}
-                            >
-                              Sync Night
-                            </button>
-                          )}
-                          {entry.nightJournalCompleted && !entry.nightJournalSynced && (
-                            <button 
-                              className="btn btn-secondary sync-btn-small"
-                              onClick={() => syncLogEntry(entry.date, 'nightJournal')}
-                            >
-                              Sync Night Journal
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                    )}
                   </tr>
                   {expandedEntries[entry.date] && (
                     <tr className="expanded-row" onClick={(e) => e.stopPropagation()}>
-                      <td colSpan={config.googleSheetsEnabled && config.googleSheetsUrl ? "10" : "9"} style={{ padding: '16px 24px', background: '#f8fafc', borderBottom: '1px solid var(--border-color)' }}>
+                      <td colSpan="9" style={{ padding: '16px 24px', background: '#f8fafc', borderBottom: '1px solid var(--border-color)' }}>
                         <div className="expanded-journal-grid">
                           <div className="expanded-journal-section">
                             <h4>☀️ Morning Journal</h4>

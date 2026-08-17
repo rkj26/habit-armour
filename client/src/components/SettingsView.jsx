@@ -222,59 +222,7 @@ export default function SettingsView({
         )}
       </div>
 
-      {/* Google Sheet Sync Settings */}
-      <div className="settings-section">
-        <h3 className="settings-section-title">📊 Google Sheets Sync ("Auto-Adder")</h3>
-        <p className="settings-section-desc">Connect your logs dynamically to a Google Sheet using Google Apps Script. View the instruction guide in <a href="/GOOGLE_SHEET_SETUP.md" target="_blank" rel="noopener noreferrer">GOOGLE_SHEET_SETUP.md</a> inside the project folder.</p>
-        
-        <div className="form-group" style={{display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '20px'}}>
-          <input 
-            type="checkbox" 
-            id="googleSheetsEnabled" 
-            name="googleSheetsEnabled" 
-            checked={config.googleSheetsEnabled} 
-            onChange={handleConfigChange}
-            style={{width: '18px', height: '18px', cursor: 'pointer'}}
-          />
-          <label htmlFor="googleSheetsEnabled" style={{fontWeight: 600, cursor: 'pointer', userSelect: 'none'}}>
-            Enable Automatic Google Sheet Sync on Submission
-          </label>
-        </div>
 
-        <div className="form-group">
-          <label className="form-label">Google Sheets Apps Script Web App URL</label>
-          <input 
-            type="text" 
-            className="form-input" 
-            name="googleSheetsUrl" 
-            value={config.googleSheetsUrl} 
-            onChange={handleConfigChange} 
-            placeholder="https://script.google.com/macros/s/.../exec"
-            disabled={!config.googleSheetsEnabled}
-          />
-        </div>
-
-        {config.googleSheetsEnabled && (
-          <div style={{display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '16px'}}>
-            <div>
-              <button 
-                type="button" 
-                className="btn btn-secondary" 
-                onClick={testSheetSync}
-                disabled={testingSync}
-              >
-                {testingSync ? "Testing connection..." : "⚡ Test Sheet Sync"}
-              </button>
-            </div>
-            
-            {syncStatusMsg && (
-              <div className={`badge ${syncStatusMsg.success ? 'bg-green' : 'bg-red'}`} style={{padding: '10px 14px', width: 'fit-content'}}>
-                {syncStatusMsg.text}
-              </div>
-            )}
-          </div>
-        )}
-      </div>
 
       {/* Gym Lock Configuration */}
       <div className="settings-section">

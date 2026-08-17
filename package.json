@@ -1,18 +1,12 @@
 {
-  "name": "auto-adder-backend",
-  "version": "1.0.0",
-  "description": "Backend for habits tracker and device locker",
-  "main": "server.js",
-  "type": "module",
+  "name": "habit-armour",
+  "version": "2.0.0",
+  "description": "Habit Armour 2.0: Modular Python (FastAPI + SQLite + PyObjC) Habit Tracker & OS Enforcer",
   "scripts": {
-    "start": "node server.js",
-    "dev": "nodemon -e js,json -i habits_data.json -i study_data.json -i '*.log' -i '*.err' server.js"
-  },
-  "dependencies": {
-    "cors": "^2.8.5",
-    "express": "^4.19.2"
-  },
-  "devDependencies": {
-    "nodemon": "^3.1.0"
+    "dev": "PYTHONPATH=. .venv/bin/uvicorn app.main:app --reload --port 3000",
+    "agent": "PYTHONPATH=. .venv/bin/python agent.py",
+    "client:dev": "npm --prefix client run dev",
+    "client:build": "npm --prefix client run build",
+    "install:all": "./install.sh"
   }
 }

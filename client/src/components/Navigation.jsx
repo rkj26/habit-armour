@@ -79,18 +79,6 @@ export default function Navigation({
           ⚡ Test Screen Lock
         </button>
       </div>
-
-      {config.googleSheetsEnabled && config.googleSheetsUrl && (
-        <div className="sidebar-section divider" style={{ paddingTop: '10px' }}>
-          <button 
-            className="btn btn-primary w-full" 
-            onClick={syncAllUnsynced}
-            disabled={syncingAll}
-          >
-            {syncingAll ? 'Syncing...' : '🔄 Sync Unsynced to Sheet'}
-          </button>
-        </div>
-      )}
     </aside>
   );
 }
