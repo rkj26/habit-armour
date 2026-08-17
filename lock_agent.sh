@@ -19,6 +19,13 @@ while true; do
   fi
 
   # Parse fields using simple grep patterns
+  HAS_ERROR=$(echo "$RESPONSE" | grep -o '"error":')
+  if [ ! -z "$HAS_ERROR" ]; then
+    echo "SERVER ERROR DETECTED: Fail-safe unlock active."
+    sleep 15
+    continue
+  fi
+
   LOCKED=$(echo "$RESPONSE" | grep -o '"locked":true')
   WARNING=$(echo "$RESPONSE" | grep -o '"isWarning":true')
   REMAINING=$(echo "$RESPONSE" | grep -o '"secondsRemaining":[0-9]*' | cut -d: -f2)
@@ -43,8 +50,9 @@ while true; do
       CURL_STATUS=$?
       if [ $CURL_STATUS -eq 0 ] && [ ! -z "$RESPONSE" ]; then
         STILL_LOCKED=$(echo "$RESPONSE" | grep -o '"locked":true')
-        if [ -z "$STILL_LOCKED" ]; then
-          echo "STATUS: Habits completed. Unlocking device..."
+        STILL_ERROR=$(echo "$RESPONSE" | grep -o '"error":')
+        if [ -z "$STILL_LOCKED" ] || [ ! -z "$STILL_ERROR" ]; then
+          echo "STATUS: Habits completed or server error. Unlocking device..."
           break
         fi
       fi
@@ -90,6 +98,11 @@ while true; do
         URL=$(osascript -e 'tell application "Microsoft Edge" to if (count of windows) > 0 then get URL of active tab of first window' 2>/dev/null)
       fi
       
+      IS_ALLOWED_ANKI=false
+      if [ "$FRONT_APP" = "Anki" ]; then
+        IS_ALLOWED_ANKI=true
+      fi
+      
       # Normalize URL to check if it points to the local habit tracker
       IS_HABIT_URL=false
       CLEAN_HOST=$(echo "$FRONTEND_URL" | sed -E 's/https?:\/\///')
@@ -97,8 +110,8 @@ while true; do
         IS_HABIT_URL=true
       fi
       
-      if [ "$IS_ALLOWED_BROWSER" = "true" ] && [ "$IS_HABIT_URL" = "true" ]; then
-        # User is actively on the lock screen form. Let them be.
+      if { [ "$IS_ALLOWED_BROWSER" = "true" ] && [ "$IS_HABIT_URL" = "true" ]; } || [ "$IS_ALLOWED_ANKI" = "true" ]; then
+        # User is actively on the lock screen form or studying in Anki. Let them be.
         sleep 1
       else
         # User tried to switch to another app/tab, or closed the browser. Lock immediately!

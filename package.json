@@ -6,7 +6,7 @@
   "type": "module",
   "scripts": {
     "start": "node server.js",
-    "dev": "nodemon --ignore habits_data.json --ignore *.log --ignore *.err server.js"
+    "dev": "nodemon -e js,json -i habits_data.json -i study_data.json -i '*.log' -i '*.err' server.js"
   },
   "dependencies": {
     "cors": "^2.8.5",

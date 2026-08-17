@@ -9,7 +9,9 @@ export default function SettingsView({
   saveConfig
 }) {
   const [newSuppInput, setNewSuppInput] = React.useState('');
+  const [newDeckInput, setNewDeckInput] = React.useState('');
   const suppList = config.supplementsList || ['Vitamin D3', 'Vitamin K2', 'Omega-3', 'Creatine'];
+  const ignoredDecksList = Array.isArray(config.ankiIgnoredDecks) ? config.ankiIgnoredDecks : [];
 
   const addSupplement = (e) => {
     e.preventDefault();
@@ -24,6 +26,21 @@ export default function SettingsView({
   const removeSupplement = (suppToRemove) => {
     const updated = suppList.filter(s => s !== suppToRemove);
     handleConfigChange({ target: { name: 'supplementsList', value: updated } });
+  };
+
+  const addIgnoredDeck = (e) => {
+    e.preventDefault();
+    const trimmed = newDeckInput.trim();
+    if (!trimmed) return;
+    if (ignoredDecksList.includes(trimmed)) return;
+    const updated = [...ignoredDecksList, trimmed];
+    handleConfigChange({ target: { name: 'ankiIgnoredDecks', value: updated } });
+    setNewDeckInput('');
+  };
+
+  const removeIgnoredDeck = (deckToRemove) => {
+    const updated = ignoredDecksList.filter(d => d !== deckToRemove);
+    handleConfigChange({ target: { name: 'ankiIgnoredDecks', value: updated } });
   };
 
   return (
@@ -356,6 +373,176 @@ export default function SettingsView({
         )}
       </div>
 
+      {/* Anki Flashcard Requirement Configuration */}
+      <div className="settings-section">
+        <h3 className="settings-section-title">🗂️ Anki Flashcard Requirement</h3>
+        <p className="settings-section-desc">Automated daily Anki deck completion check via AnkiConnect. Mac enforces a lock if any active deck has pending reviews at the cutoff hour.</p>
+
+        <div className="form-group" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '20px' }}>
+          <input
+            type="checkbox"
+            id="ankiLockEnabled"
+            name="ankiLockEnabled"
+            checked={config.ankiLockEnabled !== false}
+            onChange={handleConfigChange}
+            style={{ width: '18px', height: '18px', cursor: 'pointer', accentColor: 'var(--primary)' }}
+          />
+          <label htmlFor="ankiLockEnabled" style={{ fontWeight: 600, cursor: 'pointer', userSelect: 'none' }}>
+            Enable Anki Daily Deck Clearance Lock Enforcement
+          </label>
+        </div>
+
+        {config.ankiLockEnabled !== false && (
+          <>
+            <div className="form-grid" style={{ marginBottom: '16px' }}>
+              <div className="form-group">
+                <label className="form-label">Lock Cutoff Hour (0-23)</label>
+                <input
+                  type="number"
+                  className="form-input"
+                  name="ankiLockStartHour"
+                  value={config.ankiLockStartHour !== undefined ? config.ankiLockStartHour : 21}
+                  onChange={handleConfigChange}
+                  min="0"
+                  max="23"
+                />
+                <span className="sub-label">Hour (e.g. 21 for 9:00 PM) when pending Anki decks lock your Mac.</span>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">AnkiConnect Endpoint URL</label>
+                <input
+                  type="text"
+                  className="form-input"
+                  name="ankiConnectUrl"
+                  value={config.ankiConnectUrl || 'http://localhost:8765'}
+                  onChange={handleConfigChange}
+                  placeholder="http://localhost:8765"
+                />
+                <span className="sub-label">Local JSON-RPC endpoint for Anki desktop app (default: http://localhost:8765).</span>
+              </div>
+            </div>
+
+            <h4 style={{ color: 'var(--text-primary)', marginBottom: '8px', fontSize: '0.95rem' }}>
+              Excluded / Ignored Decks ({ignoredDecksList.length})
+            </h4>
+            <p className="settings-section-desc" style={{ marginBottom: '12px' }}>
+              Decks in this list will be excluded from the zero-due-card requirement (e.g. archived or suspended decks).
+            </p>
+
+            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '16px' }}>
+              {ignoredDecksList.length === 0 ? (
+                <span style={{ fontSize: '0.85rem', color: '#94a3b8', fontStyle: 'italic' }}>
+                  No decks ignored (all decks in Anki are required).
+                </span>
+              ) : (
+                ignoredDecksList.map((deck) => (
+                  <span
+                    key={deck}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      padding: '6px 12px',
+                      background: 'rgba(255, 255, 255, 0.06)',
+                      border: '1px solid rgba(255, 255, 255, 0.12)',
+                      borderRadius: '20px',
+                      fontSize: '0.85rem',
+                      fontWeight: 500
+                    }}
+                  >
+                    🚫 {deck}
+                    <button
+                      type="button"
+                      onClick={() => removeIgnoredDeck(deck)}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: '#f87171',
+                        cursor: 'pointer',
+                        fontSize: '0.9rem',
+                        padding: '0 2px',
+                        lineHeight: 1
+                      }}
+                      title={`Remove ${deck}`}
+                    >
+                      ✕
+                    </button>
+                  </span>
+                ))
+              )}
+            </div>
+
+            <form onSubmit={addIgnoredDeck} style={{ display: 'flex', gap: '10px', maxWidth: '420px', marginBottom: '16px' }}>
+              <input
+                type="text"
+                className="form-input"
+                placeholder="Deck name to ignore (e.g. Archive)"
+                value={newDeckInput}
+                onChange={(e) => setNewDeckInput(e.target.value)}
+              />
+              <button type="submit" className="btn btn-secondary" style={{ whiteSpace: 'nowrap' }}>
+                + Ignore Deck
+              </button>
+            </form>
+          </>
+        )}
+      </div>
+
+      {/* Consistent Practice Lock Configuration */}
+      <div className="settings-section">
+        <h3 className="settings-section-title">🧠 Consistent Practice & Active Recall Lock</h3>
+        <p className="settings-section-desc">
+          Enforce daily deliberate practice on machine learning derivations, alignment proofs, and key papers.
+        </p>
+
+        <div className="form-group" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '20px' }}>
+          <input
+            type="checkbox"
+            id="practiceLockEnabled"
+            name="practiceLockEnabled"
+            checked={config.practiceLockEnabled !== false}
+            onChange={handleConfigChange}
+            style={{ width: '18px', height: '18px', cursor: 'pointer', accentColor: 'var(--primary)' }}
+          />
+          <label htmlFor="practiceLockEnabled" style={{ fontWeight: 600, cursor: 'pointer', userSelect: 'none' }}>
+            Enable Consistent Practice Lock Enforcement
+          </label>
+        </div>
+
+        {config.practiceLockEnabled !== false && (
+          <div className="form-grid" style={{ marginBottom: '16px' }}>
+            <div className="form-group">
+              <label className="form-label">Lock Cutoff Hour (0-23)</label>
+              <input
+                type="number"
+                className="form-input"
+                name="practiceLockStartHour"
+                value={config.practiceLockStartHour !== undefined ? config.practiceLockStartHour : 21}
+                onChange={handleConfigChange}
+                min="0"
+                max="23"
+              />
+              <span className="sub-label">Hour (e.g. 21 for 9:00 PM) when pending practice due items lock your device.</span>
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">Min Daily Proofs to Unlock</label>
+              <input
+                type="number"
+                className="form-input"
+                name="practiceMinDueToUnlock"
+                value={config.practiceMinDueToUnlock !== undefined ? config.practiceMinDueToUnlock : 1}
+                onChange={handleConfigChange}
+                min="0"
+                max="10"
+              />
+              <span className="sub-label">Daily practice target (0 = clear all due queue; 1 = at least 1 session required).</span>
+            </div>
+          </div>
+        )}
+      </div>
+
       {/* Supplement Stack Configuration */}
       <div className="settings-section">
         <h3 className="settings-section-title">💊 Daily Supplement Stack & Blocker</h3>
@@ -372,6 +559,20 @@ export default function SettingsView({
           />
           <label htmlFor="enforceSupplementsBlocker" style={{ fontWeight: 600, cursor: 'pointer', userSelect: 'none' }}>
             🔒 Enforce Supplement Checklist as Night Lock Blocker (Require 100% completion to submit Night Log)
+          </label>
+        </div>
+
+        <div className="form-group" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '20px' }}>
+          <input
+            type="checkbox"
+            id="enforceProteinShakeBlocker"
+            name="enforceProteinShakeBlocker"
+            checked={config.enforceProteinShakeBlocker !== false}
+            onChange={handleConfigChange}
+            style={{ width: '18px', height: '18px', cursor: 'pointer', accentColor: 'var(--primary)' }}
+          />
+          <label htmlFor="enforceProteinShakeBlocker" style={{ fontWeight: 600, cursor: 'pointer', userSelect: 'none' }}>
+            🥤 🔒 Enforce Daily Protein Shake & Proof Photo as Night Lock Blocker
           </label>
         </div>
 

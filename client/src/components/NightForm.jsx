@@ -1,14 +1,74 @@
 import React from 'react';
+import { compressImage } from '../utils/imageCompressor';
 
 export default function NightForm({
   nightData,
   setNightData,
   supplementsList = ['Vitamin D3', 'Vitamin K2', 'Omega-3', 'Creatine'],
   enforceBlocker = true,
+  enforceProteinShakeBlocker = true,
+  API_URL = '',
   editingDate,
   cancelEditing,
   onSubmit
 }) {
+  const [uploadingShakePhoto, setUploadingShakePhoto] = React.useState(false);
+  const proteinShake = nightData.proteinShake || { taken: false, photoUrl: '' };
+
+  const handleToggleShakeTaken = () => {
+    setNightData({
+      ...nightData,
+      proteinShake: {
+        ...proteinShake,
+        taken: !proteinShake.taken
+      }
+    });
+  };
+
+  const handleShakePhotoSelect = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      alert('Please select a valid image file (JPEG, PNG, WebP).');
+      return;
+    }
+
+    setUploadingShakePhoto(true);
+    try {
+      const dataUrl = await compressImage(file, 1600, 0.8);
+      const targetDate = editingDate || new Date().toISOString().split('T')[0];
+
+      const res = await fetch(`${API_URL}/api/upload-photo`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          date: targetDate,
+          pose: 'protein_shake',
+          dataUrl
+        })
+      });
+      const data = await res.json();
+
+      if (res.ok && data.success) {
+        setNightData({
+          ...nightData,
+          proteinShake: {
+            ...proteinShake,
+            taken: true,
+            photoUrl: data.url
+          }
+        });
+      } else {
+        alert(`Photo upload failed: ${data.error || 'Unknown error'}`);
+      }
+    } catch (err) {
+      console.error('Error uploading shake photo:', err);
+      alert(`Failed to upload protein shake photo: ${err.message || 'Unknown error'}`);
+    } finally {
+      setUploadingShakePhoto(false);
+    }
+  };
   const currentSupplements = typeof nightData.supplements === 'object' && nightData.supplements !== null && !Array.isArray(nightData.supplements)
     ? nightData.supplements
     : {};
@@ -113,6 +173,83 @@ export default function NightForm({
               <option value="No">No</option>
               <option value="Yes">Yes</option>
             </select>
+          </div>
+        </div>
+      </div>
+
+      {/* Card 1.5: Required Protein Shake & Proof Photo */}
+      <div style={{
+        background: 'rgba(255, 255, 255, 0.02)',
+        backdropFilter: 'blur(16px)',
+        border: '1px solid rgba(255, 255, 255, 0.07)',
+        borderRadius: 'var(--radius-md, 14px)',
+        padding: '24px',
+        boxShadow: '0 8px 32px rgba(0,0,0,0.15)'
+      }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '18px', borderBottom: '1px solid rgba(255, 255, 255, 0.06)', paddingBottom: '12px', flexWrap: 'wrap', gap: '10px' }}>
+          <div>
+            <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px' }}>
+              🥤 Required Protein Shake & Proof Photo
+              {enforceProteinShakeBlocker && (
+                <span style={{
+                  fontSize: '0.75rem',
+                  background: (proteinShake.taken && proteinShake.photoUrl) ? 'rgba(34, 197, 94, 0.15)' : 'rgba(239, 68, 68, 0.15)',
+                  color: (proteinShake.taken && proteinShake.photoUrl) ? '#4ade80' : '#f87171',
+                  border: `1px solid ${(proteinShake.taken && proteinShake.photoUrl) ? 'rgba(34, 197, 94, 0.3)' : 'rgba(239, 68, 68, 0.3)'}`,
+                  padding: '2px 10px',
+                  borderRadius: '12px',
+                  fontWeight: 600
+                }}>
+                  {(proteinShake.taken && proteinShake.photoUrl) ? '✓ Blocker Cleared' : '🔒 Blocker Required'}
+                </span>
+              )}
+            </h3>
+            <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Confirmation and proof photo required daily to unlock device.</span>
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '20px', alignItems: 'center' }}>
+          <label style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '12px',
+            padding: '14px 18px',
+            borderRadius: '10px',
+            background: proteinShake.taken ? 'rgba(34, 197, 94, 0.12)' : 'rgba(255, 255, 255, 0.03)',
+            border: `1px solid ${proteinShake.taken ? 'rgba(34, 197, 94, 0.4)' : 'rgba(255, 255, 255, 0.07)'}`,
+            cursor: 'pointer',
+            userSelect: 'none'
+          }}>
+            <input
+              type="checkbox"
+              checked={Boolean(proteinShake.taken)}
+              onChange={handleToggleShakeTaken}
+              style={{ width: '20px', height: '20px', cursor: 'pointer', accentColor: '#22c55e' }}
+            />
+            <span style={{ fontWeight: 600, color: proteinShake.taken ? '#4ade80' : 'var(--text-secondary)' }}>
+              I have taken my required daily protein shake
+            </span>
+          </label>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            {proteinShake.photoUrl ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <img 
+                  src={proteinShake.photoUrl} 
+                  alt="protein shake proof" 
+                  style={{ width: '64px', height: '64px', objectFit: 'cover', borderRadius: '8px', border: '1px solid rgba(255, 255, 255, 0.2)' }} 
+                />
+                <label className="btn btn-secondary btn-sm" style={{ cursor: 'pointer', margin: 0 }}>
+                  📷 Change Photo
+                  <input type="file" accept="image/*" onChange={handleShakePhotoSelect} style={{ display: 'none' }} />
+                </label>
+              </div>
+            ) : (
+              <label className="btn btn-secondary" style={{ cursor: 'pointer', margin: 0, display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                📷 {uploadingShakePhoto ? 'Uploading...' : 'Upload Proof Photo'}
+                <input type="file" accept="image/*" onChange={handleShakePhotoSelect} disabled={uploadingShakePhoto} style={{ display: 'none' }} />
+              </label>
+            )}
           </div>
         </div>
       </div>

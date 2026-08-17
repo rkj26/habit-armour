@@ -34,6 +34,12 @@ export default function Navigation({
         <button className={`tab-btn-vertical ${activeTab === 'gym' ? 'active' : ''}`} onClick={() => setActiveTab('gym')}>
           🔒 Gym Verification
         </button>
+        <button className={`tab-btn-vertical ${activeTab === 'anki' ? 'active' : ''}`} onClick={() => setActiveTab('anki')}>
+          🗂️ Anki Flashcards
+        </button>
+        <button className={`tab-btn-vertical ${activeTab === 'practice' ? 'active' : ''}`} onClick={() => setActiveTab('practice')}>
+          🧠 Consistent Practice
+        </button>
         <button className={`tab-btn-vertical ${activeTab === 'dashboard' ? 'active' : ''}`} onClick={() => setActiveTab('dashboard')}>
           📈 Dashboard
         </button>

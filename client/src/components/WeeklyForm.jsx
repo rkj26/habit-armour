@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { compressImage } from '../utils/imageCompressor';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
@@ -13,7 +14,7 @@ export default function WeeklyForm({
   const [uploadingPose, setUploadingPose] = useState(null);
   const photos = weeklyData.photos || { front: '', back: '', sideLeft: '', sideRight: '' };
 
-  const handlePhotoSelect = (pose, e) => {
+  const handlePhotoSelect = async (pose, e) => {
     const file = e.target.files && e.target.files[0];
     if (!file) return;
 
@@ -23,38 +24,34 @@ export default function WeeklyForm({
     }
 
     setUploadingPose(pose);
-    const reader = new FileReader();
-    reader.onload = async (event) => {
-      const dataUrl = event.target.result;
-      try {
-        const targetDate = weeklyData.weekCommencing || editingDate || new Date().toISOString().split('T')[0];
-        const res = await fetch(`${API_URL}/api/upload-photo`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ date: targetDate, pose, dataUrl })
-        });
+    try {
+      const dataUrl = await compressImage(file, 1600, 0.8);
+      const targetDate = weeklyData.weekCommencing || editingDate || new Date().toISOString().split('T')[0];
+      const res = await fetch(`${API_URL}/api/upload-photo`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ date: targetDate, pose, dataUrl })
+      });
 
-        if (res.ok) {
-          const data = await res.json();
-          setWeeklyData(prev => ({
-            ...prev,
-            photos: {
-              ...(prev.photos || {}),
-              [pose]: data.url
-            }
-          }));
-        } else {
-          const err = await res.json().catch(() => ({}));
-          alert(`Photo upload failed: ${err.error || 'Unknown error'}`);
-        }
-      } catch (err) {
-        console.error('Error uploading photo:', err);
-        alert('Failed to upload progress photo.');
-      } finally {
-        setUploadingPose(null);
+      if (res.ok) {
+        const data = await res.json();
+        setWeeklyData(prev => ({
+          ...prev,
+          photos: {
+            ...(prev.photos || {}),
+            [pose]: data.url
+          }
+        }));
+      } else {
+        const err = await res.json().catch(() => ({}));
+        alert(`Photo upload failed: ${err.error || 'Unknown error'}`);
       }
-    };
-    reader.readAsDataURL(file);
+    } catch (err) {
+      console.error('Error uploading photo:', err);
+      alert(`Failed to upload progress photo: ${err.message || 'Unknown error'}`);
+    } finally {
+      setUploadingPose(null);
+    }
   };
 
   const removePhoto = (pose) => {

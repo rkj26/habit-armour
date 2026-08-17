@@ -1,0 +1,308 @@
+{
+  "items": {
+    "topic_bellman": {
+      "id": "topic_bellman",
+      "type": "topic",
+      "title": "Bellman Expectation & Optimality Equations",
+      "tags": ["RL", "MDP", "Dynamic Programming", "Foundations"],
+      "createdAt": "2026-08-17T00:00:00.000Z",
+      "notes": "Fundamental recursive decomposition of value functions V(s) and Q(s,a). Contraction mapping theorem under max-norm.",
+      "paper": null
+    },
+    "topic_q_sarsa": {
+      "id": "topic_q_sarsa",
+      "type": "topic",
+      "title": "Q-Learning vs SARSA (Off-Policy vs On-Policy TD)",
+      "tags": ["RL", "Temporal Difference", "Model-Free"],
+      "createdAt": "2026-08-17T00:00:00.000Z",
+      "notes": "Target differences: max_a' Q(s',a') vs Q(s', a'). Cliff walking cliff-edge exploration dynamics.",
+      "paper": null
+    },
+    "topic_dqn": {
+      "id": "topic_dqn",
+      "type": "topic",
+      "title": "Deep Q-Networks (DQN): Experience Replay & Target Networks",
+      "tags": ["RL", "Deep RL", "Value-Based"],
+      "createdAt": "2026-08-17T00:00:00.000Z",
+      "notes": "Deadly triad resolution (function approximation, bootstrapping, off-policy). Loss formulation and gradients.",
+      "paper": null
+    },
+    "topic_reinforce": {
+      "id": "topic_reinforce",
+      "type": "topic",
+      "title": "Policy Gradient Theorem & REINFORCE with Baseline",
+      "tags": ["RL", "Policy Gradients", "Variance Reduction"],
+      "createdAt": "2026-08-17T00:00:00.000Z",
+      "notes": "Derivation using log-derivative trick. Proof that baseline b(s) has expectation zero gradient.",
+      "paper": null
+    },
+    "topic_ppo": {
+      "id": "topic_ppo",
+      "type": "topic",
+      "title": "Proximal Policy Optimization (PPO) Clipped Surrogate",
+      "tags": ["RL", "Policy Optimization", "Actor-Critic", "Alignment"],
+      "createdAt": "2026-08-17T00:00:00.000Z",
+      "notes": "Pessimistic lower bound objective min(r_t(theta) * A_t, clip(...) * A_t). Why clipping prevents policy collapse.",
+      "paper": null
+    },
+    "topic_dpo": {
+      "id": "topic_dpo",
+      "type": "topic",
+      "title": "Direct Preference Optimization (DPO) Derivation",
+      "tags": ["Alignment", "RLHF", "Preference Tuning"],
+      "createdAt": "2026-08-17T00:00:00.000Z",
+      "notes": "Closed-form reward substitution r(x,y) = beta * log(pi(y|x) / pi_ref(y|x)) + beta * log Z(x) into Bradley-Terry loss.",
+      "paper": null
+    },
+    "topic_ai_control": {
+      "id": "topic_ai_control",
+      "type": "topic",
+      "title": "AI Control Protocols & Untrusted Monitoring",
+      "tags": ["AI Safety", "AI Control", "Alignment", "Evaluation"],
+      "createdAt": "2026-08-17T00:00:00.000Z",
+      "notes": "Trusted monitoring vs untrusted generation, deferral to humans / trusted models, auditing for sabotage.",
+      "paper": null
+    },
+    "topic_transformers": {
+      "id": "topic_transformers",
+      "type": "topic",
+      "title": "Transformer Scaled Dot-Product Attention & Dynamics",
+      "tags": ["Architectures", "Transformers", "Mechanisms"],
+      "createdAt": "2026-08-17T00:00:00.000Z",
+      "notes": "Softmax(QK^T / sqrt(d_k))V. Proof of variance of dot product and gradient vanishing in softmax without scaling.",
+      "paper": null
+    },
+    "topic_ioi": {
+      "id": "topic_ioi",
+      "type": "topic",
+      "title": "Indirect Object Identification (IOI) Circuit in LLMs",
+      "tags": ["Mechanistic Interpretability", "Circuits", "Transformers"],
+      "createdAt": "2026-08-17T00:00:00.000Z",
+      "notes": "Name mover heads, S-inhibition heads, Duplicate token heads, Induction heads. Activation patching methodology.",
+      "paper": null
+    },
+    "topic_linear_probes": {
+      "id": "topic_linear_probes",
+      "type": "topic",
+      "title": "Linear Probes & Representation Geometry",
+      "tags": ["Mechanistic Interpretability", "Probing", "Geometry"],
+      "createdAt": "2026-08-17T00:00:00.000Z",
+      "notes": "Linear representation hypothesis. Probe training, difference in means, causal intervention (activation addition).",
+      "paper": null
+    },
+    "paper_vaswani_2017": {
+      "id": "paper_vaswani_2017",
+      "type": "paper",
+      "title": "Attention Is All You Need",
+      "tags": ["Architectures", "Transformers", "Seminal"],
+      "createdAt": "2026-08-17T00:00:00.000Z",
+      "notes": "Introduced the Transformer architecture eliminating recurrent and convolutional layers in favor of self-attention.",
+      "paper": {
+        "arxivId": "1706.03762",
+        "url": "https://arxiv.org/abs/1706.03762",
+        "authors": ["Vaswani et al."],
+        "year": 2017
+      }
+    },
+    "paper_schulman_2017": {
+      "id": "paper_schulman_2017",
+      "type": "paper",
+      "title": "Proximal Policy Optimization Algorithms",
+      "tags": ["RL", "Actor-Critic", "PPO"],
+      "createdAt": "2026-08-17T00:00:00.000Z",
+      "notes": "Introduced clipped surrogate objective as a scalable, sample-efficient first-order alternative to TRPO.",
+      "paper": {
+        "arxivId": "1707.06347",
+        "url": "https://arxiv.org/abs/1707.06347",
+        "authors": ["Schulman et al."],
+        "year": 2017
+      }
+    },
+    "paper_rafailov_2023": {
+      "id": "paper_rafailov_2023",
+      "type": "paper",
+      "title": "Direct Preference Optimization: Your Language Model is Secretly a Reward Model",
+      "tags": ["Alignment", "RLHF", "DPO"],
+      "createdAt": "2026-08-17T00:00:00.000Z",
+      "notes": "Directly optimizes preference loss without explicit reward modeling or RL sampling in the loop.",
+      "paper": {
+        "arxivId": "2305.18290",
+        "url": "https://arxiv.org/abs/2305.18290",
+        "authors": ["Rafailov et al."],
+        "year": 2023
+      }
+    },
+    "paper_wang_2022": {
+      "id": "paper_wang_2022",
+      "type": "paper",
+      "title": "Interpretability in the Wild: a Circuit for Indirect Object Identification in GPT-2 Small",
+      "tags": ["Mechanistic Interpretability", "IOI", "Circuits"],
+      "createdAt": "2026-08-17T00:00:00.000Z",
+      "notes": "End-to-end mechanistic discovery of a 26-head circuit solving the IOI task in GPT-2 Small.",
+      "paper": {
+        "arxivId": "2211.00593",
+        "url": "https://arxiv.org/abs/2211.00593",
+        "authors": ["Wang et al."],
+        "year": 2022
+      }
+    },
+    "paper_greenblatt_2023": {
+      "id": "paper_greenblatt_2023",
+      "type": "paper",
+      "title": "AI Control: Improving Safety Despite Intentional Subversion",
+      "tags": ["AI Safety", "AI Control", "Untrusted Models"],
+      "createdAt": "2026-08-17T00:00:00.000Z",
+      "notes": "Framework for safely using potentially sub-optimally aligned or untrusted models to do useful cognitive work.",
+      "paper": {
+        "arxivId": "2312.06942",
+        "url": "https://arxiv.org/abs/2312.06942",
+        "authors": ["Greenblatt et al."],
+        "year": 2023
+      }
+    }
+  },
+  "questions": {
+    "q_bellman_deriv": {
+      "id": "q_bellman_deriv",
+      "itemId": "topic_bellman",
+      "itemType": "topic",
+      "prompt": "Derive the Bellman Expectation Equation for V_pi(s) and the Bellman Optimality Equation for V*(s) from first principles. Prove why the Bellman Optimality operator is a gamma-contraction in the infinity norm, and state what this implies for Value Iteration.",
+      "answerTemplate": "topic",
+      "difficulty": "Hard",
+      "source": "manual",
+      "active": true,
+      "sm2": {
+        "easeFactor": 2.5,
+        "repetitions": 0,
+        "intervalDays": 0,
+        "dueDate": "2026-08-17",
+        "lastReviewedAt": null
+      }
+    },
+    "q_ppo_clip_deriv": {
+      "id": "q_ppo_clip_deriv",
+      "itemId": "topic_ppo",
+      "itemType": "topic",
+      "prompt": "Write the exact mathematical formulation of the PPO Clipped Surrogate Objective L^CLIP(theta). Explain precisely why the min() operator is applied against the unclipped objective, and dissect the 4 cases (positive vs negative advantage with ratio greater/smaller than 1 +/- epsilon).",
+      "answerTemplate": "topic",
+      "difficulty": "Hard",
+      "source": "manual",
+      "active": true,
+      "sm2": {
+        "easeFactor": 2.5,
+        "repetitions": 0,
+        "intervalDays": 0,
+        "dueDate": "2026-08-17",
+        "lastReviewedAt": null
+      }
+    },
+    "q_dpo_math_deriv": {
+      "id": "q_dpo_math_deriv",
+      "itemId": "topic_dpo",
+      "itemType": "topic",
+      "prompt": "Derive the DPO loss function starting from the KL-constrained RL objective max_pi E[r(x,y)] - beta * D_KL(pi || pi_ref). Show step-by-step how the partition function Z(x) cancels out when substituted into the Bradley-Terry preference probability P(y_w > y_l | x).",
+      "answerTemplate": "topic",
+      "difficulty": "Hard",
+      "source": "manual",
+      "active": true,
+      "sm2": {
+        "easeFactor": 2.5,
+        "repetitions": 0,
+        "intervalDays": 0,
+        "dueDate": "2026-08-17",
+        "lastReviewedAt": null
+      }
+    },
+    "q_reinforce_baseline": {
+      "id": "q_reinforce_baseline",
+      "itemId": "topic_reinforce",
+      "itemType": "topic",
+      "prompt": "Derive the Policy Gradient Theorem for episodic MDPs using the log-derivative trick. Prove mathematically that subtracting an arbitrary state-dependent baseline b(s) does not introduce bias into the gradient estimator.",
+      "answerTemplate": "topic",
+      "difficulty": "Medium",
+      "source": "manual",
+      "active": true,
+      "sm2": {
+        "easeFactor": 2.5,
+        "repetitions": 0,
+        "intervalDays": 0,
+        "dueDate": "2026-08-17",
+        "lastReviewedAt": null
+      }
+    },
+    "q_dqn_stability": {
+      "id": "q_dqn_stability",
+      "itemId": "topic_dqn",
+      "itemType": "topic",
+      "prompt": "Explain the deadly triad in Deep RL and how DQN overcomes instability. Write the exact DQN loss function using target network parameters theta^-, and explain mathematically why non-stationary targets cause divergent gradient dynamics without theta^-.",
+      "answerTemplate": "topic",
+      "difficulty": "Medium",
+      "source": "manual",
+      "active": true,
+      "sm2": {
+        "easeFactor": 2.5,
+        "repetitions": 0,
+        "intervalDays": 0,
+        "dueDate": "2026-08-17",
+        "lastReviewedAt": null
+      }
+    },
+    "q_transformer_scaling": {
+      "id": "q_transformer_scaling",
+      "itemId": "topic_transformers",
+      "itemType": "topic",
+      "prompt": "Prove that if components of query vector q and key vector k are independent random variables with mean 0 and variance 1, their dot product q^T k has variance d_k. Explain how large variances push the softmax into regions with vanishing gradients, and why dividing by sqrt(d_k) restores unit variance.",
+      "answerTemplate": "topic",
+      "difficulty": "Medium",
+      "source": "manual",
+      "active": true,
+      "sm2": {
+        "easeFactor": 2.5,
+        "repetitions": 0,
+        "intervalDays": 0,
+        "dueDate": "2026-08-17",
+        "lastReviewedAt": null
+      }
+    },
+    "q_ioi_mechanisms": {
+      "id": "q_ioi_mechanisms",
+      "itemId": "topic_ioi",
+      "itemType": "topic",
+      "prompt": "Deconstruct the 3 main classes of attention heads in the Indirect Object Identification (IOI) circuit (Duplicate Token Heads, S-Inhibition Heads, Name Mover Heads). Explain the signal flow across the residual stream, how activation patching was used to isolate each group, and what failure modes occur if S-inhibition is ablated.",
+      "answerTemplate": "topic",
+      "difficulty": "Hard",
+      "source": "manual",
+      "active": true,
+      "sm2": {
+        "easeFactor": 2.5,
+        "repetitions": 0,
+        "intervalDays": 0,
+        "dueDate": "2026-08-17",
+        "lastReviewedAt": null
+      }
+    },
+    "q_paper_dpo_review": {
+      "id": "q_paper_dpo_review",
+      "itemId": "paper_rafailov_2023",
+      "itemType": "paper",
+      "prompt": "Synthesize the core claims, methodology, empirical results, and key theoretical limitations of the DPO paper (Rafailov et al. 2023). Include a crisp ELI5 comparison of DPO vs classic PPO-based RLHF.",
+      "answerTemplate": "paper",
+      "difficulty": "Medium",
+      "source": "manual",
+      "active": true,
+      "sm2": {
+        "easeFactor": 2.5,
+        "repetitions": 0,
+        "intervalDays": 0,
+        "dueDate": "2026-08-17",
+        "lastReviewedAt": null
+      }
+    }
+  },
+  "attempts": {},
+  "meta": {
+    "nextItemSeq": 100,
+    "nextQuestionSeq": 100,
+    "nextAttemptSeq": 100
+  }
+}

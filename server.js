@@ -3,6 +3,8 @@ import cors from 'cors';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
+import practiceRouter, { verifyPracticeStatus } from './practice.js';
+import { readDb, writeDb, createDefaultEntry, getLocalDateString, DEFAULT_CONFIG, DB_FILE } from './db.js';
 
 // Load environment variables from .env file if it exists
 if (fs.existsSync(path.join(process.cwd(), '.env'))) {
@@ -20,7 +22,6 @@ if (fs.existsSync(path.join(process.cwd(), '.env'))) {
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const DB_FILE = path.join(process.cwd(), 'habits_data.json');
 
 const UPLOADS_DIR = path.join(process.cwd(), 'uploads');
 if (!fs.existsSync(UPLOADS_DIR)) {
@@ -28,52 +29,38 @@ if (!fs.existsSync(UPLOADS_DIR)) {
 }
 
 app.use(cors());
-app.use(express.json({ limit: '25mb' }));
-app.use(express.urlencoded({ limit: '25mb', extended: true }));
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
 app.use('/uploads', express.static(UPLOADS_DIR));
+app.use('/api/practice', practiceRouter);
+
+// Helper to sanitize payload for logging to avoid dumping huge base64 strings into logfiles
+function sanitizeBodyForLog(obj) {
+  if (!obj || typeof obj !== 'object') return obj;
+  const copy = Array.isArray(obj) ? [] : {};
+  for (const key of Object.keys(obj)) {
+    const val = obj[key];
+    if (key === 'dataUrl' && typeof val === 'string') {
+      copy[key] = `[base64 image, length: ${val.length}]`;
+    } else if (typeof val === 'string' && val.length > 200) {
+      copy[key] = val.substring(0, 100) + `... [truncated ${val.length - 100} chars]`;
+    } else if (typeof val === 'object' && val !== null) {
+      copy[key] = sanitizeBodyForLog(val);
+    } else {
+      copy[key] = val;
+    }
+  }
+  return copy;
+}
 
 // Logging middleware
 app.use((req, res, next) => {
   console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
   if (req.method === 'POST') {
-    console.log(`  Payload:`, JSON.stringify(req.body));
+    console.log(`  Payload:`, JSON.stringify(sanitizeBodyForLog(req.body)));
   }
   next();
 });
-
-// Initialize Database if it doesn't exist
-const DEFAULT_CONFIG = {
-  morningStart: process.env.DEFAULT_MORNING_START ? parseInt(process.env.DEFAULT_MORNING_START, 10) : 5,   // 5:00 AM
-  morningEnd: process.env.DEFAULT_MORNING_END ? parseInt(process.env.DEFAULT_MORNING_END, 10) : 12,   // 12:00 PM
-  nightStart: process.env.DEFAULT_NIGHT_START ? parseInt(process.env.DEFAULT_NIGHT_START, 10) : 20,    // 8:00 PM
-  nightEnd: process.env.DEFAULT_NIGHT_END ? parseInt(process.env.DEFAULT_NIGHT_END, 10) : 24,      // 12:00 AM (midnight)
-  gracePeriodSec: process.env.DEFAULT_GRACE_PERIOD_SEC ? parseInt(process.env.DEFAULT_GRACE_PERIOD_SEC, 10) : 120, // 2 minutes grace period
-  googleSheetsUrl: process.env.GOOGLE_SHEETS_URL || "",
-  googleSheetsEnabled: process.env.GOOGLE_SHEETS_ENABLED === 'true',
-  journalStorage: process.env.JOURNAL_STORAGE || "none",            // "none", "obsidian", "gdoc", "both"
-  obsidianVaultPath: process.env.OBSIDIAN_VAULT_PATH || "",             // e.g. "/Users/username/Documents/Obsidian"
-  obsidianJournalFolder: process.env.OBSIDIAN_JOURNAL_FOLDER || "Journal",  // Subfolder in Vault
-  googleDocId: process.env.GOOGLE_DOC_ID || "",                    // Google Doc ID or URL for appending journal entries
-  gymLockEnabled: process.env.GYM_LOCK_ENABLED !== 'false',        // default: true
-  gymLockStartHour: process.env.GYM_LOCK_START_HOUR ? parseInt(process.env.GYM_LOCK_START_HOUR, 10) : 21, // 9:00 PM
-  gymMinDurationMinutes: process.env.GYM_MIN_DURATION_MINUTES ? parseInt(process.env.GYM_MIN_DURATION_MINUTES, 10) : 30,
-  gymRoutineVerificationEnabled: process.env.GYM_ROUTINE_VERIFICATION_ENABLED !== 'false', // default: true
-  gymMinTotalSets: process.env.GYM_MIN_TOTAL_SETS ? parseInt(process.env.GYM_MIN_TOTAL_SETS, 10) : 12,
-  gymWeeklyGoal: process.env.GYM_WEEKLY_GOAL ? parseInt(process.env.GYM_WEEKLY_GOAL, 10) : 5, // 5 active days / week
-  gymRequireNoConsecutiveRestDays: process.env.GYM_NO_CONSECUTIVE_REST !== 'false', // default: true (max 1 rest day in a row)
-  gymMinSteps: process.env.GYM_MIN_STEPS ? parseInt(process.env.GYM_MIN_STEPS, 10) : 13000,
-  weeklyLockEnabled: process.env.WEEKLY_LOCK_ENABLED !== 'false',  // default: true
-  weeklyLockDay: process.env.WEEKLY_LOCK_DAY ? parseInt(process.env.WEEKLY_LOCK_DAY, 10) : 0, // 0 = Sunday
-  weeklyLockStartHour: process.env.WEEKLY_LOCK_START_HOUR ? parseInt(process.env.WEEKLY_LOCK_START_HOUR, 10) : 0, // 12:00 AM
-  weeklyLockEndHour: process.env.WEEKLY_LOCK_END_HOUR ? parseInt(process.env.WEEKLY_LOCK_END_HOUR, 10) : 24, // 12:00 AM (all day)
-  targetWeight: process.env.TARGET_WEIGHT ? parseFloat(process.env.TARGET_WEIGHT) : 75.0,
-  targetProtein: process.env.TARGET_PROTEIN ? parseInt(process.env.TARGET_PROTEIN, 10) : 150,
-  targetSteps: process.env.TARGET_STEPS ? parseInt(process.env.TARGET_STEPS, 10) : 13000,
-  targetCalories: process.env.TARGET_CALORIES ? parseInt(process.env.TARGET_CALORIES, 10) : 2500,
-  supplementsList: ['Vitamin D3', 'Vitamin K2', 'Omega-3', 'Creatine'],
-  enforceSupplementsBlocker: true,
-  weeklyPhotosRequired: true
-};
 
 function isDayActive(entry, minSteps = 13000) {
   if (!entry) return false;
@@ -85,67 +72,6 @@ function isDayActive(entry, minSteps = 13000) {
     if (!isNaN(steps) && steps >= minSteps) return true;
   }
   return false;
-}
-
-function readDb() {
-  try {
-    if (!fs.existsSync(DB_FILE)) {
-      return { entries: {}, config: DEFAULT_CONFIG };
-    }
-    const data = fs.readFileSync(DB_FILE, 'utf8');
-    const parsed = JSON.parse(data);
-    // Ensure all config fields are populated
-    parsed.config = { ...DEFAULT_CONFIG, ...parsed.config };
-    
-    // Environment overrides take precedence if defined
-    if (process.env.DEFAULT_MORNING_START) parsed.config.morningStart = parseInt(process.env.DEFAULT_MORNING_START, 10);
-    if (process.env.DEFAULT_MORNING_END) parsed.config.morningEnd = parseInt(process.env.DEFAULT_MORNING_END, 10);
-    if (process.env.DEFAULT_NIGHT_START) parsed.config.nightStart = parseInt(process.env.DEFAULT_NIGHT_START, 10);
-    if (process.env.DEFAULT_NIGHT_END) parsed.config.nightEnd = parseInt(process.env.DEFAULT_NIGHT_END, 10);
-    if (process.env.DEFAULT_GRACE_PERIOD_SEC) parsed.config.gracePeriodSec = parseInt(process.env.DEFAULT_GRACE_PERIOD_SEC, 10);
-    
-    if (process.env.GOOGLE_SHEETS_URL) parsed.config.googleSheetsUrl = process.env.GOOGLE_SHEETS_URL;
-    if (process.env.GOOGLE_SHEETS_ENABLED) parsed.config.googleSheetsEnabled = process.env.GOOGLE_SHEETS_ENABLED === 'true';
-    
-    if (process.env.JOURNAL_STORAGE) parsed.config.journalStorage = process.env.JOURNAL_STORAGE;
-    if (process.env.OBSIDIAN_VAULT_PATH) parsed.config.obsidianVaultPath = process.env.OBSIDIAN_VAULT_PATH;
-    if (process.env.OBSIDIAN_JOURNAL_FOLDER) parsed.config.obsidianJournalFolder = process.env.OBSIDIAN_JOURNAL_FOLDER;
-    if (process.env.GOOGLE_DOC_ID) parsed.config.googleDocId = process.env.GOOGLE_DOC_ID;
-
-    if (process.env.GYM_LOCK_ENABLED) parsed.config.gymLockEnabled = process.env.GYM_LOCK_ENABLED !== 'false';
-    if (process.env.GYM_LOCK_START_HOUR) parsed.config.gymLockStartHour = parseInt(process.env.GYM_LOCK_START_HOUR, 10);
-    if (process.env.GYM_MIN_DURATION_MINUTES) parsed.config.gymMinDurationMinutes = parseInt(process.env.GYM_MIN_DURATION_MINUTES, 10);
-    if (process.env.GYM_ROUTINE_VERIFICATION_ENABLED) parsed.config.gymRoutineVerificationEnabled = process.env.GYM_ROUTINE_VERIFICATION_ENABLED !== 'false';
-    if (process.env.GYM_MIN_TOTAL_SETS) parsed.config.gymMinTotalSets = parseInt(process.env.GYM_MIN_TOTAL_SETS, 10);
-    if (process.env.GYM_WEEKLY_GOAL) parsed.config.gymWeeklyGoal = parseInt(process.env.GYM_WEEKLY_GOAL, 10);
-    if (process.env.GYM_NO_CONSECUTIVE_REST) parsed.config.gymRequireNoConsecutiveRestDays = process.env.GYM_NO_CONSECUTIVE_REST !== 'false';
-    if (process.env.GYM_MIN_STEPS) parsed.config.gymMinSteps = parseInt(process.env.GYM_MIN_STEPS, 10);
-
-    if (process.env.WEEKLY_LOCK_ENABLED) parsed.config.weeklyLockEnabled = process.env.WEEKLY_LOCK_ENABLED !== 'false';
-    if (process.env.WEEKLY_LOCK_DAY) parsed.config.weeklyLockDay = parseInt(process.env.WEEKLY_LOCK_DAY, 10);
-    if (process.env.WEEKLY_LOCK_START_HOUR) parsed.config.weeklyLockStartHour = parseInt(process.env.WEEKLY_LOCK_START_HOUR, 10);
-    if (process.env.WEEKLY_LOCK_END_HOUR) parsed.config.weeklyLockEndHour = parseInt(process.env.WEEKLY_LOCK_END_HOUR, 10);
-
-    if (process.env.TARGET_WEIGHT) parsed.config.targetWeight = parseFloat(process.env.TARGET_WEIGHT);
-    if (process.env.TARGET_PROTEIN) parsed.config.targetProtein = parseInt(process.env.TARGET_PROTEIN, 10);
-    if (process.env.TARGET_STEPS) parsed.config.targetSteps = parseInt(process.env.TARGET_STEPS, 10);
-    if (process.env.TARGET_CALORIES) parsed.config.targetCalories = parseInt(process.env.TARGET_CALORIES, 10);
-
-    if (!parsed.config.supplementsList || !Array.isArray(parsed.config.supplementsList) || parsed.config.supplementsList.length === 0) {
-      parsed.config.supplementsList = ['Vitamin D3', 'Vitamin K2', 'Omega-3', 'Creatine'];
-    }
-    if (parsed.config.enforceSupplementsBlocker === undefined) {
-      parsed.config.enforceSupplementsBlocker = true;
-    }
-    if (parsed.config.weeklyPhotosRequired === undefined) {
-      parsed.config.weeklyPhotosRequired = true;
-    }
-
-    return parsed;
-  } catch (err) {
-    console.error("Error reading database file, returning default", err);
-    return { entries: {}, config: DEFAULT_CONFIG };
-  }
 }
 
 function writeDb(data) {
@@ -245,16 +171,9 @@ let gracePeriodDate = null;
 let testLockActive = false;
 let testLockExpiresAt = null;
 let lastGymCheckTime = 0;
+let lastAnkiCheckTime = 0;
 
-function getLocalDateString(dateInput = new Date()) {
-  const d = new Date(dateInput);
-  // Subtract 4 hours to handle night owls (logical day transitions at 4 AM)
-  d.setHours(d.getHours() - 4);
-  const year = d.getFullYear();
-  const month = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-}
+
 
 function getLocalIP() {
   const interfaces = os.networkInterfaces();
@@ -390,199 +309,256 @@ app.post('/api/sync-all', async (req, res) => {
 
 // Main status endpoint used by macOS and iOS clients to check locking
 app.get('/api/status', (req, res) => {
-  const db = readDb();
-  const config = db.config;
-  const today = getLocalDateString();
-  const now = new Date();
-  const hour = now.getHours();
+  try {
+    const db = readDb();
+    const config = db.config;
+    const today = getLocalDateString();
+    const now = new Date();
+    const hour = now.getHours();
 
-  // 1. Check for test lock first
-  if (testLockActive) {
-    if (Date.now() < testLockExpiresAt) {
+    // 1. Check for test lock first
+    if (testLockActive) {
+      if (Date.now() < testLockExpiresAt) {
+        return res.json({
+          locked: true,
+          isWarning: false,
+          secondsRemaining: 0,
+          window: "test",
+          reason: "Test lock active",
+          completed: false
+        });
+      } else {
+        testLockActive = false;
+        testLockExpiresAt = null;
+      }
+    }
+
+    // Ensure entry exists for today
+    if (!db.entries[today]) {
+      db.entries[today] = createDefaultEntry(today);
+      writeDb(db);
+    }
+
+    const entry = db.entries[today];
+    const pendingWindows = [];
+
+    // Determine if inside morning or night locking window
+    const isMorningWindow = hour >= config.morningStart && hour < config.morningEnd;
+    const isNightWindow = hour >= config.nightStart && hour < config.nightEnd;
+
+    const dateObj = new Date(today + 'T00:00:00');
+    const dayOfWeek = dateObj.getDay(); // 0 = Sunday
+
+    // 1. Check Morning Window
+    if (isMorningWindow) {
+      if (!entry.morningCompleted) {
+        pendingWindows.push("morning");
+      } else if (!entry.morningJournalCompleted) {
+        pendingWindows.push("morningJournal");
+      }
+    }
+
+    // 2. Check Night Window
+    if (isNightWindow) {
+      if (!entry.nightCompleted) {
+        pendingWindows.push("night");
+      } else if (!entry.nightJournalCompleted) {
+        pendingWindows.push("nightJournal");
+      }
+    }
+
+    // 3. Check Weekly Spec Lock Window
+    const weeklyEnabled = config.weeklyLockEnabled !== false;
+    const weeklyDay = config.weeklyLockDay !== undefined ? config.weeklyLockDay : 0;
+    const weeklyStart = config.weeklyLockStartHour !== undefined ? config.weeklyLockStartHour : 0;
+    const weeklyEnd = config.weeklyLockEndHour !== undefined ? config.weeklyLockEndHour : 24;
+    const isWeeklyWindow = weeklyEnabled && dayOfWeek === weeklyDay && hour >= weeklyStart && hour < weeklyEnd;
+
+    if (isWeeklyWindow && !entry.weeklyCompleted) {
+      pendingWindows.push("weekly");
+    }
+
+    // 4. Gym & Physical Activity Lock Check
+    const todayDate = new Date(today + 'T00:00:00');
+    const dayIdx = (todayDate.getDay() + 6) % 7; // 0 = Monday, 6 = Sunday
+    const mondayDate = new Date(todayDate);
+    mondayDate.setDate(todayDate.getDate() - dayIdx);
+
+    let weeklyActiveCount = 0;
+    for (let i = 0; i < 7; i++) {
+      const dObj = new Date(mondayDate);
+      dObj.setDate(mondayDate.getDate() + i);
+      const dStr = dObj.toISOString().split('T')[0];
+      if (isDayActive(db.entries[dStr], config.gymMinSteps || 13000)) {
+        weeklyActiveCount++;
+      }
+    }
+
+    const yesterdayObj = new Date(todayDate);
+    yesterdayObj.setDate(todayDate.getDate() - 1);
+    const yesterdayStr = yesterdayObj.toISOString().split('T')[0];
+    const isYesterdayActive = isDayActive(db.entries[yesterdayStr], config.gymMinSteps || 13000);
+    const isTodayActive = isDayActive(entry, config.gymMinSteps || 13000);
+
+    if (isTodayActive && !entry.gymCompleted) {
+      entry.gymCompleted = true;
+      writeDb(db);
+    }
+
+    const gymWeeklyGoal = config.gymWeeklyGoal || 5;
+    const noConsecutiveRest = config.gymRequireNoConsecutiveRestDays !== false;
+    const isWeeklyGoalReached = weeklyActiveCount >= gymWeeklyGoal;
+    const isTodayMandatory = !isTodayActive && (!isYesterdayActive || (7 - dayIdx <= (gymWeeklyGoal - weeklyActiveCount)));
+
+    if (config.gymLockEnabled && hour >= config.gymLockStartHour) {
+      if (!isTodayActive && !isWeeklyGoalReached && (noConsecutiveRest && !isYesterdayActive || isTodayMandatory)) {
+        // Throttle background Hevy API queries to once per 60 seconds
+        if (Date.now() - lastGymCheckTime > 60000) {
+          lastGymCheckTime = Date.now();
+          console.log(`[status] Triggering throttled background Gym verification for ${today}...`);
+          verifyGymWorkoutForDate(today, config).then(result => {
+            const currentDb = readDb();
+            if (currentDb.entries[today]) {
+              currentDb.entries[today].gymCompleted = result.verified;
+              currentDb.entries[today].gymWorkoutData = result.workout || null;
+              currentDb.entries[today].gymVerificationError = result.reason || null;
+              writeDb(currentDb);
+              console.log(`[status] Background gym verification result: ${result.verified}. Reason: ${result.reason}`);
+            }
+          }).catch(err => {
+            console.error("[status] Background gym verification failed:", err);
+          });
+        }
+        pendingWindows.push("gym");
+      }
+    }
+
+    // 5. Anki Flashcard Review Lock Check
+    const ankiLockEnabled = config.ankiLockEnabled !== false;
+    const ankiStartHour = config.ankiLockStartHour !== undefined ? config.ankiLockStartHour : 21;
+
+    if (ankiLockEnabled && hour >= ankiStartHour) {
+      if (!entry.ankiCompleted && !entry.ankiManualOverride) {
+        // Throttle background Anki API queries to once per 30 seconds
+        if (Date.now() - lastAnkiCheckTime > 30000) {
+          lastAnkiCheckTime = Date.now();
+          verifyAnkiStatus(config).then(result => {
+            const currentDb = readDb();
+            if (currentDb.entries[today]) {
+              if (result.reachable) {
+                currentDb.entries[today].ankiCompleted = result.verified;
+                currentDb.entries[today].ankiDecksData = result.decks || null;
+                currentDb.entries[today].ankiVerificationError = result.verified ? null : result.reason;
+                currentDb.entries[today].ankiTotalDue = result.totalDue || 0;
+                currentDb.entries[today].ankiReviewedToday = result.reviewedToday || 0;
+              } else {
+                currentDb.entries[today].ankiVerificationError = result.reason;
+              }
+              writeDb(currentDb);
+            }
+          }).catch(err => {
+            console.error("[status] Background Anki verification failed:", err);
+          });
+        }
+        pendingWindows.push("anki");
+      }
+    }
+
+    // 6. Consistent Practice (Active Recall & Spaced Repetition) Lock Check
+    const practiceLockEnabled = config.practiceLockEnabled !== false;
+    const practiceStartHour = config.practiceLockStartHour !== undefined ? config.practiceLockStartHour : 21;
+
+    if (practiceLockEnabled && hour >= practiceStartHour) {
+      if (!entry.practiceCompleted && !entry.practiceManualOverride) {
+        try {
+          const { dueCount, minRequired } = verifyPracticeStatus(config);
+          entry.practiceDueCount = dueCount;
+          if (dueCount === 0 || (entry.practiceCompletedCount || 0) >= minRequired) {
+            entry.practiceCompleted = true;
+            writeDb(db);
+          } else {
+            pendingWindows.push("practice");
+          }
+        } catch (pracErr) {
+          console.error("[status] Practice verification error:", pracErr);
+        }
+      }
+    }
+
+    const lockCount = pendingWindows.length;
+    const locked = lockCount > 0;
+    const activeWindow = pendingWindows[0] || null;
+
+    if (locked) {
+      const isGym = activeWindow === "gym";
+      const isAnki = activeWindow === "anki";
+      const isPractice = activeWindow === "practice";
+      const gymReasonText = !isYesterdayActive
+        ? `Yesterday was a rest day (No consecutive rest days allowed!). Complete a workout, cardio, or 10k steps to clear.`
+        : `Weekly Activity Goal: ${weeklyActiveCount}/${gymWeeklyGoal} active days completed.`;
+
+      let lockReason = `Device locked (${lockCount} active ${lockCount === 1 ? 'breach' : 'breaches'}). Fill your ${activeWindow} log to clear.`;
+      if (isGym) {
+        lockReason = `Physical activity requirement not met. ${gymReasonText}`;
+      } else if (isAnki) {
+        lockReason = `Anki flashcards incomplete (${entry.ankiTotalDue || 'pending'} due cards remaining). Open Anki to complete reviews, or submit manual override.`;
+      } else if (isPractice) {
+        lockReason = `Consistent Practice requirement incomplete (${entry.practiceDueCount || 'pending'} due questions remaining). Complete an active recall proof/paper review, or submit manual override.`;
+      }
+
       return res.json({
         locked: true,
+        lockCount,
+        pendingWindows,
+        weeklyActiveCount,
+        gymWeeklyGoal,
+        isYesterdayActive,
+        isTodayMandatory,
         isWarning: false,
         secondsRemaining: 0,
-        window: "test",
-        reason: "Test lock active",
-        completed: false
+        window: activeWindow,
+        reason: lockReason,
+        completed: false,
+        error: isGym ? (entry.gymVerificationError || null) : isAnki ? (entry.ankiVerificationError || null) : null,
+        entry
       });
-    } else {
-      testLockActive = false;
-      testLockExpiresAt = null;
     }
-  }
 
-  // Ensure entry exists for today
-  if (!db.entries[today]) {
-    db.entries[today] = {
-      date: today,
-      morningCompleted: false,
-      morningJournalCompleted: false,
-      nightCompleted: false,
-      nightJournalCompleted: false,
-      weeklyCompleted: false,
-      gymCompleted: false,
-      gymWorkoutData: null,
-      gymVerificationError: null,
-      morningData: null,
-      morningJournalData: null,
-      nightData: null,
-      nightJournalData: null,
-      weeklyData: null,
-      morningSynced: false,
-      morningJournalSynced: false,
-      nightSynced: false,
-      nightJournalSynced: false,
-      weeklySynced: false
-    };
-    writeDb(db);
-  }
+    // If we reach here, lockCount is 0 and Mac is unlocked
+    gracePeriodStart = null;
+    gracePeriodWindow = null;
+    gracePeriodDate = null;
 
-  const entry = db.entries[today];
-  const pendingWindows = [];
-
-  // Determine if inside morning or night locking window
-  const isMorningWindow = hour >= config.morningStart && hour < config.morningEnd;
-  const isNightWindow = hour >= config.nightStart && hour < config.nightEnd;
-
-  const dateObj = new Date(today + 'T00:00:00');
-  const dayOfWeek = dateObj.getDay(); // 0 = Sunday
-
-  // 1. Check Morning Window
-  if (isMorningWindow) {
-    if (!entry.morningCompleted) {
-      pendingWindows.push("morning");
-    } else if (!entry.morningJournalCompleted) {
-      pendingWindows.push("morningJournal");
-    }
-  }
-
-  // 2. Check Night Window
-  if (isNightWindow) {
-    if (!entry.nightCompleted) {
-      pendingWindows.push("night");
-    } else if (!entry.nightJournalCompleted) {
-      pendingWindows.push("nightJournal");
-    }
-  }
-
-  // 3. Check Weekly Spec Lock Window
-  const weeklyEnabled = config.weeklyLockEnabled !== false;
-  const weeklyDay = config.weeklyLockDay !== undefined ? config.weeklyLockDay : 0;
-  const weeklyStart = config.weeklyLockStartHour !== undefined ? config.weeklyLockStartHour : 0;
-  const weeklyEnd = config.weeklyLockEndHour !== undefined ? config.weeklyLockEndHour : 24;
-  const isWeeklyWindow = weeklyEnabled && dayOfWeek === weeklyDay && hour >= weeklyStart && hour < weeklyEnd;
-
-  if (isWeeklyWindow && !entry.weeklyCompleted) {
-    pendingWindows.push("weekly");
-  }
-
-  // 4. Gym & Physical Activity Lock Check
-  const todayDate = new Date(today + 'T00:00:00');
-  const dayIdx = (todayDate.getDay() + 6) % 7; // 0 = Monday, 6 = Sunday
-  const mondayDate = new Date(todayDate);
-  mondayDate.setDate(todayDate.getDate() - dayIdx);
-
-  let weeklyActiveCount = 0;
-  for (let i = 0; i < 7; i++) {
-    const dObj = new Date(mondayDate);
-    dObj.setDate(mondayDate.getDate() + i);
-    const dStr = dObj.toISOString().split('T')[0];
-    if (isDayActive(db.entries[dStr], config.gymMinSteps || 13000)) {
-      weeklyActiveCount++;
-    }
-  }
-
-  const yesterdayObj = new Date(todayDate);
-  yesterdayObj.setDate(todayDate.getDate() - 1);
-  const yesterdayStr = yesterdayObj.toISOString().split('T')[0];
-  const isYesterdayActive = isDayActive(db.entries[yesterdayStr], config.gymMinSteps || 13000);
-  const isTodayActive = isDayActive(entry, config.gymMinSteps || 13000);
-
-  if (isTodayActive && !entry.gymCompleted) {
-    entry.gymCompleted = true;
-    writeDb(db);
-  }
-
-  const gymWeeklyGoal = config.gymWeeklyGoal || 5;
-  const noConsecutiveRest = config.gymRequireNoConsecutiveRestDays !== false;
-  const isWeeklyGoalReached = weeklyActiveCount >= gymWeeklyGoal;
-  const isTodayMandatory = !isTodayActive && (!isYesterdayActive || (7 - dayIdx <= (gymWeeklyGoal - weeklyActiveCount)));
-
-  if (config.gymLockEnabled && hour >= config.gymLockStartHour) {
-    if (!isTodayActive && !isWeeklyGoalReached && (noConsecutiveRest && !isYesterdayActive || isTodayMandatory)) {
-      // Throttle background Hevy API queries to once per 60 seconds
-      if (Date.now() - lastGymCheckTime > 60000) {
-        lastGymCheckTime = Date.now();
-        console.log(`[status] Triggering throttled background Gym verification for ${today}...`);
-        verifyGymWorkoutForDate(today, config).then(result => {
-          const currentDb = readDb();
-          if (currentDb.entries[today]) {
-            currentDb.entries[today].gymCompleted = result.verified;
-            currentDb.entries[today].gymWorkoutData = result.workout || null;
-            currentDb.entries[today].gymVerificationError = result.reason || null;
-            writeDb(currentDb);
-            console.log(`[status] Background gym verification result: ${result.verified}. Reason: ${result.reason}`);
-          }
-        }).catch(err => {
-          console.error("[status] Background gym verification failed:", err);
-        });
-      }
-      pendingWindows.push("gym");
-    }
-  }
-
-  const lockCount = pendingWindows.length;
-  const locked = lockCount > 0;
-  const activeWindow = pendingWindows[0] || null;
-
-  if (locked) {
-    const isGym = activeWindow === "gym";
-    const gymReasonText = !isYesterdayActive
-      ? `Yesterday was a rest day (No consecutive rest days allowed!). Complete a workout, cardio, or 10k steps to clear.`
-      : `Weekly Activity Goal: ${weeklyActiveCount}/${gymWeeklyGoal} active days completed.`;
-
-    return res.json({
-      locked: true,
-      lockCount,
-      pendingWindows,
+    res.json({
+      locked: false,
+      lockCount: 0,
+      pendingWindows: [],
       weeklyActiveCount,
       gymWeeklyGoal,
       isYesterdayActive,
       isTodayMandatory,
       isWarning: false,
       secondsRemaining: 0,
-      window: activeWindow,
-      reason: isGym 
-        ? `Physical activity requirement not met. ${gymReasonText}`
-        : `Device locked (${lockCount} active ${lockCount === 1 ? 'breach' : 'breaches'}). Fill your ${activeWindow} log to clear.`,
-      completed: false,
-      error: isGym ? (entry.gymVerificationError || null) : null,
+      window: null,
+      reason: "Device usable. All logs for current period completed.",
+      completed: true,
       entry
     });
+  } catch (err) {
+    console.error("[status] Exception thrown calculating status:", err);
+    // Fail-safe unlock: Never lock device if status calculation encounters an error/throw
+    return res.json({
+      locked: false,
+      lockCount: 0,
+      pendingWindows: [],
+      isWarning: false,
+      secondsRemaining: 0,
+      window: null,
+      reason: `Fail-safe unlock due to status calculation error: ${err.message}`,
+      completed: true,
+      error: err.message
+    });
   }
-
-  // If we reach here, lockCount is 0 and Mac is unlocked
-  gracePeriodStart = null;
-  gracePeriodWindow = null;
-  gracePeriodDate = null;
-
-  res.json({
-    locked: false,
-    lockCount: 0,
-    pendingWindows: [],
-    weeklyActiveCount,
-    gymWeeklyGoal,
-    isYesterdayActive,
-    isTodayMandatory,
-    isWarning: false,
-    secondsRemaining: 0,
-    window: null,
-    reason: "Device usable. All logs for current period completed.",
-    completed: true,
-    entry
-  });
 });
 
 // Write Daily Journal Entry to local Obsidian Vault
@@ -816,6 +792,17 @@ app.post('/api/submit', (req, res) => {
 
     if (missing.length > 0) {
       return res.status(400).json({ error: `All required supplements must be taken & checked to clear Night Lock. Missing: ${missing.join(', ')}` });
+    }
+  }
+
+  // Validate Protein Shake & Proof Photo if night log submission
+  if (window === 'night' && db.config.enforceProteinShakeBlocker !== false) {
+    const ps = data?.proteinShake;
+    if (!ps || !ps.taken) {
+      return res.status(400).json({ error: "Protein Shake confirmation is required to clear Night Lock." });
+    }
+    if (!ps.photoUrl) {
+      return res.status(400).json({ error: "A proof photo of your Protein Shake is required to clear Night Lock." });
     }
   }
 
@@ -1058,6 +1045,101 @@ app.get('/api/hevy/workouts', async (req, res) => {
   }
 });
 
+// Fetch exercise templates from Hevy API for template matching / searching
+let cachedTemplates = null;
+let templatesCacheTime = 0;
+
+app.get('/api/hevy/templates', async (req, res) => {
+  const apiKey = process.env.HEVY_API_KEY;
+  if (!apiKey) {
+    return res.status(400).json({ error: "HEVY_API_KEY is not configured in the .env file." });
+  }
+
+  // Return cached templates if fetched within the last 10 minutes
+  if (cachedTemplates && (Date.now() - templatesCacheTime < 600000)) {
+    return res.json(cachedTemplates);
+  }
+
+  try {
+    const response = await fetch('https://api.hevyapp.com/v1/exercise_templates?page=1&page_size=100', {
+      headers: {
+        'api-key': apiKey,
+        'Accept': 'application/json'
+      }
+    });
+    if (!response.ok) {
+      const errText = await response.text();
+      return res.status(response.status).json({ error: `Hevy API Error: ${errText}` });
+    }
+    const data = await response.json();
+    cachedTemplates = data;
+    templatesCacheTime = Date.now();
+    res.json(data);
+  } catch (err) {
+    console.error("Hevy exercise templates fetch failed:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Post a new workout to Hevy API
+app.post('/api/hevy/upload-workout', async (req, res) => {
+  const apiKey = process.env.HEVY_API_KEY;
+  if (!apiKey) {
+    return res.status(400).json({ error: "HEVY_API_KEY is not configured in the .env file." });
+  }
+
+  const { title, description, start_time, end_time, exercises } = req.body;
+  if (!title || !exercises || !Array.isArray(exercises) || exercises.length === 0) {
+    return res.status(400).json({ error: "Workout title and at least one exercise are required." });
+  }
+
+  const payload = {
+    workout: {
+      title,
+      description: description || "",
+      start_time: start_time || new Date().toISOString(),
+      end_time: end_time || new Date(Date.now() + 1800000).toISOString(),
+      exercises: exercises.map((e, idx) => ({
+        index: idx,
+        exercise_template_id: e.exercise_template_id,
+        notes: e.notes || "",
+        sets: (e.sets || []).map((s, sIdx) => ({
+          index: sIdx,
+          type: s.type || "normal",
+          weight_kg: s.weight_kg !== undefined && s.weight_kg !== null ? Number(s.weight_kg) : null,
+          reps: s.reps !== undefined && s.reps !== null ? Number(s.reps) : null,
+          duration_seconds: s.duration_seconds !== undefined && s.duration_seconds !== null ? Number(s.duration_seconds) : null,
+          distance_meters: s.distance_meters !== undefined && s.distance_meters !== null ? Number(s.distance_meters) : null
+        }))
+      }))
+    }
+  };
+
+  try {
+    const response = await fetch('https://api.hevyapp.com/v1/workouts', {
+      method: 'POST',
+      headers: {
+        'api-key': apiKey,
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      },
+      body: JSON.stringify(payload)
+    });
+
+    if (!response.ok) {
+      const errText = await response.text();
+      return res.status(response.status).json({ error: `Hevy API Error: ${errText}` });
+    }
+
+    const data = await response.json();
+    console.log(`[hevy-upload] Successfully uploaded workout "${title}" to Hevy.`);
+    res.json({ success: true, workout: data });
+  } catch (err) {
+    console.error("Hevy upload workout failed:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Generate training critiques from recent workouts using Gemini AI
 app.post('/api/hevy/analyze', async (req, res) => {
   const geminiKey = process.env.GEMINI_API_KEY;
@@ -1140,6 +1222,279 @@ Be encouraging, professional, and precise. Use weights and exercises referenced 
   }
 });
 
+// Helper to verify Anki flashcard status via AnkiConnect
+async function verifyAnkiStatus(config) {
+  const ankiUrl = config.ankiConnectUrl || 'http://localhost:8765';
+  const ignoredDecks = Array.isArray(config.ankiIgnoredDecks) ? config.ankiIgnoredDecks : [];
+
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 4000);
+
+    // 1. Check AnkiConnect connectivity / version
+    const versionRes = await fetch(ankiUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'version', version: 6 }),
+      signal: controller.signal
+    });
+    clearTimeout(timeoutId);
+
+    if (!versionRes.ok) {
+      return {
+        reachable: false,
+        verified: false,
+        reason: `AnkiConnect returned HTTP ${versionRes.status}. Make sure Anki Desktop is running.`
+      };
+    }
+
+    // 2. Fetch deck names
+    const deckRes = await fetch(ankiUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'deckNames', version: 6 })
+    });
+    const deckData = await deckRes.json();
+    if (deckData.error) {
+      return { reachable: true, verified: false, reason: `Anki error: ${deckData.error}` };
+    }
+    const deckNames = deckData.result || [];
+
+    // Filter out ignored decks (case-insensitive, and child sub-decks)
+    const activeDeckNames = deckNames.filter(name => 
+      !ignoredDecks.some(ign => name.toLowerCase() === ign.toLowerCase() || name.toLowerCase().startsWith(ign.toLowerCase() + '::'))
+    );
+
+    if (activeDeckNames.length === 0) {
+      return {
+        reachable: true,
+        verified: true,
+        reason: 'No active decks configured or all decks are in ignored list.',
+        decks: [],
+        totalDue: 0,
+        reviewedToday: 0,
+        incompleteDecks: []
+      };
+    }
+
+    // 3. Fetch Deck Stats
+    const statsRes = await fetch(ankiUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'getDeckStats',
+        version: 6,
+        params: { decks: activeDeckNames }
+      })
+    });
+    const statsData = await statsRes.json();
+    const statsMap = statsData.result || {};
+
+    // 4. Fetch Reviewed Today Count
+    let reviewedToday = 0;
+    try {
+      const revRes = await fetch(ankiUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'getNumCardsReviewedToday', version: 6 })
+      });
+      const revData = await revRes.json();
+      if (revData.result !== undefined && revData.result !== null) {
+        reviewedToday = revData.result;
+      }
+    } catch (e) {
+      console.warn("[anki] Could not get reviewed count today:", e.message);
+    }
+
+    let totalDue = 0;
+    let incompleteDecks = [];
+    const formattedDecks = [];
+
+    for (const [deckId, stat] of Object.entries(statsMap)) {
+      const dueCount = (stat.review_count || 0) + (stat.learn_count || 0);
+      const isComplete = dueCount === 0;
+      totalDue += dueCount;
+      if (!isComplete) {
+        incompleteDecks.push(`${stat.name} (${dueCount} due)`);
+      }
+      formattedDecks.push({
+        deck_id: stat.deck_id || deckId,
+        name: stat.name,
+        new_count: stat.new_count || 0,
+        learn_count: stat.learn_count || 0,
+        review_count: stat.review_count || 0,
+        total_in_deck: stat.total_in_deck || 0,
+        due_count: dueCount,
+        completed: isComplete
+      });
+    }
+
+    // Sort decks by due_count descending, then by name
+    formattedDecks.sort((a, b) => b.due_count - a.due_count || a.name.localeCompare(b.name));
+
+    const verified = totalDue === 0;
+    const reason = verified 
+      ? `All ${formattedDecks.length} active decks cleared (0 due cards). Reviewed today: ${reviewedToday}.`
+      : `${totalDue} due card${totalDue === 1 ? '' : 's'} remaining across ${incompleteDecks.length} deck${incompleteDecks.length === 1 ? '' : 's'}: ${incompleteDecks.join(', ')}`;
+
+    return {
+      reachable: true,
+      verified,
+      reason,
+      decks: formattedDecks,
+      totalDue,
+      reviewedToday,
+      incompleteDecks
+    };
+  } catch (err) {
+    return {
+      reachable: false,
+      verified: false,
+      reason: `Anki Desktop is not reachable on ${ankiUrl}. Please ensure Anki is open with AnkiConnect installed. (${err.message})`
+    };
+  }
+}
+
+// Get Anki status, review statistics, and current completion state
+app.get('/api/anki/status', async (req, res) => {
+  try {
+    const db = readDb();
+    const config = db.config;
+    const today = getLocalDateString();
+    const entry = db.entries[today] || null;
+
+    const result = await verifyAnkiStatus(config);
+    
+    // If Anki is reachable, update today's entry cache
+    if (entry && result.reachable) {
+      if (!entry.ankiManualOverride) {
+        entry.ankiCompleted = result.verified;
+      }
+      entry.ankiDecksData = result.decks || null;
+      entry.ankiTotalDue = result.totalDue || 0;
+      entry.ankiReviewedToday = result.reviewedToday || 0;
+      entry.ankiVerificationError = result.verified ? null : result.reason;
+      writeDb(db);
+    }
+
+    res.json({
+      success: true,
+      reachable: result.reachable,
+      verified: entry ? (entry.ankiCompleted || entry.ankiManualOverride) : result.verified,
+      manualOverride: entry ? !!entry.ankiManualOverride : false,
+      overrideReason: entry ? entry.ankiOverrideReason : null,
+      reason: result.reason,
+      decks: result.decks || (entry ? entry.ankiDecksData : []) || [],
+      totalDue: result.totalDue !== undefined ? result.totalDue : (entry ? entry.ankiTotalDue : 0),
+      reviewedToday: result.reviewedToday !== undefined ? result.reviewedToday : (entry ? entry.ankiReviewedToday : 0),
+      incompleteDecks: result.incompleteDecks || [],
+      config: {
+        enabled: config.ankiLockEnabled !== false,
+        startHour: config.ankiLockStartHour !== undefined ? config.ankiLockStartHour : 21,
+        ankiConnectUrl: config.ankiConnectUrl || 'http://localhost:8765',
+        ignoredDecks: config.ankiIgnoredDecks || []
+      }
+    });
+  } catch (err) {
+    console.error("[anki-status] Route error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Force-verify Anki status immediately
+app.post('/api/anki/verify', async (req, res) => {
+  try {
+    const db = readDb();
+    const config = db.config;
+    const today = getLocalDateString();
+
+    if (!db.entries[today]) {
+      db.entries[today] = createDefaultEntry(today);
+    }
+
+    const entry = db.entries[today];
+    const result = await verifyAnkiStatus(config);
+
+    if (result.reachable) {
+      if (!entry.ankiManualOverride) {
+        entry.ankiCompleted = result.verified;
+      }
+      entry.ankiDecksData = result.decks || null;
+      entry.ankiTotalDue = result.totalDue || 0;
+      entry.ankiReviewedToday = result.reviewedToday || 0;
+      entry.ankiVerificationError = result.verified ? null : result.reason;
+    } else {
+      entry.ankiVerificationError = result.reason;
+    }
+
+    writeDb(db);
+
+    res.json({
+      success: result.verified || entry.ankiManualOverride,
+      reachable: result.reachable,
+      verified: entry.ankiCompleted || entry.ankiManualOverride,
+      reason: result.reason,
+      decks: result.decks || [],
+      totalDue: result.totalDue || 0,
+      reviewedToday: result.reviewedToday || 0
+    });
+  } catch (err) {
+    console.error("[anki-verify] Route error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Submit manual override for Anki (e.g. reviewed on mobile AnkiWeb)
+app.post('/api/anki/override', (req, res) => {
+  try {
+    const db = readDb();
+    const today = getLocalDateString();
+    const { reason } = req.body;
+
+    if (!db.entries[today]) {
+      db.entries[today] = createDefaultEntry(today);
+    }
+
+    const entry = db.entries[today];
+    entry.ankiManualOverride = true;
+    entry.ankiCompleted = true;
+    entry.ankiOverrideReason = reason || "Manual override submitted (e.g. mobile review)";
+    entry.ankiVerificationError = null;
+
+    writeDb(db);
+
+    res.json({
+      success: true,
+      message: "Anki requirement manually marked complete for today.",
+      entry
+    });
+  } catch (err) {
+    console.error("[anki-override] Route error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Reset manual override
+app.post('/api/anki/reset-override', (req, res) => {
+  try {
+    const db = readDb();
+    const today = getLocalDateString();
+    const entry = db.entries[today];
+
+    if (entry) {
+      entry.ankiManualOverride = false;
+      entry.ankiOverrideReason = null;
+      entry.ankiCompleted = false;
+      writeDb(db);
+    }
+
+    res.json({ success: true, message: "Anki override reset." });
+  } catch (err) {
+    console.error("[anki-reset-override] Route error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Serve GOOGLE_SHEET_SETUP.md locally
 app.get('/GOOGLE_SHEET_SETUP.md', (req, res) => {
   res.setHeader('Content-Type', 'text/markdown; charset=UTF-8');
@@ -1158,6 +1513,40 @@ if (fs.existsSync(clientDist)) {
     res.send('Habit Armor API is running. Build the client using "npm run build" in the client folder to serve the UI.');
   });
 }
+
+// Global Express Error Handler
+app.use((err, req, res, next) => {
+  console.error('[express-error]', err);
+  if (req.path === '/api/status') {
+    return res.json({
+      locked: false,
+      lockCount: 0,
+      pendingWindows: [],
+      isWarning: false,
+      secondsRemaining: 0,
+      window: null,
+      reason: `Fail-safe unlock due to Express route error: ${err.message}`,
+      completed: true,
+      error: err.message
+    });
+  }
+  if (err.type === 'entity.too.large') {
+    return res.status(413).json({ error: 'Payload too large. Please select a smaller photo.' });
+  }
+  if (err instanceof SyntaxError && err.status === 400 && 'body' in err) {
+    return res.status(400).json({ error: 'Invalid JSON payload.' });
+  }
+  return res.status(500).json({ error: err.message || 'Internal server error' });
+});
+
+// Process-level uncaught Exception & Rejection Handlers (Fail-Safe)
+process.on('uncaughtException', (err) => {
+  console.error('[CRITICAL] Uncaught Exception caught by server fail-safe:', err);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('[CRITICAL] Unhandled Rejection caught by server fail-safe:', reason);
+});
 
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`Server running at http://localhost:${PORT}`);

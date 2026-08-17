@@ -332,6 +332,21 @@ export default function HistoryView({
                                 )}
                               </div>
                             )}
+                            {entry.nightData?.proteinShake && (
+                              <div style={{ marginTop: '12px', padding: '8px 12px', background: 'rgba(255, 255, 255, 0.03)', borderRadius: '6px', fontSize: '0.82rem', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                <div>
+                                  <strong>🥤 Protein Shake:</strong>{' '}
+                                  <span style={{ color: entry.nightData.proteinShake.taken ? '#4ade80' : '#f87171' }}>
+                                    {entry.nightData.proteinShake.taken ? '✓ Taken' : '❌ Not Taken'}
+                                  </span>
+                                </div>
+                                {entry.nightData.proteinShake.photoUrl && (
+                                  <a href={entry.nightData.proteinShake.photoUrl} target="_blank" rel="noreferrer" title="Protein Shake Proof">
+                                    <img src={entry.nightData.proteinShake.photoUrl} alt="protein shake proof" style={{ width: '40px', height: '40px', objectFit: 'cover', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.2)' }} />
+                                  </a>
+                                )}
+                              </div>
+                            )}
                             {entry.weeklyData?.photos && (entry.weeklyData.photos.front || entry.weeklyData.photos.back || entry.weeklyData.photos.sideLeft || entry.weeklyData.photos.sideRight || entry.weeklyData.photos.side) && (
                               <div style={{ marginTop: '12px', padding: '8px 12px', background: 'rgba(255, 255, 255, 0.03)', borderRadius: '6px', fontSize: '0.82rem', color: 'var(--text-primary)' }}>
                                 <strong style={{ display: 'block', marginBottom: '6px' }}>📸 Weekly Progress Photos:</strong>

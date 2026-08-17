@@ -14,6 +14,8 @@ import DashboardView from './components/DashboardView';
 import HistoryView from './components/HistoryView';
 import HevyView from './components/HevyView';
 import GymView from './components/GymView';
+import AnkiView from './components/AnkiView';
+import PracticeView from './components/PracticeView';
 import SettingsView from './components/SettingsView';
 
 // API Base URL - handle Vite dev server (port 5173) and local network IP origin
@@ -46,6 +48,13 @@ export default function App() {
     weeklyLockDay: 0,
     weeklyLockStartHour: 0,
     weeklyLockEndHour: 24,
+    ankiLockEnabled: true,
+    ankiLockStartHour: 21,
+    ankiConnectUrl: "http://localhost:8765",
+    ankiIgnoredDecks: [],
+    practiceLockEnabled: true,
+    practiceLockStartHour: 21,
+    practiceMinDueToUnlock: 1,
     supplementsList: ['Vitamin D3', 'Vitamin K2', 'Omega-3', 'Creatine'],
     enforceSupplementsBlocker: true
   });
@@ -94,6 +103,7 @@ export default function App() {
       'Omega-3': false,
       'Creatine': false
     },
+    proteinShake: { taken: false, photoUrl: '' },
     trainingDay: 'No',
     strengthPerformance: 5,
     steps: '',
@@ -157,7 +167,13 @@ export default function App() {
       const data = await res.json();
       setStatus(data);
       if (data.window && (data.locked || data.isWarning)) {
-        setActiveTab(data.window);
+        setActiveTab(prev => {
+          // Do not kick the user off practice or active forms during ongoing work
+          if (prev === 'practice' || prev === 'morning' || prev === 'morningJournal' || prev === 'night' || prev === 'nightJournal' || prev === 'weekly') {
+            return prev;
+          }
+          return data.window;
+        });
       }
     } catch (err) {
       console.error("Failed to fetch status:", err);
@@ -541,6 +557,14 @@ export default function App() {
       }
     }
 
+    if (windowType === 'night' && config.enforceProteinShakeBlocker !== false) {
+      const ps = dataToSubmit.proteinShake;
+      if (!ps?.taken || !ps?.photoUrl) {
+        alert(`🔒 Required Protein Shake confirmation and a proof photo are required to submit your Night Log and clear the Night Lock.`);
+        return;
+      }
+    }
+
     if (windowType === 'weekly' && config.weeklyPhotosRequired !== false) {
       const photos = dataToSubmit.photos || {};
       const missing = [];
@@ -583,49 +607,66 @@ export default function App() {
   };
 
   const getStats = () => {
+    const totalDays = history.length;
     const morningLogs = history.filter(h => h.morningData);
     const nightLogs = history.filter(h => h.nightData);
 
-    const totalDays = history.length;
     let morningCompliance = 0;
     let morningJournalCompliance = 0;
     let nightCompliance = 0;
     let nightJournalCompliance = 0;
+    let gymCompliance = 0;
+    let ankiCompliance = 0;
+    let practiceCompliance = 0;
+    let slotsPerDay = 4;
+    if (config?.gymLockEnabled) slotsPerDay++;
+    if (config?.ankiLockEnabled) slotsPerDay++;
+    if (config?.practiceLockEnabled) slotsPerDay++;
 
     history.forEach(h => {
       if (h.morningCompleted) {
         morningCompliance++;
-        if (h.morningJournalCompleted !== false) {
-          morningJournalCompliance++;
-        }
-      } else {
-        if (h.morningJournalCompleted) {
-          morningJournalCompliance++;
-        }
       }
-
+      if (h.morningJournalCompleted) {
+        morningJournalCompliance++;
+      }
       if (h.nightCompleted) {
         nightCompliance++;
-        if (h.nightJournalCompleted !== false) {
-          nightJournalCompliance++;
-        }
-      } else {
-        if (h.nightJournalCompleted) {
-          nightJournalCompliance++;
-        }
+      }
+      if (h.nightJournalCompleted) {
+        nightJournalCompliance++;
+      }
+
+      if (config?.gymLockEnabled && h.gymCompleted) {
+        gymCompliance++;
+      }
+
+      if (config?.ankiLockEnabled && (h.ankiCompleted || h.ankiManualOverride)) {
+        ankiCompliance++;
+      }
+
+      if (config?.practiceLockEnabled && (h.practiceCompleted || h.practiceManualOverride)) {
+        practiceCompliance++;
       }
     });
 
-    const complianceRate = totalDays > 0 ? Math.round(((morningCompliance + morningJournalCompliance + nightCompliance + nightJournalCompliance) / (totalDays * 4)) * 100) : 100;
+    const totalSlots = totalDays * slotsPerDay;
+    const totalDone = morningCompliance + morningJournalCompliance + nightCompliance + nightJournalCompliance +
+      (config?.gymLockEnabled ? gymCompliance : 0) +
+      (config?.ankiLockEnabled ? ankiCompliance : 0) +
+      (config?.practiceLockEnabled ? practiceCompliance : 0);
+    const complianceRate = totalSlots > 0 ? Math.round((totalDone / totalSlots) * 100) : 100;
 
     const last7Morning = morningLogs.slice(0, 7);
     const last7Night = nightLogs.slice(0, 7);
 
+    const validWeightLogs = last7Morning.filter(h => h.morningData?.wakingWeight && !isNaN(parseFloat(h.morningData.wakingWeight)));
+    const avgWeight = validWeightLogs.length > 0 ? (validWeightLogs.reduce((sum, h) => sum + parseFloat(h.morningData.wakingWeight), 0) / validWeightLogs.length).toFixed(1) : '-';
     const avgSleep = last7Morning.length > 0 ? (last7Morning.reduce((sum, h) => sum + parseFloat(h.morningData.sleepHours || 0), 0) / last7Morning.length).toFixed(1) : '-';
     const avgSteps = last7Night.length > 0 ? Math.round(last7Night.reduce((sum, h) => sum + parseInt(h.nightData.steps || 0), 0) / last7Night.length).toLocaleString() : '-';
     const avgCalories = last7Night.length > 0 ? Math.round(last7Night.reduce((sum, h) => sum + parseInt(h.nightData.calories || 0), 0) / last7Night.length).toLocaleString() : '-';
 
-    return { complianceRate, avgSleep, avgSteps, avgCalories };
+    return { complianceRate, avgWeight, avgSleep, avgSteps, avgCalories };
   };
 
   const stats = getStats();
@@ -677,6 +718,8 @@ export default function App() {
                 setNightData={setNightData}
                 supplementsList={config.supplementsList || ['Vitamin D3', 'Vitamin K2', 'Omega-3', 'Creatine']}
                 enforceBlocker={config.enforceSupplementsBlocker !== false}
+                enforceProteinShakeBlocker={config.enforceProteinShakeBlocker !== false}
+                API_URL={API_URL}
                 editingDate={editingDate}
                 cancelEditing={cancelEditing}
                 onSubmit={(e) => handleFormSubmit(e, 'night')}
@@ -734,6 +777,7 @@ export default function App() {
                 analysisError={analysisError}
                 analysisText={analysisText}
                 generateAIWorkoutAnalysis={generateAIWorkoutAnalysis}
+                fetchHevyWorkouts={fetchHevyWorkouts}
               />
             )}
 
@@ -745,6 +789,22 @@ export default function App() {
                 gymVerifyResult={gymVerifyResult}
                 gymVerifyError={gymVerifyError}
                 handleVerifyGymWorkout={handleVerifyGymWorkout}
+              />
+            )}
+
+            {activeTab === 'anki' && (
+              <AnkiView 
+                API_URL={API_URL}
+                status={status}
+                onRefreshStatus={fetchStatus}
+              />
+            )}
+
+            {activeTab === 'practice' && (
+              <PracticeView 
+                API_URL={API_URL}
+                status={status}
+                onRefreshStatus={fetchStatus}
               />
             )}
 
