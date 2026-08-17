@@ -5,79 +5,89 @@ export default function Navigation({
   setActiveTab,
   status,
   ipInfo,
-  triggerTestLock,
-  config,
-  syncAllUnsynced,
-  syncingAll
+  triggerTestLock
 }) {
+  const navSections = [
+    {
+      title: "Daily Habits",
+      items: [
+        { id: 'morning', label: 'Morning Bio-Log', icon: '☀️' },
+        { id: 'morningJournal', label: 'Morning Journal', icon: '📝' },
+        { id: 'night', label: 'Night Log', icon: '🌙' },
+        { id: 'nightJournal', label: 'Night Journal', icon: '📓' },
+        { id: 'weekly', label: 'Weekly Check-in', icon: '📊' },
+      ]
+    },
+    {
+      title: "Activity & Mastery",
+      items: [
+        { id: 'hevy', label: 'Gym & Workouts', icon: '💪' },
+        { id: 'anki', label: 'Anki Flashcards', icon: '🗂️' },
+        { id: 'practice', label: 'Consistent Practice', icon: '🔬' },
+      ]
+    },
+    {
+      title: "System",
+      items: [
+        { id: 'dashboard', label: 'Analytics Dashboard', icon: '📈' },
+        { id: 'history', label: 'Log History', icon: '📜' },
+        { id: 'settings', label: 'Settings & Schedules', icon: '⚙️' },
+      ]
+    }
+  ];
+
   return (
     <aside className="sidebar glass-card">
-      <nav className="tab-nav-vertical">
-        <button className={`tab-btn-vertical ${activeTab === 'morning' ? 'active' : ''}`} onClick={() => setActiveTab('morning')}>
-          ☀️ Morning Log
-        </button>
-        <button className={`tab-btn-vertical ${activeTab === 'morningJournal' ? 'active' : ''}`} onClick={() => setActiveTab('morningJournal')}>
-          📝 Morning Journal
-        </button>
-        <button className={`tab-btn-vertical ${activeTab === 'night' ? 'active' : ''}`} onClick={() => setActiveTab('night')}>
-          🌙 Night Log
-        </button>
-        <button className={`tab-btn-vertical ${activeTab === 'nightJournal' ? 'active' : ''}`} onClick={() => setActiveTab('nightJournal')}>
-          📝 Night Journal
-        </button>
-        <button className={`tab-btn-vertical ${activeTab === 'weekly' ? 'active' : ''}`} onClick={() => setActiveTab('weekly')}>
-          📊 Weekly Specs
-        </button>
-        <button className={`tab-btn-vertical ${activeTab === 'hevy' ? 'active' : ''}`} onClick={() => setActiveTab('hevy')}>
-          💪 Gym Workouts
-        </button>
-        <button className={`tab-btn-vertical ${activeTab === 'gym' ? 'active' : ''}`} onClick={() => setActiveTab('gym')}>
-          🔒 Gym Verification
-        </button>
-        <button className={`tab-btn-vertical ${activeTab === 'anki' ? 'active' : ''}`} onClick={() => setActiveTab('anki')}>
-          🗂️ Anki Flashcards
-        </button>
-        <button className={`tab-btn-vertical ${activeTab === 'practice' ? 'active' : ''}`} onClick={() => setActiveTab('practice')}>
-          🧠 Consistent Practice
-        </button>
-        <button className={`tab-btn-vertical ${activeTab === 'dashboard' ? 'active' : ''}`} onClick={() => setActiveTab('dashboard')}>
-          📈 Dashboard
-        </button>
-        <button className={`tab-btn-vertical ${activeTab === 'history' ? 'active' : ''}`} onClick={() => setActiveTab('history')}>
-          📜 Log History
-        </button>
-        <button className={`tab-btn-vertical ${activeTab === 'settings' ? 'active' : ''}`} onClick={() => setActiveTab('settings')}>
-          ⚙️ Settings
-        </button>
-      </nav>
-
-      <div className="divider" style={{ margin: '0' }}></div>
-
-      <h2 className="sidebar-title">Device Security</h2>
-      <div className="sidebar-section">
-        <div className="metric-row">
-          <span className="metric-label">Status</span>
-          <span className={`metric-value ${status.locked ? 'text-red' : 'text-green'}`}>
-            {status.locked ? 'LOCKED' : 'UNLOCKED'}
-          </span>
-        </div>
-        <div className="metric-row">
-          <span className="metric-label">Active Window</span>
-          <span className="metric-value text-purple">{status.window || 'None'}</span>
-        </div>
+      <div className="sidebar-nav-container">
+        {navSections.map((section, idx) => (
+          <div key={section.title} className="sidebar-group">
+            <span className="sidebar-group-title">{section.title}</span>
+            <nav className="tab-nav-vertical">
+              {section.items.map(item => {
+                const isActive = activeTab === item.id;
+                return (
+                  <button
+                    key={item.id}
+                    className={`tab-btn-vertical ${isActive ? 'active' : ''}`}
+                    onClick={() => setActiveTab(item.id)}
+                  >
+                    <span className="tab-icon">{item.icon}</span>
+                    <span className="tab-label">{item.label}</span>
+                    {isActive && <span className="active-indicator" />}
+                  </button>
+                );
+              })}
+            </nav>
+          </div>
+        ))}
       </div>
 
-      <div className="sidebar-section ip-card">
-        <h3>iOS Integration Link</h3>
-        <p className="ip-desc">To lock your iPhone, create a Shortcut automation and point it to this local API:</p>
-        <code className="ip-code">http://{ipInfo}:3000/api/status</code>
-        <p className="ip-help">Ensure phone is on the same Wi-Fi network.</p>
-      </div>
+      <div className="sidebar-footer">
+        <div className="sidebar-security-badge">
+          <div className="security-header">
+            <span className="security-title">OS Armour</span>
+            <span className={`security-pill ${status.locked ? 'pill-locked' : 'pill-unlocked'}`}>
+              <span className="pill-dot" />
+              {status.locked ? 'LOCKED' : 'PROTECTED'}
+            </span>
+          </div>
+          {status.window && (
+            <div className="security-subtext">
+              Active window: <strong>{status.window}</strong>
+            </div>
+          )}
+        </div>
 
-      <div className="sidebar-section">
-        <button className="btn btn-secondary w-full" onClick={triggerTestLock}>
+        <button className="btn btn-secondary w-full test-lock-btn" onClick={triggerTestLock}>
           ⚡ Test Screen Lock
         </button>
+
+        {ipInfo && (
+          <div className="ios-sync-mini">
+            <span className="ios-label">iOS Remote Lock:</span>
+            <code className="ios-code">http://{ipInfo}:3000/api/status</code>
+          </div>
+        )}
       </div>
     </aside>
   );
