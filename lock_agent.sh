@@ -38,23 +38,24 @@ is_habit_url() {
   return 1
 }
 
-# Helper to parse status JSON cleanly via Node.js
+# Helper to parse status JSON cleanly via Node.js using stdin
 parse_status_json() {
-  local json="$1"
   node -e '
     try {
-      const d = JSON.parse(process.argv[1]);
+      const fs = require("fs");
+      const raw = fs.readFileSync(0, "utf-8");
+      const d = JSON.parse(raw);
       const locked = d.locked === true ? "true" : "false";
       const isWarning = d.isWarning === true ? "true" : "false";
       const remaining = Number(d.secondsRemaining) || 0;
       const window = d.window || "habits";
-      const reason = d.reason || "";
-      const hasError = (d.error && d.error !== "null" && typeof d.error === "string") ? "true" : "false";
-      console.log(`${locked}|${isWarning}|${remaining}|${window}|${hasError}|${reason}`);
+      const reason = (d.reason || "").replace(/\|/g, " ");
+      const fatalError = d.fatalError === true ? "true" : "false";
+      console.log(`${locked}|${isWarning}|${remaining}|${window}|${fatalError}|${reason}`);
     } catch (e) {
       console.log("false|false|0|habits|true|parse_error");
     }
-  ' "$json" 2>/dev/null
+  ' <<< "$1" 2>/dev/null
 }
 
 WAS_LOCKED=false
@@ -71,10 +72,10 @@ while true; do
   fi
 
   PARSED=$(parse_status_json "$RESPONSE")
-  IFS='|' read -r LOCKED WARNING REMAINING WINDOW HAS_ERROR REASON <<< "$PARSED"
+  IFS='|' read -r LOCKED WARNING REMAINING WINDOW FATAL_ERROR REASON <<< "$PARSED"
 
-  if [ "$HAS_ERROR" = "true" ]; then
-    echo "[$(date '+%Y-%m-%d %H:%M:%S')] Server error detected. Fail-safe unlock active."
+  if [ "$FATAL_ERROR" = "true" ]; then
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] Fatal server error. Fail-safe unlock active."
     sleep 15
     continue
   fi
@@ -101,9 +102,9 @@ while true; do
 
       if [ $CURL_STATUS -eq 0 ] && [ ! -z "$RESPONSE" ]; then
         PARSED=$(parse_status_json "$RESPONSE")
-        IFS='|' read -r STILL_LOCKED STILL_WARNING STILL_REMAINING STILL_WINDOW STILL_ERROR STILL_REASON <<< "$PARSED"
+        IFS='|' read -r STILL_LOCKED STILL_WARNING STILL_REMAINING STILL_WINDOW STILL_FATAL STILL_REASON <<< "$PARSED"
 
-        if [ "$STILL_LOCKED" != "true" ] || [ "$STILL_ERROR" = "true" ]; then
+        if [ "$STILL_LOCKED" != "true" ] || [ "$STILL_FATAL" = "true" ]; then
           echo "[$(date '+%Y-%m-%d %H:%M:%S')] STATUS: Habits completed or override applied. Mac unlocked!"
           WAS_LOCKED=false
           break
