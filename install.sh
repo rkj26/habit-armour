@@ -1,23 +1,28 @@
 #!/bin/bash
 
-# Habits and Lock installer for macOS (Habit Armour)
-echo "Installing Habit Armour..."
+# ==============================================================================
+# Habit Armour Installer for macOS (Python FastAPI + SQLite + PyObjC)
+# Deploys runtime to ~/.habitarmour to bypass macOS ~/Documents TCC restrictions.
+# ==============================================================================
+echo "Installing Habit Armour 2.0..."
 
-# Determine repository directory
 REPO_DIR="$(cd "$(dirname "$0")" && pwd)"
+APP_DIR="$HOME/.habitarmour"
 PLIST_DIR="$HOME/Library/LaunchAgents"
+
+mkdir -p "$APP_DIR"
 mkdir -p "$PLIST_DIR"
 
-# 1. Check node binary path
-NODE_PATH=$(which node)
-if [ -z "$NODE_PATH" ]; then
-  echo "Error: Node.js was not found in your PATH."
-  echo "Please install Node.js (https://nodejs.org) and try again."
+# 1. Check Python 3
+PYTHON_BIN=$(which python3)
+if [ -z "$PYTHON_BIN" ]; then
+  echo "Error: Python 3 was not found in your PATH."
+  echo "Please install Python 3 and try again."
   exit 1
 fi
-echo "Using Node.js at: $NODE_PATH"
+echo "Using Python: $PYTHON_BIN"
 
-# 2. Load port configuration from .env if present
+# 2. Load port from .env if present
 PORT=3000
 if [ -f "$REPO_DIR/.env" ]; then
   ENV_PORT=$(grep -v '^#' "$REPO_DIR/.env" | grep -E '^PORT=' | cut -d= -f2- | tr -d '[:space:]')
@@ -27,33 +32,48 @@ if [ -f "$REPO_DIR/.env" ]; then
 fi
 echo "Configured Port: $PORT"
 
-# 3. Install dependencies and build client if needed
-echo "Installing server dependencies..."
-cd "$REPO_DIR"
-npm install --no-audit --no-fund
-
-if [ ! -d "$REPO_DIR/client/dist" ]; then
+# 3. Build React Client Assets
+if [ -d "$REPO_DIR/client" ]; then
   echo "Building client assets..."
   cd "$REPO_DIR/client"
-  npm install --no-audit --no-fund
+  npm install --no-audit --no-fund --quiet
   npm run build
   cd "$REPO_DIR"
 fi
 
-# 4. Unload existing agents if running
-echo "Unloading old launchd plists if loaded..."
+# 4. Sync Application Files to ~/.habitarmour
+echo "Deploying files to $APP_DIR..."
+rsync -av --delete --exclude '.venv' --exclude 'node_modules' --exclude '.git' "$REPO_DIR/" "$APP_DIR/" >/dev/null
+
+# Copy .env if present
+if [ -f "$REPO_DIR/.env" ]; then
+  cp "$REPO_DIR/.env" "$APP_DIR/.env"
+fi
+
+# 5. Create Virtual Environment in ~/.habitarmour & Install Dependencies
+echo "Setting up Python virtual environment in $APP_DIR/.venv..."
+if [ ! -d "$APP_DIR/.venv" ]; then
+  python3 -m venv "$APP_DIR/.venv"
+fi
+
+"$APP_DIR/.venv/bin/pip" install --upgrade pip --quiet
+"$APP_DIR/.venv/bin/pip" install -r "$APP_DIR/requirements.txt" --quiet
+
+# 6. Run SQLite Migration
+echo "Migrating data to SQLite in $APP_DIR..."
+cd "$APP_DIR"
+PYTHONPATH="$APP_DIR" "$APP_DIR/.venv/bin/python" "$APP_DIR/app/migrate_json.py"
+cd "$REPO_DIR"
+
+# 7. Unload existing launchd agents
+echo "Unloading previous launchd agents..."
 launchctl unload "$PLIST_DIR/com.user.habitserver.plist" 2>/dev/null
 launchctl unload "$PLIST_DIR/com.user.habitlock.plist" 2>/dev/null
 
-# 5. Create lock agent home directory and copy script
-mkdir -p "$HOME/.habitlock"
-cp "$REPO_DIR/lock_agent.sh" "$HOME/.habitlock/"
-chmod +x "$HOME/.habitlock/lock_agent.sh"
-
-# 6. Generate plist files from templates
+# 8. Generate plist files from templates
 echo "Generating launchd plist files..."
-sed -e "s|{{NODE_PATH}}|$NODE_PATH|g" \
-    -e "s|{{REPO_DIR}}|$REPO_DIR|g" \
+sed -e "s|{{HOME_DIR}}|$HOME|g" \
+    -e "s|{{PORT}}|$PORT|g" \
     "$REPO_DIR/com.user.habitserver.plist.template" > "$PLIST_DIR/com.user.habitserver.plist"
 
 sed -e "s|{{HOME_DIR}}|$HOME|g" \
@@ -63,11 +83,11 @@ sed -e "s|{{HOME_DIR}}|$HOME|g" \
 chmod 644 "$PLIST_DIR/com.user.habitserver.plist"
 chmod 644 "$PLIST_DIR/com.user.habitlock.plist"
 
-# 7. Load plists
-echo "Loading launchd background agents..."
+# 9. Load and start services
+echo "Loading background launchd agents..."
 launchctl load "$PLIST_DIR/com.user.habitserver.plist"
 launchctl load "$PLIST_DIR/com.user.habitlock.plist"
 
-echo "Habit Armour services loaded and installed successfully!"
-echo "The Express Server and macOS Locking Agent are now active in the background."
-echo "Open http://localhost:$PORT in your browser to view and track your logs."
+echo "✅ Habit Armour 2.0 installed successfully!"
+echo "🚀 Backend: FastAPI + SQLite running on http://localhost:$PORT"
+echo "🔒 Lock Daemon: Native PyObjC agent active in background"

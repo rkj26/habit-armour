@@ -1,10 +1,17 @@
 # Environment variables (contains sensitive API keys)
 .env
 
-# Local database file (contains personal logs/habits data)
+# Local database files
 habits_data.json
+study_data.json
+*.db
+*.db-wal
+*.db-shm
 
-# Dependencies
+# Python & Dependencies
+.venv/
+__pycache__/
+*.pyc
 node_modules/
 client/node_modules/
 
