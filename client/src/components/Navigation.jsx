@@ -39,7 +39,7 @@ export default function Navigation({
   return (
     <aside className="sidebar glass-card">
       <div className="sidebar-nav-container">
-        {navSections.map((section, idx) => (
+        {navSections.map((section) => (
           <div key={section.title} className="sidebar-group">
             <span className="sidebar-group-title">{section.title}</span>
             <nav className="tab-nav-vertical">

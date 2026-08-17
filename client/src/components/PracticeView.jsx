@@ -310,8 +310,8 @@ export default function PracticeView({ API_URL, status, onRefreshStatus }) {
       )}
 
       {/* Stats Summary Cards */}
-      <div className="stats-grid" style={{ marginBottom: '24px' }}>
-        <div className="stat-card glass-card">
+      <div className="stats-grid">
+        <div className="stat-card">
           <span className="stat-label">Due for Review Today</span>
           <span className={`stat-value ${dueQuestions.length > 0 ? 'text-amber' : 'text-green'}`}>
             {dueQuestions.length}
@@ -321,7 +321,7 @@ export default function PracticeView({ API_URL, status, onRefreshStatus }) {
           </span>
         </div>
 
-        <div className="stat-card glass-card">
+        <div className="stat-card">
           <span className="stat-label">Completed Today</span>
           <span className="stat-value text-purple">
             {practiceStatus?.completedTodayCount || 0}
@@ -331,7 +331,7 @@ export default function PracticeView({ API_URL, status, onRefreshStatus }) {
           </span>
         </div>
 
-        <div className="stat-card glass-card">
+        <div className="stat-card">
           <span className="stat-label">Study Bank Library</span>
           <span className="stat-value text-blue">
             {practiceStatus?.totalItems || items.length}
@@ -341,7 +341,7 @@ export default function PracticeView({ API_URL, status, onRefreshStatus }) {
           </span>
         </div>
 
-        <div className="stat-card glass-card">
+        <div className="stat-card">
           <span className="stat-label">Device Lock Status</span>
           <div style={{ marginTop: '6px' }}>
             {practiceStatus?.isCompleted ? (
@@ -420,7 +420,9 @@ export default function PracticeView({ API_URL, status, onRefreshStatus }) {
                   </div>
 
                   <h3 className="due-item-title">{q.itemTitle}</h3>
-                  <p className="due-prompt">{q.prompt}</p>
+                  <div className="due-prompt markdown-rendered" style={{ margin: '14px 0', lineHeight: '1.65' }}>
+                    {renderMarkdown(q.prompt)}
+                  </div>
 
                   <div className="due-card-actions">
                     <button
