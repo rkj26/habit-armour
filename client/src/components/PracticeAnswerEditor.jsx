@@ -17,6 +17,15 @@ export default function PracticeAnswerEditor({
   const textareaRef = useRef(null);
   const fileInputRef = useRef(null);
 
+  // Auto-scroll to top when opened
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, []);
+
   // Initialize with scaffolding if empty
   useEffect(() => {
     const isTopic = question.answerTemplate === 'topic';
@@ -150,296 +159,269 @@ $$
   };
 
   return (
-    <div className="practice-editor-modal glass-card">
-      {/* Top Header */}
-      <div className="practice-editor-header">
-        <div className="practice-header-left">
-          <span className={`badge ${question.answerTemplate === 'paper' ? 'badge-paper' : 'badge-topic'}`}>
-            {question.answerTemplate === 'paper' ? '📄 RESEARCH PAPER' : '🧠 THEORY TOPIC'}
-          </span>
-          <span className="badge badge-difficulty">{question.difficulty || 'Medium'}</span>
-          <h2 className="practice-item-title">{question.itemTitle || 'Practice Studio'}</h2>
-        </div>
-        <div className="practice-header-right">
-          <div className="view-mode-toggle">
+    <div className="practice-modal-backdrop">
+      <div className="practice-modal-card">
+        {/* Top Header */}
+        <div className="practice-modal-header">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <span className={`badge ${question.answerTemplate === 'paper' ? 'badge-paper' : 'badge-topic'}`}>
+              {question.answerTemplate === 'paper' ? '📄 PAPER' : '🧠 THEORY'}
+            </span>
+            <span className="badge badge-difficulty">{question.difficulty || 'Hard'}</span>
+            <h3 style={{ margin: 0, fontSize: '1.15rem' }}>{question.itemTitle || 'Active Recall Studio'}</h3>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <div className="view-mode-toggle" style={{ display: 'flex', gap: '4px', background: '#f1f5f9', padding: '3px', borderRadius: '6px' }}>
+              <button
+                type="button"
+                className={`btn-tool ${previewTab === 'write' ? 'active' : ''}`}
+                style={{ border: 'none', background: previewTab === 'write' ? '#ffffff' : 'transparent', boxShadow: previewTab === 'write' ? '0 1px 2px rgba(0,0,0,0.05)' : 'none' }}
+                onClick={() => setPreviewTab('write')}
+              >
+                ✏️ Editor
+              </button>
+              <button
+                type="button"
+                className={`btn-tool ${previewTab === 'split' ? 'active' : ''}`}
+                style={{ border: 'none', background: previewTab === 'split' ? '#ffffff' : 'transparent', boxShadow: previewTab === 'split' ? '0 1px 2px rgba(0,0,0,0.05)' : 'none' }}
+                onClick={() => setPreviewTab('split')}
+              >
+                ⚡ Split View
+              </button>
+              <button
+                type="button"
+                className={`btn-tool ${previewTab === 'preview' ? 'active' : ''}`}
+                style={{ border: 'none', background: previewTab === 'preview' ? '#ffffff' : 'transparent', boxShadow: previewTab === 'preview' ? '0 1px 2px rgba(0,0,0,0.05)' : 'none' }}
+                onClick={() => setPreviewTab('preview')}
+              >
+                👁️ Preview
+              </button>
+            </div>
             <button
-              type="button"
-              className={`btn-mode ${previewTab === 'write' ? 'active' : ''}`}
-              onClick={() => setPreviewTab('write')}
+              className="btn btn-secondary"
+              style={{ padding: '6px 10px', fontSize: '0.8rem', borderRadius: '50%', width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+              onClick={onClose}
+              title="Close Studio"
             >
-              ✏️ Write
-            </button>
-            <button
-              type="button"
-              className={`btn-mode ${previewTab === 'split' ? 'active' : ''}`}
-              onClick={() => setPreviewTab('split')}
-            >
-              ⚡ Split View
-            </button>
-            <button
-              type="button"
-              className={`btn-mode ${previewTab === 'preview' ? 'active' : ''}`}
-              onClick={() => setPreviewTab('preview')}
-            >
-              👁️ Preview
+              ✕
             </button>
           </div>
-          <button className="btn-close" onClick={onClose} title="Close Studio">✕</button>
         </div>
-      </div>
 
-      {/* Prompt Card */}
-      <div className="practice-prompt-card">
-        <span className="prompt-label">🎯 ACTIVE RECALL PROMPT:</span>
-        <p className="prompt-text">{question.prompt}</p>
-        {question.itemNotes && (
-          <div className="prompt-notes">
-            <strong>Context / Focus:</strong> {question.itemNotes}
+        {/* Modal Scrollable Body */}
+        <div className="practice-modal-body">
+          {/* Prompt Box with Full KaTeX & Markdown Rendering */}
+          <div style={{ background: '#f8fafc', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-lg)', padding: '18px 22px' }}>
+            <span style={{ fontSize: '0.72rem', fontWeight: '800', color: 'var(--primary)', letterSpacing: '0.05em', textTransform: 'uppercase', display: 'block', marginBottom: '8px' }}>
+              🎯 ACTIVE RECALL PROMPT:
+            </span>
+            <div className="due-prompt markdown-rendered" style={{ fontSize: '0.95rem', lineHeight: '1.7', color: 'var(--text-primary)' }}>
+              {renderMarkdown(question.prompt)}
+            </div>
+            {question.itemNotes && (
+              <div style={{ marginTop: '10px', paddingTop: '10px', borderTop: '1px dashed var(--border-color)', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                <strong>Theoretical Context:</strong> {question.itemNotes}
+              </div>
+            )}
           </div>
-        )}
-      </div>
 
-      {error && (
-        <div className="banner banner-error" style={{ margin: '12px 0' }}>
-          ⚠️ {error}
-        </div>
-      )}
+          {error && (
+            <div className="banner banner-error" style={{ margin: '8px 0' }}>
+              ⚠️ {error}
+            </div>
+          )}
 
-      {/* Main Workspace (Editor / Preview or Results) */}
-      {!evaluationResult ? (
-        <div className="practice-workspace">
-          {/* Math & Formatting Quick Toolbar */}
-          <div className="practice-toolbar">
-            <div className="toolbar-group">
-              <span className="toolbar-label">Scaffold:</span>
-              {question.answerTemplate === 'topic' ? (
-                <>
+          {/* Main Workspace (Editor / Preview or Results) */}
+          {!evaluationResult ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', flex: 1 }}>
+              {/* Math & Scaffolding Toolbar */}
+              <div className="practice-editor-toolbar">
+                <div className="toolbar-group">
+                  <span className="toolbar-label">Templates:</span>
                   <button
                     type="button"
                     className="btn-tool"
-                    onClick={() => insertTextAtCursor('\n## 1. Mathematical Derivation & Proof\n$$\n\n$$\n')}
+                    onClick={() => insertTextAtCursor('\n## Mathematical Proof & Derivation\n$$\n\n$$\n')}
                   >
                     + Proof
                   </button>
                   <button
                     type="button"
                     className="btn-tool"
-                    onClick={() => insertTextAtCursor('\n## 2. Intuition & Causal "Why" Breakdown\n- **Why each term exists:** \n- **Failure modes prevented:** \n')}
+                    onClick={() => insertTextAtCursor('\n## Intuitive Mechanism & "Why" Breakdown\n- **Why this works:** \n- **Failure mode prevented:** \n')}
                   >
                     + Intuition
                   </button>
                   <button
                     type="button"
                     className="btn-tool"
-                    onClick={() => insertTextAtCursor('\n## 3. ELI5 (Explain Like I\'m 5)\n> Simple intuitive metaphor:\n')}
+                    onClick={() => insertTextAtCursor('\n## ELI5 Metaphor\n> ')}
                   >
                     + ELI5
                   </button>
-                </>
-              ) : (
-                <>
-                  <button
-                    type="button"
-                    className="btn-tool"
-                    onClick={() => insertTextAtCursor('\n## 1. Core Claims & Problem\n- ')}
-                  >
-                    + Claims
-                  </button>
-                  <button
-                    type="button"
-                    className="btn-tool"
-                    onClick={() => insertTextAtCursor('\n## 2. Methodology & Architecture\n- ')}
-                  >
-                    + Method
-                  </button>
-                  <button
-                    type="button"
-                    className="btn-tool"
-                    onClick={() => insertTextAtCursor('\n## 3. Key Results & Ablations\n- ')}
-                  >
-                    + Results
-                  </button>
-                  <button
-                    type="button"
-                    className="btn-tool"
-                    onClick={() => insertTextAtCursor('\n## 4. Limitations & Failure Modes\n- ')}
-                  >
-                    + Limits
-                  </button>
-                  <button
-                    type="button"
-                    className="btn-tool"
-                    onClick={() => insertTextAtCursor('\n## 5. ELI5 Summary\n> ')}
-                  >
-                    + ELI5
-                  </button>
-                </>
-              )}
-            </div>
+                </div>
 
-            <div className="toolbar-group">
-              <span className="toolbar-label">Math:</span>
-              <button type="button" className="btn-tool" onClick={() => insertTextAtCursor('\\mathbb{E}_{\\tau \\sim \\pi}[ ]')}>𝔼</button>
-              <button type="button" className="btn-tool" onClick={() => insertTextAtCursor('\\nabla_\\theta ')}>∇</button>
-              <button type="button" className="btn-tool" onClick={() => insertTextAtCursor('\\sum_{t=0}^T ')}>∑</button>
-              <button type="button" className="btn-tool" onClick={() => insertTextAtCursor('\\arg\\max_a ')}>argmax</button>
-              <button type="button" className="btn-tool" onClick={() => insertTextAtCursor('\\mathcal{L}(\\theta)')}>ℒ(θ)</button>
-              <button type="button" className="btn-tool" onClick={() => insertTextAtCursor('\\frac{a}{b}')}>a/b</button>
-              <button type="button" className="btn-tool" onClick={() => insertTextAtCursor('\\sqrt{d_k}')}>√d_k</button>
-              <button type="button" className="btn-tool" onClick={() => insertTextAtCursor('\\text{softmax}\\left( \\frac{QK^T}{\\sqrt{d_k}} \\right)V')}>Softmax</button>
-            </div>
+                <div className="toolbar-group">
+                  <span className="toolbar-label">LaTeX:</span>
+                  <button type="button" className="btn-tool btn-tool-math" onClick={() => insertTextAtCursor('$X \\in \\mathbb{R}^{B \\times T}$')}>ℝ^(B×T)</button>
+                  <button type="button" className="btn-tool btn-tool-math" onClick={() => insertTextAtCursor('$\\text{softmax}\\left( \\frac{QK^T}{\\sqrt{d_k}} \\right)V$')}>Attention</button>
+                  <button type="button" className="btn-tool btn-tool-math" onClick={() => insertTextAtCursor('$\\nabla_\\theta J(\\theta)$')}>∇θ</button>
+                  <button type="button" className="btn-tool btn-tool-math" onClick={() => insertTextAtCursor('$\\sum_{t=1}^T$')}>∑</button>
+                  <button type="button" className="btn-tool btn-tool-math" onClick={() => insertTextAtCursor('$\\mathbb{E}[ ]$')}>𝔼</button>
+                  <button type="button" className="btn-tool btn-tool-math" onClick={() => insertTextAtCursor('$O(T^2) \\to O(T)$')}>O(T)</button>
+                  <button type="button" className="btn-tool btn-tool-math" onClick={() => insertTextAtCursor('$\\text{RMSNorm}(x)$')}>RMSNorm</button>
+                  <button type="button" className="btn-tool btn-tool-math" onClick={() => insertTextAtCursor('$$\n\\text{VRAM} = 2 \\cdot B \\cdot L \\cdot N_{layers} \\cdot H_{kv} \\cdot d_k \\cdot P_{bytes}\n$$')}>KV Formula</button>
+                </div>
 
-            <div className="toolbar-group" style={{ marginLeft: 'auto' }}>
-              <input
-                type="file"
-                ref={fileInputRef}
-                accept="image/*"
-                style={{ display: 'none' }}
-                onChange={handleImageUpload}
-              />
-              <button
-                type="button"
-                className="btn-tool btn-tool-upload"
-                onClick={() => fileInputRef.current?.click()}
-                disabled={uploadingImage}
-              >
-                {uploadingImage ? '⏳ Compressing...' : '📷 Add Diagram/Proof Photo'}
-              </button>
-            </div>
-          </div>
-
-          {/* Split Pane Editor / Preview */}
-          <div className={`practice-panes pane-${previewTab}`}>
-            {(previewTab === 'split' || previewTab === 'write') && (
-              <div className="pane-editor">
-                <textarea
-                  ref={textareaRef}
-                  className="practice-textarea"
-                  value={answerMarkdown}
-                  onChange={(e) => setAnswerMarkdown(e.target.value)}
-                  placeholder="Write your rigorous proof, intuitive explanation, and ELI5 here in Markdown + LaTeX..."
-                />
-              </div>
-            )}
-
-            {(previewTab === 'split' || previewTab === 'preview') && (
-              <div className="pane-preview">
-                <div className="preview-header">LIVE FORMATTED PREVIEW</div>
-                <div className="preview-body markdown-rendered">
-                  {renderMarkdown(answerMarkdown)}
+                <div className="toolbar-group" style={{ marginLeft: 'auto' }}>
+                  <input
+                    type="file"
+                    ref={fileInputRef}
+                    accept="image/*"
+                    style={{ display: 'none' }}
+                    onChange={handleImageUpload}
+                  />
+                  <button
+                    type="button"
+                    className="btn-tool btn-tool-upload"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={uploadingImage}
+                  >
+                    {uploadingImage ? '⏳ Compressing...' : '📷 Add Diagram Photo'}
+                  </button>
                 </div>
               </div>
-            )}
-          </div>
 
-          {/* Action Footer */}
-          <div className="practice-footer">
-            <button className="btn btn-secondary" onClick={onClose} disabled={submitting}>
-              Cancel
-            </button>
-            <button
-              className="btn btn-primary btn-submit-eval"
-              onClick={handleSubmitAttempt}
-              disabled={submitting || !answerMarkdown.trim()}
-            >
-              {submitting ? (
-                <span className="eval-loading">
-                  <span className="spinner-small" /> Strict Gemini Review in Progress...
-                </span>
-              ) : (
-                '🚀 Submit for Strict Gemini Evaluation'
+              {/* Split Editor / Preview Panes */}
+              <div className={`practice-panes pane-${previewTab}`}>
+                {(previewTab === 'split' || previewTab === 'write') && (
+                  <div className="pane-editor">
+                    <div className="preview-header">LATEX & MARKDOWN EDITOR</div>
+                    <textarea
+                      ref={textareaRef}
+                      className="practice-textarea"
+                      value={answerMarkdown}
+                      onChange={(e) => setAnswerMarkdown(e.target.value)}
+                      placeholder="Write your mathematical derivation, tensor trace, and intuitive explanation here in LaTeX + Markdown..."
+                    />
+                  </div>
+                )}
+
+                {(previewTab === 'split' || previewTab === 'preview') && (
+                  <div className="pane-preview">
+                    <div className="preview-header">LIVE FORMATTED KATEX PREVIEW</div>
+                    <div className="preview-body markdown-rendered">
+                      {renderMarkdown(answerMarkdown)}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Action Footer */}
+              <div className="practice-footer">
+                <button className="btn btn-secondary" onClick={onClose} disabled={submitting}>
+                  Cancel
+                </button>
+                <button
+                  className="btn btn-primary"
+                  onClick={handleSubmitAttempt}
+                  disabled={submitting || !answerMarkdown.trim()}
+                >
+                  {submitting ? (
+                    <span>⏳ Strict Gemini Evaluation in Progress...</span>
+                  ) : (
+                    '🚀 Submit for Rigorous AI Evaluation'
+                  )}
+                </button>
+              </div>
+            </div>
+          ) : (
+            /* Evaluation Results Card */
+            <div className="practice-eval-container">
+              <div className="eval-header-card">
+                <div className="score-ring">
+                  <span className="score-number">{evaluationResult.attempt.evaluation.score}</span>
+                  <span className="score-total">/ 10</span>
+                </div>
+                <div className="eval-summary">
+                  <h3 className="eval-grade-title">
+                    {evaluationResult.attempt.evaluation.score >= 9 ? '🌟 Flawless Technical Mastery' :
+                     evaluationResult.attempt.evaluation.score >= 7 ? '✅ Solid Technical Understanding' :
+                     evaluationResult.attempt.evaluation.score >= 5 ? '⚠️ Developing (Needs Reinforcement)' :
+                     '❌ Incomplete / Hand-Wavy (Immediate Repetition Required)'}
+                  </h3>
+                  <p className="eval-grade-desc">
+                    {evaluationResult.attempt.evaluation.score >= 6
+                      ? `SM-2 review interval extended to ${evaluationResult.sm2.intervalDays} day(s) (Repetition #${evaluationResult.sm2.repetitions}, Ease Factor: ${evaluationResult.sm2.easeFactor}).`
+                      : `Score below threshold. Repetition interval reset to 1 day for reinforcement.`}
+                  </p>
+                  <div style={{ marginTop: '8px', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                    📅 Next Scheduled Review: <strong>{evaluationResult.sm2.dueDate}</strong>
+                  </div>
+                </div>
+              </div>
+
+              {/* Flagged Critical Issues */}
+              {evaluationResult.attempt.evaluation.flaggedIssues && evaluationResult.attempt.evaluation.flaggedIssues.length > 0 && (
+                <div className="flagged-issues-card">
+                  <h4 style={{ color: '#9f1239', marginBottom: '8px' }}>🚩 Critical Issues Flagged by Reviewer ({evaluationResult.attempt.evaluation.flaggedIssues.length})</h4>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    {evaluationResult.attempt.evaluation.flaggedIssues.map((issue, idx) => (
+                      <div key={idx} className="flag-item">
+                        <div className="flag-quote">"{issue.quote}"</div>
+                        <div className="flag-note">{issue.note}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               )}
-            </button>
-          </div>
-        </div>
-      ) : (
-        /* Evaluation Results Card */
-        <div className="practice-eval-container">
-          <div className="eval-header-card">
-            <div className={`score-ring ${getScoreColorClass(evaluationResult.attempt.evaluation.score)}`}>
-              <span className="score-number">{evaluationResult.attempt.evaluation.score}</span>
-              <span className="score-total">/ 10</span>
-            </div>
-            <div className="eval-summary">
-              <h3 className="eval-grade-title">
-                {evaluationResult.attempt.evaluation.score >= 9 ? '🌟 Flawless Technical Mastery' :
-                 evaluationResult.attempt.evaluation.score >= 7 ? '✅ Solid Technical Understanding' :
-                 evaluationResult.attempt.evaluation.score >= 5 ? '⚠️ Developing (Needs Reinforcement)' :
-                 '❌ Incomplete / Hand-Wavy (Immediate Repetition Required)'}
-              </h3>
-              <p className="eval-grade-desc">
-                {evaluationResult.attempt.evaluation.score >= 6
-                  ? `SM-2 review interval extended to ${evaluationResult.sm2.intervalDays} day(s) (Repetition #${evaluationResult.sm2.repetitions}, Ease Factor: ${evaluationResult.sm2.easeFactor}).`
-                  : `Score below threshold. Repetition interval reset to 1 day for reinforcement.`}
-              </p>
-              <div className="next-due-pill">
-                📅 Next Scheduled Review: <strong>{evaluationResult.sm2.dueDate}</strong>
+
+              {/* Academic Critique */}
+              <div className="critique-card">
+                <h4>📝 Comprehensive Reviewer Critique</h4>
+                <div className="preview-body markdown-rendered" style={{ padding: '12px 0' }}>
+                  {renderMarkdown(evaluationResult.attempt.evaluation.critique)}
+                </div>
               </div>
-            </div>
-          </div>
 
-          {/* Flagged Critical Issues (Misused terms, hand-wavy logic, vague claims) */}
-          {evaluationResult.attempt.evaluation.flaggedIssues && evaluationResult.attempt.evaluation.flaggedIssues.length > 0 && (
-            <div className="flagged-issues-card">
-              <h4>🚩 Critical Issues Flagged by Reviewer ({evaluationResult.attempt.evaluation.flaggedIssues.length})</h4>
-              <p className="flagged-desc">Vague claims, imprecise terms, or unsupported leaps caught in your explanation:</p>
-              <div className="flagged-list">
-                {evaluationResult.attempt.evaluation.flaggedIssues.map((issue, idx) => (
-                  <div key={idx} className={`flag-item flag-${issue.type}`}>
-                    <div className="flag-type-badge">{issue.type.toUpperCase()}</div>
-                    <div className="flag-body">
-                      <div className="flag-quote">"{issue.quote}"</div>
-                      <div className="flag-note">{issue.note}</div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Academic Critique */}
-          <div className="critique-card glass-card">
-            <h4>📝 Comprehensive Reviewer Critique</h4>
-            <div className="critique-content markdown-rendered">
-              {renderMarkdown(evaluationResult.attempt.evaluation.critique)}
-            </div>
-          </div>
-
-          {/* Rubric Breakdown */}
-          {evaluationResult.attempt.evaluation.rubric && (
-            <div className="rubric-card glass-card">
-              <h4>📊 Granular Rubric Breakdown</h4>
-              <div className="rubric-grid">
-                {Object.entries(evaluationResult.attempt.evaluation.rubric).map(([key, val]) => (
-                  <div key={key} className="rubric-item">
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-                      <span className="rubric-key">{key.replace(/([A-Z])/g, ' $1').toUpperCase()}</span>
-                      {typeof val === 'object' && val?.score !== undefined && (
-                        <span className={`badge ${val.score >= 8 ? 'badge-topic' : val.score >= 6 ? 'badge-difficulty' : 'badge-paper'}`}>
-                          {val.score} / 10
+              {/* Rubric Breakdown */}
+              {evaluationResult.attempt.evaluation.rubric && (
+                <div className="rubric-card">
+                  <h4>📊 Granular Rubric Breakdown</h4>
+                  <div className="rubric-grid">
+                    {Object.entries(evaluationResult.attempt.evaluation.rubric).map(([key, val]) => (
+                      <div key={key} className="rubric-item">
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <span className="rubric-key">{key.replace(/([A-Z])/g, ' $1').toUpperCase()}</span>
+                          {typeof val === 'object' && val?.score !== undefined && (
+                            <span className="badge badge-topic">
+                              {val.score} / 10
+                            </span>
+                          )}
+                        </div>
+                        <span className="rubric-val">
+                          {typeof val === 'object' && val?.feedback ? val.feedback : (typeof val === 'string' ? val : JSON.stringify(val))}
                         </span>
-                      )}
-                    </div>
-                    <span className="rubric-val">
-                      {typeof val === 'object' && val?.feedback ? val.feedback : (typeof val === 'string' ? val : JSON.stringify(val))}
-                    </span>
+                      </div>
+                    ))}
                   </div>
-                ))}
+                </div>
+              )}
+
+              {/* Post-Review Actions */}
+              <div className="eval-actions">
+                <button className="btn btn-secondary" onClick={() => setEvaluationResult(null)}>
+                  ✏️ Revise & Retake
+                </button>
+                <button className="btn btn-primary" onClick={onClose}>
+                  ✅ Done (Return to Study Queue)
+                </button>
               </div>
             </div>
           )}
-
-          {/* Post-Review Actions */}
-          <div className="eval-actions">
-            <button className="btn btn-secondary" onClick={() => setEvaluationResult(null)}>
-              ✏️ Revise & Retake
-            </button>
-            <button className="btn btn-primary" onClick={onClose}>
-              ✅ Done (Return to Study Queue)
-            </button>
-          </div>
         </div>
-      )}
+      </div>
     </div>
   );
 }

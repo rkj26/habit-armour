@@ -334,10 +334,10 @@ export default function PracticeView({ API_URL, status, onRefreshStatus }) {
         <div className="stat-card">
           <span className="stat-label">Study Bank Library</span>
           <span className="stat-value text-blue">
-            {practiceStatus?.totalItems || items.length}
+            {items.length}
           </span>
           <span className="stat-subtext">
-            {practiceStatus?.totalQuestions || 0} active recall questions
+            {items.reduce((acc, it) => acc + (it.questions?.length || 0), 0) || dueQuestions.length} active recall questions
           </span>
         </div>
 
@@ -368,11 +368,11 @@ export default function PracticeView({ API_URL, status, onRefreshStatus }) {
         </div>
       </div>
 
-      {/* Navigation Sub-Tabs */}
+      {/* Main Tabs (Due Queue vs Study Bank) */}
       <div className="practice-nav-tabs">
         <button
-          className={`tab-btn ${mainTab === 'queue' ? 'active' : ''}`}
-          onClick={() => setMainTab('queue')}
+          className={`tab-btn ${mainTab === 'due' ? 'active' : ''}`}
+          onClick={() => setMainTab('due')}
         >
           📅 Due Practice Queue ({dueQuestions.length})
         </button>
@@ -384,38 +384,40 @@ export default function PracticeView({ API_URL, status, onRefreshStatus }) {
         </button>
       </div>
 
-      {/* TAB 1: Due Queue */}
-      {mainTab === 'queue' && (
-        <div className="practice-queue-view">
+      {/* TAB 1: Due Active Recall Queue */}
+      {mainTab === 'due' && (
+        <div className="due-queue-container">
           {dueQuestions.length === 0 ? (
-            <div className="glass-card empty-state-card">
-              <div className="empty-icon">🏆</div>
-              <h3>You are all caught up on deliberate practice!</h3>
-              <p>No proofs or paper reviews are due today according to your SM-2 spaced repetition schedule.</p>
-              <div style={{ marginTop: '16px', display: 'flex', gap: '12px', justifyContent: 'center' }}>
+            <div className="empty-state card" style={{ padding: '48px 24px', textAlign: 'center' }}>
+              <span style={{ fontSize: '2.5rem' }}>🎉</span>
+              <h3>All Due Deliberate Practice Complete</h3>
+              <p className="text-secondary">
+                You've completed all active recall items scheduled for today. SM-2 intervals have been updated.
+              </p>
+              <div style={{ marginTop: '16px' }}>
                 <button className="btn btn-secondary" onClick={() => setMainTab('bank')}>
-                  Browse Study Bank & Practice Ahead
+                  Explore Study Bank Library
                 </button>
               </div>
             </div>
           ) : (
-            <div className="due-questions-list">
+            <div className="due-cards-list">
               {dueQuestions.map(q => (
-                <div key={q.id} className="glass-card due-question-card">
+                <div key={q.id} className="due-question-card">
                   <div className="due-card-header">
                     <div className="due-card-tags">
-                      <span className={`badge ${q.itemType === 'paper' ? 'badge-paper' : 'badge-topic'}`}>
-                        {q.itemType === 'paper' ? '📄 PAPER' : '🧠 TOPIC'}
+                      <span className={`badge ${q.answerTemplate === 'paper' ? 'badge-paper' : 'badge-topic'}`}>
+                        {q.answerTemplate === 'paper' ? '📄 PAPER' : '🧠 TOPIC'}
                       </span>
-                      <span className="badge badge-difficulty">{q.difficulty}</span>
-                      {q.itemTags && q.itemTags.map((t, idx) => (
-                        <span key={idx} className="badge badge-tag">{t}</span>
+                      <span className="badge badge-difficulty">{q.difficulty || 'Hard'}</span>
+                      {q.itemTags && q.itemTags.map((tag, idx) => (
+                        <span key={idx} className="badge badge-tag">{tag}</span>
                       ))}
                     </div>
                     <div className="sm2-meta">
                       <span>Reps: <strong>{q.sm2?.repetitions || 0}</strong></span>
                       <span>Interval: <strong>{q.sm2?.intervalDays || 0}d</strong></span>
-                      <span>Ease: <strong>{q.sm2?.easeFactor || 2.5}</strong></span>
+                      <span>Ease: <strong>{(q.sm2?.easeFactor || 2.5).toFixed(1)}</strong></span>
                     </div>
                   </div>
 
@@ -427,7 +429,10 @@ export default function PracticeView({ API_URL, status, onRefreshStatus }) {
                   <div className="due-card-actions">
                     <button
                       className="btn btn-primary"
-                      onClick={() => setActiveQuestion(q)}
+                      onClick={() => {
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                        setActiveQuestion(q);
+                      }}
                     >
                       ⚡ Start Active Recall Practice
                     </button>
@@ -443,13 +448,13 @@ export default function PracticeView({ API_URL, status, onRefreshStatus }) {
       {mainTab === 'bank' && (
         <div className="practice-bank-view">
           {/* Filter Bar */}
-          <div className="bank-filter-bar glass-card">
+          <div className="bank-filter-bar">
             <div className="filter-buttons">
               <button
                 className={`btn-filter ${bankFilter === 'all' ? 'active' : ''}`}
                 onClick={() => setBankFilter('all')}
               >
-                All Items ({items.length})
+                All Topics ({items.length})
               </button>
               <button
                 className={`btn-filter ${bankFilter === 'topic' ? 'active' : ''}`}
@@ -478,10 +483,10 @@ export default function PracticeView({ API_URL, status, onRefreshStatus }) {
           {/* Items Grid */}
           <div className="bank-items-grid">
             {filteredItems.map(item => (
-              <div key={item.id} className="glass-card bank-item-card">
+              <div key={item.id} className="bank-item-card">
                 <div className="bank-item-header">
                   <span className={`badge ${item.type === 'paper' ? 'badge-paper' : 'badge-topic'}`}>
-                    {item.type === 'paper' ? '📄 PAPER' : '🧠 TOPIC'}
+                    {item.type === 'paper' ? '📄 PAPER' : '🧠 THEORY TOPIC'}
                   </span>
                   <div className="bank-item-menu">
                     <button
