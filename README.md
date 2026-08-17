@@ -1,144 +1,106 @@
-# 🛡️ Habit Armour
+# Habit Armour 2.0 🛡️
 
-**Habit Armour** is a self-hosted macOS habit enforcement and device locking system. It secures your productivity by restricting Mac usage during morning and night logging windows until all your tracking and journaling goals are completed.
+**Habit Armour** is an OS-enforced habit tracking, fitness verification, spaced repetition, and active-recall learning studio for macOS.
 
-## 🧠 Origin & Motivation
+When daily habit windows, fitness goals, Anki flashcard reviews, or mathematical proofs are incomplete, Habit Armour engages a **native macOS lock screen and kiosk mode** to ensure complete accountability.
 
-Habit Armour was born out of a personal need to ensure strict adherence to tracking health and fitness metrics. When relying on willpower alone, it's easy to slip up and forget to log daily weights, sleep quality, caloric intake, or reflections. By binding Mac device access directly to completion of these daily tracking logs, Habit Armour introduces hardware-level accountability to protect health routines and enforce self-discipline.
+---
 
+## 🏛️ Architecture
 
-## 🚀 Key Features
-
-*   **🔒 Hardware Lock Enforcement**: Locks the screen and isolates the browser to a local kiosk window if required logs are not complete.
-*   **📊 Bio-Analytics Dashboard**: Glassmorphic SaaS-style dashboard featuring curved bezier trend lines, glow filters, shaded goal targets, and rich hover tooltips.
-*   **✏️ Historical Log Editing & Catch-up**: Directly modify historical logs or fill in missed past dates from the log history interface.
-*   **⚙️ Custom Goal Targets**: Configure personal targets for Weight, steps, calories, and protein in the Settings panel.
-*   **📝 Obsidian & Google Docs Integration**: Syncs journal reflections automatically to a local Obsidian vault (as markdown) and/or a Google Doc.
-*   **📈 Google Sheets Integration**: Syncs physical stats, sleep quality, and macro intake directly to your Google Sheets tracker.
-*   **💪 Hevy API & Gemini Gym Analysis**: Fetches your workout logs from Hevy App and uses Google Gemini AI to analyze your progressive overload and consistency.
-
-
-## 🛠️ System Architecture
-
-```mermaid
-graph TD
-    subgraph macOS Client [macOS Client System]
-        launchd_lock["launchd (com.user.habitlock)"]
-        agent["Lock Agent (lock_agent.sh)"]
-        launchd_lock -->|Monitors & Restarts| agent
-    end
-
-    subgraph Node.js Backend [Local Server Environment]
-        launchd_srv["launchd (com.user.habitserver)"]
-        server["Habit Server (server.js)"]
-        launchd_srv -->|Monitors & Restarts| server
-    end
-
-    subgraph Storage [Data Storage & Sync]
-        db["Local Database (habits_data.json)"]
-        obsidian["Obsidian Vault (Local Markdown)"]
-        sheets["Google Sheets (Apps Script API)"]
-    end
-
-    agent -->|Polls completion status| server
-    agent -->|Locks screen / spawns browser kiosk| macOS_Lock["macOS User Session Lock"]
-    
-    server -->|Reads/Writes logs| db
-    server -->|Syncs reflections| obsidian
-    server -->|Syncs physical metrics| sheets
+```
+habit-armour/
+├── app/
+│   ├── main.py                     # FastAPI app factory, CORS, static client mount
+│   ├── config.py                   # Pydantic Settings (.env + DB config)
+│   ├── database.py                 # SQLite engine (WAL mode) & SQLModel sessions
+│   ├── models/                     # Strongly-typed DB schemas
+│   │   ├── config.py               # AppConfigModel
+│   │   ├── daily_entry.py          # DailyEntry (habits, journal, gym, anki, practice)
+│   │   └── study.py                # StudyItem, StudyQuestion, StudyAttempt
+│   ├── pillars/                    # Isolated modular domain engines
+│   │   ├── obsidian.py             # Journal markdown file generator
+│   │   ├── gym.py                  # Hevy API & steps / rest day calculator
+│   │   ├── anki.py                 # AnkiConnect reachability & deck due counter
+│   │   ├── practice.py             # Active recall, SM-2 engine & Gemini 2.5 Flash evaluator
+│   │   └── status.py               # Central status & lock engine (/api/status)
+│   ├── routes/                     # Clean FastAPI APIRouters
+│   │   ├── status.py               # /api/status, /api/test-lock, /api/ip
+│   │   ├── config.py               # /api/config
+│   │   ├── habits.py               # /api/log, /api/history, /api/sync-entry
+│   │   ├── gym.py                  # /api/hevy/*
+│   │   ├── anki.py                 # /api/anki/*
+│   │   └── practice.py             # /api/practice/*
+│   └── migrate_json.py             # JSON -> SQLite data migrator
+├── agent.py                        # Native PyObjC macOS Lock Daemon
+├── requirements.txt                # FastAPI, SQLModel, Uvicorn, PyObjC, HTTPX
+├── install.sh                      # One-click installer & launchd manager
+├── uninstall.sh                    # Clean daemon uninstaller
+└── client/                         # Modern React + Vite frontend dashboard
 ```
 
-### 🔒 Enforcement via launchd
-To guarantee accountability and prevent bypassing tracking routines, Habit Armor relies on macOS **`launchd`** system daemons:
-- **`com.user.habitlock.plist`**: Manages the lock agent `lock_agent.sh`. By configuring the plist with `<key>KeepAlive</key><true/>`, macOS continuously ensures the lock agent runs in the background. If the user tries to manually force-quit or kill the process, `launchd` immediately respawns it within milliseconds, maintaining lock state integrity.
-- **`com.user.habitserver.plist`**: Manages the API server `server.js` with `KeepAlive` enabled. If the backend fails or crashes due to network/system errors, it is instantly restarted, ensuring availability for status checking and submission.
+---
 
+## ⚡ Core Habit Pillars
 
+1. **🌅 Morning & 🌙 Night Habits**:
+   - Bio-metrics: Waking weight, sleep hours, resting heart rate, hydration.
+   - Nutrition & Supplements: Calorie and protein targets, creatine, vitamins checklist.
+   - Journaling: Structured morning intentions and evening reflections automatically appended to your local Obsidian Vault.
 
-## 📦 Setup & Installation
+2. **💪 Physical Activity & Gym (Hevy Integration)**:
+   - Queries Hevy API for verified workout completion, set thresholds, and exercise logs.
+   - Enforces a 5-day weekly active goal and a strict **No Consecutive Rest Days** rule with step count fallbacks (13,000 steps).
 
-### 1. Prerequisites
-Ensure you have **Node.js** installed on your macOS machine. You can verify this by running:
+3. **🧠 Spaced Repetition Flashcards (Anki)**:
+   - Polls AnkiConnect (`http://localhost:8765`) for pending reviews and deck due counts.
+   - Enforces review completion before evening cutoff hours, with fail-safe error handling and mobile overrides.
+
+4. **🔬 Consistent Practice & AI Proof Grader**:
+   - Spaced repetition (SM-2) for active recall topics and research papers.
+   - Built-in Markdown & KaTeX mathematical derivation editor with handwriting diagram uploads.
+   - **Gemini 2.5 Flash Academic Auditor**: Grades submissions strictly out of 10 across 5 granular rubric dimensions (`correctness`, `precisionRigor`, `intuitionQuality`, `eli5Clarity`, `completeness`) and flags vague or hand-wavy reasoning.
+   - AI Question Generator for synthesizing active-recall questions from topic notes.
+
+---
+
+## 🔒 Native macOS Enforcement Daemon (`agent.py`)
+
+- Uses native Apple Cocoa APIs (`AppKit.NSWorkspace`) to monitor active applications with 0% CPU overhead.
+- When an active breach occurs, triggers native macOS lock screen and kiosk mode, locking access to unapproved apps until required logs/proofs are completed.
+- Whitelists Habit Armour dashboard, Anki, Obsidian, and Antigravity IDE during active study sessions.
+
+---
+
+## 🚀 Installation & Setup
+
 ```bash
-node -v
-```
+# 1. Clone the repository
+git clone https://github.com/rkj26/habit-armour.git
+cd habit-armour
 
-### 2. Configure Environment Variables
-Copy the template environment file and customize it:
-```bash
+# 2. Configure .env with your API keys
 cp .env.example .env
-```
-Open `.env` and fill in your details:
-*   **API Keys**: Add your `HEVY_API_KEY` and `GEMINI_API_KEY`.
-*   **Obsidian Vault**: Provide the path to your Vault (`OBSIDIAN_VAULT_PATH`) and journal directory.
-*   **Google Sheets / Docs**: Configure sheet sync options (see [GOOGLE_SHEET_SETUP.md](GOOGLE_SHEET_SETUP.md) for how to set up the spreadsheet backend script).
 
-### 📊 Google Sheets Template & Sync Setup
-Using Google Sheets as your primary storage is a lightweight, zero-maintenance replacement for hosting and managing a traditional SQL or NoSQL database. By treating Google Sheets as a database, you get a free, highly visual spreadsheet database that you can view and edit from any device out of the box, with Google Apps Script acting as your webhook API receiver.
-
-Since the Google Apps Script sync uses coordinate-based grid mapping (targeting specific cells on a weekly grid layout), you **must** use the official sheet template for the integration to function correctly. 
-
-#### Step-by-Step Setup:
-1.  **Copy the Template**: Open the [Google Sheets Tracker Template](https://docs.google.com/spreadsheets/d/1ANTtB9WRy_vauvE6R8jx2cTXvdKTJA2NEUgJ2L7kfCA/edit?usp=sharing) and click **File** -> **Make a copy** to save it to your own Google Drive.
-2.  **Open Apps Script**: In your new spreadsheet, go to **Extensions** -> **Apps Script** in the top menu.
-3.  **Paste Endpoint Code**: Delete any default code in the editor, and copy-paste the complete Apps Script code provided in [GOOGLE_SHEET_SETUP.md](GOOGLE_SHEET_SETUP.md).
-4.  **Deploy as Web App**:
-    *   Click the blue **Deploy** button at the top right -> **New deployment**.
-    *   Select **Web app** as the deployment type (click the gear icon next to "Select type" if it isn't listed).
-    *   Configure:
-        *   *Execute as*: **Me (your Google account)**
-        *   *Who has access*: **Anyone**
-    *   Click **Deploy** and authorize the script permissions.
-5.  **Add to Environment**: Copy the generated **Web App URL**, open your `.env` file, and paste it:
-    ```env
-    GOOGLE_SHEETS_ENABLED=true
-    GOOGLE_SHEETS_URL=https://script.google.com/macros/s/.../exec
-    ```
-    *(If using Google Docs for journaling as well, paste your Google Document ID or URL as `GOOGLE_DOC_ID` in your `.env` file)*
-
-### 3. Install and Load Background Agents
-Run the included installer script:
-```bash
+# 3. Run the installer (sets up virtualenv, SQLite, builds client, and registers macOS launchd daemons)
 ./install.sh
 ```
-This script will:
-1. Validate Node.js is present.
-2. Install server dependencies.
-3. Build the client frontend dashboard assets.
-4. Set up the launchd background agents (`com.user.habitserver` and `com.user.habitlock`).
-5. Copy the lock agent to your home directory (`~/.habitlock`).
-6. Launch background services immediately.
 
-The web interface will now be accessible at `http://localhost:3000` (or your custom port configured in `.env`).
+### Useful Commands
 
-
-## 🛑 Uninstallation
-
-If you wish to stop and clean up the background daemons and files from your system, simply run:
 ```bash
+# Run server in development mode
+npm run dev
+
+# Run lock agent manually in test mode
+npm run agent
+
+# Run client in development mode
+npm run client:dev
+
+# Reinstall / reload launchd services
+./install.sh
+
+# Uninstall background daemons
 ./uninstall.sh
 ```
-
-
-## 🖥️ Local Development
-
-If you want to run the project in development mode with hot-reloading:
-
-1.  **Start Server Backend**:
-    ```bash
-    npm install
-    npm run dev
-    ```
-2.  **Start Client Frontend**:
-    ```bash
-    cd client
-    npm install
-    npm run dev
-    ```
-
-
-## 📄 License
-This project is open-source and available under the MIT License.
-
-
-*Built by Gemini, prompted by Rakshit.*
