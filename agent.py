@@ -8,6 +8,7 @@ Designed for non-disruptive, reliable kiosk operation without page reloads.
 import time
 import os
 import subprocess
+import ctypes
 import httpx
 from datetime import datetime
 from AppKit import NSWorkspace
@@ -34,7 +35,15 @@ def log(msg: str):
     print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {msg}", flush=True)
 
 def lock_mac_screen():
-    """Triggers macOS native lock screen cleanly without cutting display power."""
+    """Triggers macOS native lock screen cleanly using login.framework SACLockScreenImmediate."""
+    try:
+        login_framework = ctypes.cdll.LoadLibrary("/System/Library/PrivateFrameworks/login.framework/Versions/Current/login")
+        if hasattr(login_framework, "SACLockScreenImmediate"):
+            login_framework.SACLockScreenImmediate()
+            return
+    except Exception as e:
+        log(f"SACLockScreenImmediate notice: {e}")
+
     cgsession_path = "/System/Library/CoreServices/Menu Extras/User.menu/Contents/Resources/CGSession"
     if os.path.exists(cgsession_path):
         try:
@@ -75,11 +84,11 @@ def get_active_browser_url(app_name: str) -> str:
     """Retrieves active tab URL for supported browsers via AppleScript."""
     script = ""
     if app_name == "Safari":
-        script = 'tell application "Safari" to if (count of windows) > 0 then return URL of front document'
-    elif app_name == "Brave Browser":
-        script = 'tell application "Brave Browser" to if (count of windows) > 0 then return URL of active tab of front window'
+        script = 'tell application "Safari" to if (count of documents) > 0 then return URL of front document'
     elif app_name == "Google Chrome":
         script = 'tell application "Google Chrome" to if (count of windows) > 0 then return URL of active tab of front window'
+    elif app_name == "Brave Browser":
+        script = 'tell application "Brave Browser" to if (count of windows) > 0 then return URL of active tab of front window'
     elif app_name == "Microsoft Edge":
         script = 'tell application "Microsoft Edge" to if (count of windows) > 0 then return URL of active tab of front window'
     elif app_name == "Arc":
@@ -89,7 +98,7 @@ def get_active_browser_url(app_name: str) -> str:
         return ""
         
     try:
-        res = subprocess.run(["osascript", "-e", script], capture_output=True, text=True, timeout=1.0)
+        res = subprocess.run(["osascript", "-e", script], capture_output=True, text=True, timeout=2.0)
         return res.stdout.strip()
     except Exception:
         return ""
@@ -183,7 +192,7 @@ def main():
                     time.sleep(1.5)
                     continue
 
-                # Screen was just unlocked by user: give 10s grace to focus browser
+                # Screen was just unlocked by user: give 8s grace to focus browser
                 if was_locked and not browser_opened_for_lock:
                     log("Device unlocked by user. Opening Habit Armour...")
                     open_habit_armour_once()
@@ -205,19 +214,12 @@ def main():
                 # 2. Supported Browsers
                 elif front_app in ALLOWED_BROWSERS:
                     active_url = get_active_browser_url(front_app)
-                    if active_url:
-                        if is_allowed_url(active_url):
-                            is_allowed = True
-                            consecutive_violations = 0
-                        else:
-                            # User is on a different URL in the browser
-                            is_allowed = False
-                    else:
-                        # AppleScript URL query returned empty (e.g. macOS automation restrictions).
-                        # In this case, assume allowed while browser is frontmost so we NEVER
-                        # disrupt or reload the user while typing their logs!
+                    if is_allowed_url(active_url):
                         is_allowed = True
                         consecutive_violations = 0
+                    else:
+                        # User is on a disallowed URL or empty tab
+                        is_allowed = False
 
                 if is_allowed:
                     consecutive_violations = 0
@@ -226,10 +228,11 @@ def main():
                     consecutive_violations += 1
                     log(f"Kiosk violation #{consecutive_violations}: active app is [{front_app}] (URL: {active_url})")
 
-                    # Require 4 consecutive violations (~6 seconds of sustained non-allowed app usage)
-                    # before re-locking, preventing accidental alt-tab / notification focus re-locks.
-                    if consecutive_violations >= 4:
-                        log(f"Sustained violation detected in [{front_app}]. Re-locking screen...")
+                    # Require 3 consecutive violations (~4.5 seconds) before re-locking,
+                    # preventing accidental alt-tab / notification focus re-locks while strictly
+                    # enforcing lock against unallowed websites.
+                    if consecutive_violations >= 3:
+                        log(f"Sustained violation detected in [{front_app}] (URL: '{active_url}'). Re-locking screen...")
                         lock_mac_screen()
                         was_locked = True
                         consecutive_violations = 0
