@@ -30,6 +30,11 @@ router = APIRouter(prefix="/api/practice", tags=["Consistent Practice"])
 UPLOADS_DIR = os.path.join(os.getcwd(), "uploads")
 os.makedirs(UPLOADS_DIR, exist_ok=True)
 
+def _next_order_for_item(session: Session, item_id: str) -> int:
+    existing = session.exec(select(StudyQuestion.order).where(StudyQuestion.itemId == item_id)).all()
+    orders = [o or 0 for o in existing]
+    return (max(orders) + 1) if orders else 0
+
 # -----------------------------------------------------------------------------
 # Items (Topics / Papers)
 # -----------------------------------------------------------------------------
@@ -130,6 +135,7 @@ def get_questions(itemId: Optional[str] = None, session: Session = Depends(get_s
             "difficulty": q.difficulty,
             "source": q.source,
             "active": q.active,
+            "order": q.order or 0,
             "fsrs": {
                 "stability": q.stability,
                 "difficulty": q.fsrsDifficulty or 5.0,
@@ -170,7 +176,8 @@ def create_question(payload: Dict[str, Any], session: Session = Depends(get_sess
         
     q_id = f"q_{int(datetime.now().timestamp() * 1000)}"
     today = get_local_date_string()
-    
+    next_order = _next_order_for_item(session, item_id)
+
     new_q = StudyQuestion(
         id=q_id,
         itemId=item_id,
@@ -180,6 +187,7 @@ def create_question(payload: Dict[str, Any], session: Session = Depends(get_sess
         difficulty=payload.get("difficulty", "Medium"),
         source="manual",
         active=True,
+        order=next_order,
         easeFactor=2.5,
         repetitions=0,
         intervalDays=0,
@@ -238,7 +246,8 @@ async def generate_questions(payload: Dict[str, Any], session: Session = Depends
     if not item:
         raise HTTPException(status_code=404, detail="Item not found")
         
-    prompt_text = f"""You are a master educator and Principal ML Researcher creating crisp, atomic active-recall practice questions.
+    if is_atomic:
+        prompt_text = f"""You are a master educator and Principal ML Researcher creating crisp, atomic active-recall practice questions.
 Item Title: "{item.title}"
 Item Type: "{item.type}"
 Item Notes: "{item.notes or 'None'}"
@@ -259,6 +268,36 @@ Respond with strict JSON matching:
       "answerTemplate": "{'paper' if item.type == 'paper' else 'topic'}",
       "difficulty": "Medium",
       "idealAnswer": "Complete, pristine LaTeX model solution for this atomic question...",
+      "keyTakeaways": ["Key point 1...", "Key point 2..."]
+    }}
+  ]
+}}"""
+    else:
+        prompt_text = f"""You are a master educator and Principal ML Researcher building a SCAFFOLDED LADDER of active-recall questions for one topic.
+Item Title: "{item.title}"
+Item Type: "{item.type}"
+Item Notes: "{item.notes or 'None'}"
+{f'Paper Metadata: {json.dumps(item.paper)}' if item.paper else ''}
+
+GOAL:
+Generate {count} questions that, taken together IN ORDER, let a student reconstruct the entire topic from first principles: every core definition, every equation, the intuition/"why" behind each design choice, and how the pieces compose. This is NOT a set of disconnected trivia questions — it is a deliberate ladder.
+
+CRITICAL RULES:
+1. ORDER & SCAFFOLDING: Question N may assume the student has already correctly answered questions 1..N-1. Reuse the same notation/symbols across the ladder (e.g. if Q1 defines V(s), Q3 can say "using V(s) from before, derive..."). Sequence from foundational/definitional (Easy) to derivation/synthesis (Hard). The LAST question(s) should require combining multiple earlier pieces (e.g. "derive the full update rule using the loss and target you defined above").
+2. MIX THEORY WITH MATH: Do not make every question a derivation. Roughly half the ladder should be theory/intuition questions ("why does X exist", "what breaks if you remove X", "what is X actually trying to accomplish", "how does X differ from Y and when would you pick one over the other") and half should be precise math/derivation/mechanism questions (equations, algebra, tensor shapes, algorithm steps). Alternate or interleave them rather than clustering all the math at the end.
+3. COVERAGE: Collectively the ladder must cover the full standard scope of the topic — all key formulas/objects a student would need in an interview or exam on "{item.title}" (e.g. for a Bellman/DP topic: reward function, state-value function, action-value function, Bellman expectation equation, Bellman optimality equation, advantage function, and the intuition behind bootstrapping/contraction — adapt this list to whatever "{item.title}" actually is).
+4. Each individual question still takes only 1-3 minutes to answer (single focused prompt, not a multi-part essay) — the comprehensiveness comes from the LADDER as a whole, not from cramming everything into one question.
+5. Provide a complete LaTeX model answer (`idealAnswer`) per question and 2 key takeaways, cached forever in SQLite.
+
+Respond with strict JSON matching, with "questions" as an ARRAY IN THE INTENDED STUDY ORDER (index 0 = first/easiest):
+{{
+  "questions": [
+    {{
+      "prompt": "Question text (references earlier questions' notation where natural)...",
+      "answerTemplate": "{'paper' if item.type == 'paper' else 'topic'}",
+      "difficulty": "Easy | Medium | Hard",
+      "questionMode": "intuition | math",
+      "idealAnswer": "Complete, pristine LaTeX model solution for this question...",
       "keyTakeaways": ["Key point 1...", "Key point 2..."]
     }}
   ]
@@ -461,6 +500,7 @@ def get_due_questions(session: Session = Depends(get_session)):
             "difficulty": q.difficulty,
             "source": q.source,
             "active": q.active,
+            "order": q.order or 0,
             "completedToday": is_completed_today,
             "fsrs": {
                 "stability": q.stability or 0.0,
@@ -496,7 +536,8 @@ def get_due_questions(session: Session = Depends(get_session)):
     due_list.sort(key=lambda x: (
         1 if x["completedToday"] else 0,
         0 if x["fsrs"]["repetitions"] > 0 else 1,
-        x["fsrs"]["retrievability"]
+        x["fsrs"]["retrievability"],
+        x["order"]
     ))
     
     target_met = completed_today >= daily_target

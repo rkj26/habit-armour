@@ -18,7 +18,8 @@ API_URL = f"http://127.0.0.1:{PORT}/api/status"
 FRONTEND_URL = f"http://127.0.0.1:{PORT}"
 
 ALLOWED_APPS = {
-    "Anki", "Obsidian", "Antigravity IDE", "Terminal", "iTerm2", "Alacritty", "Ghostty"
+    "Anki", "Obsidian", "Antigravity IDE", "Terminal", "iTerm2", "Alacritty", "Ghostty",
+    "Typora", "Visual Studio Code", "Code", "TextEdit", "Notes"
 }
 
 ALLOWED_BROWSERS = {

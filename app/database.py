@@ -26,6 +26,8 @@ def init_db():
                 conn.exec_driver_sql("ALTER TABLE study_questions ADD COLUMN keyTakeaways JSON;")
             if "stability" not in existing_cols:
                 conn.exec_driver_sql("ALTER TABLE study_questions ADD COLUMN stability REAL DEFAULT 0.0;")
+            if "order" not in existing_cols:
+                conn.exec_driver_sql('ALTER TABLE study_questions ADD COLUMN "order" INTEGER DEFAULT 0;')
             # App Config migrations
             cfg_info = conn.exec_driver_sql("PRAGMA table_info(app_config);").fetchall()
             cfg_cols = [row[1] for row in cfg_info]

@@ -23,6 +23,7 @@ class StudyQuestion(SQLModel, table=True):
     answerTemplate: str = Field(default="topic") # "topic" or "paper"
     difficulty: str = Field(default="Medium")
     source: str = Field(default="manual") # "manual" or "gemini-generated"
+    order: int = Field(default=0, index=True) # position within itemId's scaffolded ladder (0 = first)
     active: bool = Field(default=True)
     
     # SM-2 & FSRS Spaced Repetition Fields
