@@ -309,34 +309,36 @@ async def evaluate_answer_with_gemini(item: StudyItem, question: StudyQuestion, 
     image_parts = extract_images_for_gemini(answer_markdown)
     has_images = len(image_parts) > 0
 
-    prompt = f"""You are an exceptionally demanding, uncompromising Theoretical Machine Learning Professor, Principal AI Safety Scientist, and Senior NeurIPS/ICLR Reviewer.
-Your goal is to conduct an ultra-rigorous, hyper-critical technical evaluation of the user's active recall submission.
+    prompt = f"""You are an expert Theoretical Machine Learning Professor, Principal AI Safety Scientist, and Senior Reviewer.
+Your goal is to conduct an accurate, encouraging, and technically rigorous evaluation of the user's active recall submission.
 
-CRITICAL DIRECTIVE: UNCOMPROMISING TECHNICAL RIGOR & ZERO SYCOPHANCY
-- ABSOLUTELY ZERO SYCOPHANCY, GRADE INFLATION, OR EMPTY CHEERLEADING.
-- NEVER give the user the benefit of the doubt. If a step is unproven, mathematically hand-wavy, ambiguous, or missing crucial intermediate algebraic manipulation, you MUST PENALIZE IT AGGRESSIVELY.
-- High-level buzzwords and conceptual summaries without formal mathematical derivations or exact tensor shapes MUST BE SCORED BELOW 5.0.
-- Treat every omission as a point of failure. The user is training for elite top-0.1% research mastery where mathematical precision and rigorous correctness are non-negotiable.
+CRITICAL DIRECTIVES:
+1. NOTATION & FORMAT AGNOSTICISM (DO NOT REQUIRE FORMAL LATEX PROOFS):
+   - The user is NOT required to write formal, line-by-line LaTeX mathematical proofs.
+   - Any format is completely acceptable: plain text bullet points, intuitive prose explanations, PyTorch/code shorthand (e.g. `(b, nh, p, dh)`, `(batch, sen_len, d_model)`), ASCII diagrams, or handwritten notes.
+   - DO NOT penalize or deduct points for informal syntax, conversational tone, or lack of LaTeX formatting.
+   - If the user provides a sound architectural or mechanical walkthrough (e.g. tracing tensor shapes, explaining Pre-LN gradient stability, explaining softmax scaling), reward their genuine technical understanding.
+   - If the user has a minor typographical slip in one equation (e.g. typing `d_head` instead of `sqrt(d_head)`) but explains the correct intuition/concept in their text, give them full credit for that concept.
 
-EXPLICIT AUDIT CHECKLIST:
-1. Mathematical Derivation & Algebraic Integrity:
-   - Are all mathematical transitions fully derived step-by-step from fundamental axioms / identities?
-   - Did the user skip intermediate identities (e.g. log-derivative trick, expectation linearity, change of variables, product rule, matrix calculus Jacobian rules)? If any intermediate algebraic identity is omitted, penalize at least 2.0–3.0 points.
-2. Tensor Dimensionality & Notation:
-   - Are tensor dimensions (e.g. $(B, T, d_{{model}})$, $(B, H, T, d_k)$, $(B, T, d_{{ff}})$) explicitly and accurately specified at EVERY intermediate stage?
-   - Is matrix / vector notation precise?
-3. Causal Depth & Mechanism ("Why" vs "What"):
-   - Did the user explain the EXACT mathematical mechanism (e.g. gradient path $\\frac{{\\partial x_L}}{{\\partial x_l}} = I + \\dots$, variance reduction identity, memory bandwidth arithmetic intensity $\\frac{{\\text{{FLOPs}}}}{{\\text{{Bytes}}}}$)?
-   - If the user merely states high-level descriptions without underlying causal mechanisms, flag as "hand-wavy" and penalize heavily.
-4. Edge Cases, Assumptions & Boundary Conditions:
-   - Are critical boundary conditions, masks ($-\\infty$ vs $0$), scaling factors (e.g. $\\frac{{1}}{{\\sqrt{{d_k}}}}$ to prevent softmax gradient saturation), and assumptions explicitly stated?
+2. FAIR TECHNICAL & CAUSAL ASSESSMENT:
+   - Zero empty sycophancy, but evaluate fairly based on actual understanding.
+   - Focus on correctness: Did the user correctly capture the core ideas, transformations, or causal mechanisms ("why" things exist, e.g. gradient highways, variance scaling, autoregressive masks)?
+   - Only penalize if an answer is fundamentally wrong, contains severe factual misconceptions, or leaves out major parts of what was asked.
 
-STRICT CALIBRATED SCORING SCALE (BE HARSH):
-- 9.5 – 10.0 (Gold Standard / Perfection): 100% complete, flawless line-by-line derivation with zero skipped steps, explicit tensor dimensions at every operation, and profound causal insight.
-- 8.5 – 9.4 (Publication Grade): Fully sound and rigorous mathematical proof; at most one minor notation nitpick or slight formatting omission.
-- 7.0 – 8.4 (Flawed / Intermediate Gaps): Mathematically headed in the right direction, but contains noticeable algebraic leaps, minor skipped identities, or incomplete tensor traces.
-- 5.0 – 6.9 (Weak / Hand-Wavy): High-level buzzwords, hand-waving conceptual explanations without rigorous algebra, or missing major parts of the prompt.
-- 0.0 – 4.9 (Definite Failure / Mathematical Breakdown): Mathematically incorrect, factually wrong, or superficial pseudo-explanations.
+EXPLICIT EVALUATION CRITERIA:
+1. Concept & Transformation Accuracy:
+   - Are the mechanics, transformations, or equations sound and logically ordered?
+   - Tensor dimensions (whether in LaTeX or shorthand like `(b, p, d_model)`) should accurately track through layers.
+2. Causal Depth & Intuition ("Why" vs "What"):
+   - Did the user explain the causal reasons behind design choices (e.g. why Pre-LN over Post-LN, why causal masking is needed, why scaling by $\\sqrt{{d_k}}$ prevents softmax saturation, why multi-head attention learns distinct subspaces)?
+3. Completeness:
+   - Did the user address the core parts of the question prompt?
+
+CALIBRATED SCORING SCALE:
+- 8.5 – 10.0 (Mastery): Thorough, accurate explanation of all major mechanics and clear causal reasons.
+- 7.0 – 8.4 (Solid / Proficient): Strong understanding of all core components and mechanisms; minor non-critical omissions or informal shorthand that does not impair technical validity.
+- 5.0 – 6.9 (Developing): Captures some concepts but misses major architectural steps or key causal reasons.
+- 0.0 – 4.9 (Incorrect / Misconception): Factually or mathematically wrong, or superficial buzzwords without real mechanical understanding.
 
 STUDY ITEM: "{item.title}" ({item.type.upper()})
 {f'ITEM NOTES / CONTEXT: "{item.notes}"' if item.notes else ''}
