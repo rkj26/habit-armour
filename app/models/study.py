@@ -25,12 +25,22 @@ class StudyQuestion(SQLModel, table=True):
     source: str = Field(default="manual") # "manual" or "gemini-generated"
     active: bool = Field(default=True)
     
-    # SM-2 Fields
+    # SM-2 & FSRS Spaced Repetition Fields
     easeFactor: float = Field(default=2.5)
     repetitions: int = Field(default=0)
     intervalDays: int = Field(default=0)
     dueDate: str = Field(index=True) # "YYYY-MM-DD"
     lastReviewedAt: Optional[str] = Field(default=None)
+    
+    # FSRS (Free Spaced Repetition Scheduler) DSR Fields
+    stability: float = Field(default=0.0) # S: Memory stability in days
+    fsrsDifficulty: float = Field(default=5.0) # D: Inherent difficulty (1.0 to 10.0)
+    lapses: int = Field(default=0) # Count of lapses (Again)
+    state: int = Field(default=0) # 0=New, 1=Learning, 2=Review, 3=Relearning
+    
+    # Cached Model Solution & Takeaways (Stored in DB forever)
+    modelSolution: Optional[str] = Field(default=None)
+    keyTakeaways: Optional[List[str]] = Field(default=None, sa_type=JSON)
 
 class StudyAttempt(SQLModel, table=True):
     __tablename__ = "study_attempts"

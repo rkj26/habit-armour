@@ -41,9 +41,21 @@ if [ -d "$REPO_DIR/client" ]; then
   cd "$REPO_DIR"
 fi
 
-# 4. Sync Application Files to ~/.habitarmour
+# 4. Sync Application Files to ~/.habitarmour (Preserving SQLite DB, uploads, and logs)
 echo "Deploying files to $APP_DIR..."
-rsync -av --delete --exclude '.venv' --exclude 'node_modules' --exclude '.git' "$REPO_DIR/" "$APP_DIR/" >/dev/null
+rsync -av --delete \
+  --exclude '.venv' \
+  --exclude 'node_modules' \
+  --exclude 'client/node_modules' \
+  --exclude '.git' \
+  --exclude 'habit_armour.db*' \
+  --exclude '*.db' \
+  --exclude '*.db-wal' \
+  --exclude '*.db-shm' \
+  --exclude 'uploads' \
+  --exclude '*.log' \
+  --exclude '*.err' \
+  "$REPO_DIR/" "$APP_DIR/" >/dev/null
 
 # Copy .env if present
 if [ -f "$REPO_DIR/.env" ]; then

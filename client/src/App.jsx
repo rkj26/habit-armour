@@ -71,59 +71,114 @@ export default function App() {
   const [gymVerifyResult, setGymVerifyResult] = useState(null);
   const [gymVerifyError, setGymVerifyError] = useState(null);
 
-  // Form states
-  const [morningData, setMorningData] = useState({
-    wakingWeight: '',
-    sleepHours: '',
-    sleepQualitySelf: 5,
-    sleepQualityDevice: 70,
-    energyLevels: 5,
-    mood: 5,
-    stress: 5,
-    illnessSigns: 1,
-    muscleSoreness: 1,
-    restingHR: '',
-    bloodPressure: '',
-    journalEntry: ''
+  // Form states with localStorage draft persistence
+  const [morningData, setMorningData] = useState(() => {
+    try {
+      const saved = localStorage.getItem('habitarmour_draft_morning');
+      if (saved) return JSON.parse(saved);
+    } catch (e) {
+      console.error('Failed to load morningData draft:', e);
+    }
+    return {
+      wakingWeight: '',
+      sleepHours: '',
+      sleepQualitySelf: 5,
+      sleepQualityDevice: 70,
+      energyLevels: 5,
+      mood: 5,
+      stress: 5,
+      illnessSigns: 1,
+      muscleSoreness: 1,
+      restingHR: '',
+      bloodPressure: '',
+      journalEntry: ''
+    };
   });
 
-  const [nightData, setNightData] = useState({
-    calories: '',
-    protein: '',
-    carbs: '',
-    fats: '',
-    foodQuality: 5,
-    waterConsumed: '',
-    alcoholConsumed: 'No',
-    hunger: 5,
-    digestiveStress: 1,
-    supplements: {
-      'Vitamin D3': false,
-      'Vitamin K2': false,
-      'Omega-3': false,
-      'Creatine': false
-    },
-    proteinShake: { taken: false, photoUrl: '' },
-    trainingDay: 'No',
-    strengthPerformance: 5,
-    steps: '',
-    cardioPerformed: 'No',
-    journalEntry: ''
+  const [nightData, setNightData] = useState(() => {
+    try {
+      const saved = localStorage.getItem('habitarmour_draft_night');
+      if (saved) return JSON.parse(saved);
+    } catch (e) {
+      console.error('Failed to load nightData draft:', e);
+    }
+    return {
+      calories: '',
+      protein: '',
+      carbs: '',
+      fats: '',
+      foodQuality: 5,
+      waterConsumed: '',
+      alcoholConsumed: 'No',
+      hunger: 5,
+      digestiveStress: 1,
+      supplements: {
+        'Vitamin D3': false,
+        'Vitamin K2': false,
+        'Omega-3': false,
+        'Creatine': false
+      },
+      proteinShake: { taken: false, photoUrl: '' },
+      trainingDay: 'No',
+      strengthPerformance: 5,
+      steps: '',
+      cardioPerformed: 'No',
+      journalEntry: ''
+    };
   });
 
-  const [weeklyData, setWeeklyData] = useState({
-    weekCommencing: new Date().toISOString().split('T')[0],
-    startWeight: '',
-    responseAction: '',
-    umbilical: '',
-    bicepL: '',
-    bicepR: '',
-    quadL: '',
-    quadR: '',
-    glutes: '',
-    chest: '',
-    photos: { front: '', back: '', sideLeft: '', sideRight: '' }
+  const [weeklyData, setWeeklyData] = useState(() => {
+    try {
+      const saved = localStorage.getItem('habitarmour_draft_weekly');
+      if (saved) return JSON.parse(saved);
+    } catch (e) {
+      console.error('Failed to load weeklyData draft:', e);
+    }
+    return {
+      weekCommencing: new Date().toISOString().split('T')[0],
+      startWeight: '',
+      responseAction: '',
+      umbilical: '',
+      bicepL: '',
+      bicepR: '',
+      quadL: '',
+      quadR: '',
+      glutes: '',
+      chest: '',
+      photos: { front: '', back: '', sideLeft: '', sideRight: '' }
+    };
   });
+
+  // Auto-save form drafts to localStorage whenever fields change
+  useEffect(() => {
+    try {
+      if (!editingDate) {
+        localStorage.setItem('habitarmour_draft_morning', JSON.stringify(morningData));
+      }
+    } catch (err) {
+      console.error('Failed to save morningData draft:', err);
+    }
+  }, [morningData, editingDate]);
+
+  useEffect(() => {
+    try {
+      if (!editingDate) {
+        localStorage.setItem('habitarmour_draft_night', JSON.stringify(nightData));
+      }
+    } catch (err) {
+      console.error('Failed to save nightData draft:', err);
+    }
+  }, [nightData, editingDate]);
+
+  useEffect(() => {
+    try {
+      if (!editingDate) {
+        localStorage.setItem('habitarmour_draft_weekly', JSON.stringify(weeklyData));
+      }
+    } catch (err) {
+      console.error('Failed to save weeklyData draft:', err);
+    }
+  }, [weeklyData, editingDate]);
 
   // Hevy Gym & AI States
   const [hevyStatus, setHevyStatus] = useState({ hevyApiKeyConfigured: false, geminiApiKeyConfigured: false });
@@ -166,15 +221,6 @@ export default function App() {
       const res = await fetch(`${API_URL}/api/status`);
       const data = await res.json();
       setStatus(data);
-      if (data.window && (data.locked || data.isWarning)) {
-        setActiveTab(prev => {
-          // Do not kick the user off practice or active forms during ongoing work
-          if (prev === 'practice' || prev === 'morning' || prev === 'morningJournal' || prev === 'night' || prev === 'nightJournal' || prev === 'weekly') {
-            return prev;
-          }
-          return data.window;
-        });
-      }
     } catch (err) {
       console.error("Failed to fetch status:", err);
     }
@@ -586,10 +632,28 @@ export default function App() {
       });
       if (res.ok) {
         setSubmitSuccess(`${windowType.toUpperCase()} log ${editingDate ? 'updated' : 'submitted'} successfully!`);
-        if (windowType === 'morningJournal') {
-          setMorningData(prev => ({ ...prev, journalEntry: '' }));
+        if (windowType === 'morning') {
+          setMorningData(prev => {
+            const updated = { ...prev, wakingWeight: '', sleepHours: '', restingHR: '', bloodPressure: '' };
+            localStorage.setItem('habitarmour_draft_morning', JSON.stringify(updated));
+            return updated;
+          });
+        } else if (windowType === 'morningJournal') {
+          setMorningData(prev => {
+            const updated = { ...prev, journalEntry: '' };
+            localStorage.setItem('habitarmour_draft_morning', JSON.stringify(updated));
+            return updated;
+          });
+        } else if (windowType === 'night') {
+          localStorage.removeItem('habitarmour_draft_night');
         } else if (windowType === 'nightJournal') {
-          setNightData(prev => ({ ...prev, journalEntry: '' }));
+          setNightData(prev => {
+            const updated = { ...prev, journalEntry: '' };
+            localStorage.setItem('habitarmour_draft_night', JSON.stringify(updated));
+            return updated;
+          });
+        } else if (windowType === 'weekly') {
+          localStorage.removeItem('habitarmour_draft_weekly');
         }
         setEditingDate(null);
         fetchStatus();
@@ -742,6 +806,7 @@ export default function App() {
                 weeklyData={weeklyData}
                 setWeeklyData={setWeeklyData}
                 photosRequired={config.weeklyPhotosRequired !== false}
+                API_URL={API_URL}
                 editingDate={editingDate}
                 cancelEditing={cancelEditing}
                 onSubmit={(e) => handleFormSubmit(e, 'weekly')}
@@ -760,6 +825,7 @@ export default function App() {
               <HistoryView 
                 history={history}
                 config={config}
+                API_URL={API_URL}
                 syncAllUnsynced={syncAllUnsynced}
                 syncingAll={syncingAll}
                 syncLogEntry={syncLogEntry}

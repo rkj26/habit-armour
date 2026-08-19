@@ -52,6 +52,8 @@ class Settings(BaseSettings):
     PRACTICE_LOCK_ENABLED: bool = True
     PRACTICE_LOCK_START_HOUR: int = 21
     PRACTICE_MIN_DUE_TO_UNLOCK: int = 1
+    PRACTICE_DAILY_TARGET: int = 5
+    PRACTICE_NEW_CARDS_PER_DAY: int = 5
     GEMINI_API_KEY: Optional[str] = None
     
     class Config:

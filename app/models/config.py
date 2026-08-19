@@ -48,3 +48,5 @@ class AppConfigModel(SQLModel, table=True):
     practiceLockEnabled: bool = Field(default_factory=lambda: settings.PRACTICE_LOCK_ENABLED)
     practiceLockStartHour: int = Field(default_factory=lambda: settings.PRACTICE_LOCK_START_HOUR)
     practiceMinDueToUnlock: int = Field(default_factory=lambda: settings.PRACTICE_MIN_DUE_TO_UNLOCK)
+    practiceDailyTarget: int = Field(default_factory=lambda: settings.PRACTICE_DAILY_TARGET)
+    practiceNewCardsPerDay: int = Field(default_factory=lambda: settings.PRACTICE_NEW_CARDS_PER_DAY)

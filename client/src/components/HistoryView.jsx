@@ -3,12 +3,18 @@ import React, { useState } from 'react';
 export default function HistoryView({
   history,
   config,
+  API_URL = '',
   syncAllUnsynced,
   syncingAll,
   syncLogEntry,
   startEditingLog
 }) {
   const [expandedEntries, setExpandedEntries] = useState({});
+
+  const formatPhotoUrl = (url) => {
+    if (!url) return '';
+    return url.startsWith('http') ? url : `${API_URL || ''}${url}`;
+  };
 
   const toggleEntryExpand = (date) => {
     setExpandedEntries(prev => ({ ...prev, [date]: !prev[date] }));
@@ -260,8 +266,8 @@ export default function HistoryView({
                                   </span>
                                 </div>
                                 {entry.nightData.proteinShake.photoUrl && (
-                                  <a href={entry.nightData.proteinShake.photoUrl} target="_blank" rel="noreferrer" title="Protein Shake Proof">
-                                    <img src={entry.nightData.proteinShake.photoUrl} alt="protein shake proof" style={{ width: '40px', height: '40px', objectFit: 'cover', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.2)' }} />
+                                  <a href={formatPhotoUrl(entry.nightData.proteinShake.photoUrl)} target="_blank" rel="noreferrer" title="Protein Shake Proof">
+                                    <img src={formatPhotoUrl(entry.nightData.proteinShake.photoUrl)} alt="protein shake proof" style={{ width: '40px', height: '40px', objectFit: 'cover', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.2)' }} />
                                   </a>
                                 )}
                               </div>
@@ -271,8 +277,8 @@ export default function HistoryView({
                                 <strong style={{ display: 'block', marginBottom: '6px' }}>📸 Weekly Progress Photos:</strong>
                                 <div style={{ display: 'flex', gap: '8px' }}>
                                   {['front', 'back', 'sideLeft', 'sideRight', 'side'].map(p => entry.weeklyData.photos[p] ? (
-                                    <a key={p} href={entry.weeklyData.photos[p]} target="_blank" rel="noreferrer" title={`${p} pose`}>
-                                      <img src={entry.weeklyData.photos[p]} alt={p} style={{ width: '48px', height: '48px', objectFit: 'cover', borderRadius: '4px', border: '1px solid rgba(255,255,255,0.2)' }} />
+                                    <a key={p} href={formatPhotoUrl(entry.weeklyData.photos[p])} target="_blank" rel="noreferrer" title={`${p} pose`}>
+                                      <img src={formatPhotoUrl(entry.weeklyData.photos[p])} alt={p} style={{ width: '48px', height: '48px', objectFit: 'cover', borderRadius: '4px', border: '1px solid rgba(255,255,255,0.2)' }} />
                                     </a>
                                   ) : null)}
                                 </div>

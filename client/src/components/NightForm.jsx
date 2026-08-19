@@ -48,7 +48,7 @@ export default function NightForm({
           dataUrl
         })
       });
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
 
       if (res.ok && data.success) {
         setNightData({
@@ -60,7 +60,8 @@ export default function NightForm({
           }
         });
       } else {
-        alert(`Photo upload failed: ${data.error || 'Unknown error'}`);
+        const errorMsg = data.detail || data.error || (res.status ? `HTTP ${res.status}: ${res.statusText}` : 'Unknown error');
+        alert(`Photo upload failed: ${typeof errorMsg === 'object' ? JSON.stringify(errorMsg) : errorMsg}`);
       }
     } catch (err) {
       console.error('Error uploading shake photo:', err);
@@ -235,7 +236,7 @@ export default function NightForm({
             {proteinShake.photoUrl ? (
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <img 
-                  src={proteinShake.photoUrl} 
+                  src={proteinShake.photoUrl.startsWith('http') ? proteinShake.photoUrl : `${API_URL || ''}${proteinShake.photoUrl}`} 
                   alt="protein shake proof" 
                   style={{ width: '64px', height: '64px', objectFit: 'cover', borderRadius: '8px', border: '1px solid rgba(255, 255, 255, 0.2)' }} 
                 />

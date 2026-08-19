@@ -263,7 +263,12 @@ export default function AnkiView({ API_URL, status, onRefreshStatus }) {
               </thead>
               <tbody>
                 {decks.map(deck => {
-                  const isCleared = deck.due_count === 0;
+                  const dueCount = deck.due_count ?? deck.due ?? 0;
+                  const reviewCount = deck.review_count ?? deck.review ?? 0;
+                  const learnCount = deck.learn_count ?? deck.learn ?? 0;
+                  const newCount = deck.new_count ?? deck.new ?? 0;
+                  const totalCount = deck.total_in_deck ?? deck.total ?? 0;
+                  const isCleared = Boolean(deck.cleared) || dueCount === 0;
                   return (
                     <tr 
                       key={deck.deck_id || deck.name} 
@@ -277,29 +282,29 @@ export default function AnkiView({ API_URL, status, onRefreshStatus }) {
                       </td>
                       <td style={{ padding: '0.85rem 0.5rem', textAlign: 'center' }}>
                         <span style={{ 
-                          color: deck.review_count > 0 ? '#f87171' : '#94a3b8',
-                          fontWeight: deck.review_count > 0 ? 700 : 400 
+                          color: reviewCount > 0 ? '#f87171' : '#94a3b8',
+                          fontWeight: reviewCount > 0 ? 700 : 400 
                         }}>
-                          {deck.review_count}
+                          {reviewCount}
                         </span>
                       </td>
                       <td style={{ padding: '0.85rem 0.5rem', textAlign: 'center' }}>
                         <span style={{ 
-                          color: deck.learn_count > 0 ? '#fb923c' : '#94a3b8',
-                          fontWeight: deck.learn_count > 0 ? 700 : 400 
+                          color: learnCount > 0 ? '#fb923c' : '#94a3b8',
+                          fontWeight: learnCount > 0 ? 700 : 400 
                         }}>
-                          {deck.learn_count}
+                          {learnCount}
                         </span>
                       </td>
                       <td style={{ padding: '0.85rem 0.5rem', textAlign: 'center', color: '#60a5fa' }}>
-                        {deck.new_count}
+                        {newCount}
                       </td>
                       <td style={{ padding: '0.85rem 0.5rem', textAlign: 'center', color: '#94a3b8' }}>
-                        {deck.total_in_deck}
+                        {totalCount}
                       </td>
                       <td style={{ padding: '0.85rem 0.5rem', textAlign: 'right' }}>
                         <span className={`status-pill ${isCleared ? 'status-pill-green' : 'status-pill-red'}`} style={{ fontSize: '0.75rem', padding: '2px 8px' }}>
-                          {isCleared ? '✓ Cleared' : `⏳ ${deck.due_count} Due`}
+                          {isCleared ? '✓ Cleared' : `⏳ ${dueCount} Due`}
                         </span>
                       </td>
                     </tr>

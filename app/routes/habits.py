@@ -1,3 +1,7 @@
+import os
+import re
+import base64
+from datetime import datetime
 from typing import Dict, Any, Optional
 from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, select
@@ -9,7 +13,11 @@ from app.pillars.obsidian import sync_to_obsidian
 
 router = APIRouter(prefix="/api", tags=["Habits"])
 
+UPLOADS_DIR = os.path.join(os.getcwd(), "uploads")
+os.makedirs(UPLOADS_DIR, exist_ok=True)
+
 @router.post("/log")
+@router.post("/submit")
 def submit_habit_log(payload: Dict[str, Any], session: Session = Depends(get_session)):
     window = payload.get("window")
     date_str = payload.get("date") or get_local_date_string()
@@ -75,3 +83,35 @@ def manual_sync_entry(payload: Dict[str, Any], session: Session = Depends(get_se
         sync_to_obsidian("night", date_str, entry.nightJournalData, config.obsidianVaultPath, config.obsidianJournalFolder)
         
     return {"success": True, "message": "Obsidian sync executed."}
+        
+@router.post("/upload-photo")
+def upload_habit_photo(payload: Dict[str, Any]):
+    date_str = payload.get("date")
+    pose = payload.get("pose")
+    data_url = payload.get("dataUrl")
+
+    if not date_str or not pose or not data_url:
+        raise HTTPException(status_code=400, detail="date, pose, and dataUrl are required")
+
+    match = re.match(r"^data:image\/([a-zA-Z0-9]+);base64,(.+)$", data_url)
+    if not match:
+        raise HTTPException(status_code=400, detail="Invalid base64 image data")
+
+    ext = "jpg" if match.group(1) == "jpeg" else match.group(1)
+    try:
+        buffer = base64.b64decode(match.group(2))
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Failed to decode base64: {str(e)}")
+
+    safe_date = re.sub(r"[^a-zA-Z0-9_-]", "_", str(date_str))
+    safe_pose = re.sub(r"[^a-zA-Z0-9_-]", "_", str(pose))
+    timestamp = int(datetime.now().timestamp() * 1000)
+    filename = f"photo_{safe_date}_{safe_pose}_{timestamp}.{ext}"
+    filepath = os.path.join(UPLOADS_DIR, filename)
+
+    os.makedirs(UPLOADS_DIR, exist_ok=True)
+    with open(filepath, "wb") as f:
+        f.write(buffer)
+
+    return {"success": True, "url": f"/uploads/{filename}", "filename": filename}
+

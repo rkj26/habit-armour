@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
 import { compressImage } from '../utils/imageCompressor';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+const DEFAULT_API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
 export default function WeeklyForm({
   weeklyData,
   setWeeklyData,
   photosRequired = true,
+  API_URL = DEFAULT_API_URL,
   editingDate,
   cancelEditing,
   onSubmit
@@ -33,8 +34,8 @@ export default function WeeklyForm({
         body: JSON.stringify({ date: targetDate, pose, dataUrl })
       });
 
-      if (res.ok) {
-        const data = await res.json();
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.success) {
         setWeeklyData(prev => ({
           ...prev,
           photos: {
@@ -43,8 +44,8 @@ export default function WeeklyForm({
           }
         }));
       } else {
-        const err = await res.json().catch(() => ({}));
-        alert(`Photo upload failed: ${err.error || 'Unknown error'}`);
+        const errorMsg = data.detail || data.error || (res.status ? `HTTP ${res.status}: ${res.statusText}` : 'Unknown error');
+        alert(`Photo upload failed: ${typeof errorMsg === 'object' ? JSON.stringify(errorMsg) : errorMsg}`);
       }
     } catch (err) {
       console.error('Error uploading photo:', err);
