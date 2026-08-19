@@ -323,10 +323,10 @@ EXPLICIT AUDIT CHECKLIST:
    - Are all mathematical transitions fully derived step-by-step from fundamental axioms / identities?
    - Did the user skip intermediate identities (e.g. log-derivative trick, expectation linearity, change of variables, product rule, matrix calculus Jacobian rules)? If any intermediate algebraic identity is omitted, penalize at least 2.0–3.0 points.
 2. Tensor Dimensionality & Notation:
-   - Are tensor dimensions (e.g. $(B, T, d_{model})$, $(B, H, T, d_k)$, $(B, T, d_{ff})$) explicitly and accurately specified at EVERY intermediate stage?
+   - Are tensor dimensions (e.g. $(B, T, d_{{model}})$, $(B, H, T, d_k)$, $(B, T, d_{{ff}})$) explicitly and accurately specified at EVERY intermediate stage?
    - Is matrix / vector notation precise?
 3. Causal Depth & Mechanism ("Why" vs "What"):
-   - Did the user explain the EXACT mathematical mechanism (e.g. gradient path $\frac{{\\partial x_L}}{{\\partial x_l}} = I + \\dots$, variance reduction identity, memory bandwidth arithmetic intensity $\\frac{{\\text{{FLOPs}}}}{{\\text{{Bytes}}}}$)?
+   - Did the user explain the EXACT mathematical mechanism (e.g. gradient path $\\frac{{\\partial x_L}}{{\\partial x_l}} = I + \\dots$, variance reduction identity, memory bandwidth arithmetic intensity $\\frac{{\\text{{FLOPs}}}}{{\\text{{Bytes}}}}$)?
    - If the user merely states high-level descriptions without underlying causal mechanisms, flag as "hand-wavy" and penalize heavily.
 4. Edge Cases, Assumptions & Boundary Conditions:
    - Are critical boundary conditions, masks ($-\\infty$ vs $0$), scaling factors (e.g. $\\frac{{1}}{{\\sqrt{{d_k}}}}$ to prevent softmax gradient saturation), and assumptions explicitly stated?
