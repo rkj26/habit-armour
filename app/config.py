@@ -56,6 +56,17 @@ class Settings(BaseSettings):
     PRACTICE_NEW_CARDS_PER_DAY: int = 5
     GEMINI_API_KEY: Optional[str] = None
     
+    # Allowed Website Hosts during Hardware Lock
+    ALLOWED_WEBSITES: List[str] = [
+        "myfitnesspal.com",
+        "gemini.google.com",
+        "claude.ai",
+        "chatgpt.com",
+        "chat.openai.com",
+        "anthropic.com",
+        "arxiv.org"
+    ]
+    
     class Config:
         env_file = ".env"
         extra = "allow"

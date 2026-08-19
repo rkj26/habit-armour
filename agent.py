@@ -25,10 +25,17 @@ ALLOWED_BROWSERS = {
     "Google Chrome", "Safari", "Arc", "Brave Browser", "Microsoft Edge", "Firefox", "Opera", "Orion", "Vivaldi"
 }
 
-ALLOWED_URL_HOSTS = {
+DEFAULT_ALLOWED_URL_HOSTS = {
     f"localhost:{PORT}", f"127.0.0.1:{PORT}",
     "localhost:5173", "localhost:5174",
-    "127.0.0.1:5173", "127.0.0.1:5174"
+    "127.0.0.1:5173", "127.0.0.1:5174",
+    "myfitnesspal.com",
+    "gemini.google.com",
+    "claude.ai",
+    "chatgpt.com",
+    "chat.openai.com",
+    "anthropic.com",
+    "arxiv.org"
 }
 
 def log(msg: str):
@@ -103,10 +110,16 @@ def get_active_browser_url(app_name: str) -> str:
     except Exception:
         return ""
 
-def is_allowed_url(url: str) -> bool:
+def is_allowed_url(url: str, dynamic_allowed=None) -> bool:
     if not url:
         return False
-    return any(host in url for host in ALLOWED_URL_HOSTS)
+    allowed_set = set(DEFAULT_ALLOWED_URL_HOSTS)
+    if dynamic_allowed and isinstance(dynamic_allowed, list):
+        for host in dynamic_allowed:
+            if host and isinstance(host, str) and host.strip():
+                allowed_set.add(host.strip().lower())
+    url_lower = url.lower()
+    return any(host in url_lower for host in allowed_set)
 
 def send_notification(msg: str):
     try:
@@ -142,6 +155,7 @@ def main():
     was_locked = False
     browser_opened_for_lock = False
     consecutive_violations = 0
+    current_allowed_websites = []
 
     while True:
         try:
@@ -152,6 +166,7 @@ def main():
                 continue
                 
             data = res.json()
+            current_allowed_websites = data.get("allowedWebsites", [])
         except Exception as e:
             log(f"Local server unreachable: {e}. Retrying in 10s...")
             time.sleep(10)
@@ -176,6 +191,7 @@ def main():
                     res = client.get(API_URL)
                     if res.status_code == 200:
                         status_data = res.json()
+                        current_allowed_websites = status_data.get("allowedWebsites", [])
                         if not status_data.get("locked"):
                             log("STATUS: Habits completed or override applied. Mac unlocked!")
                             was_locked = False
@@ -214,7 +230,7 @@ def main():
                 # 2. Supported Browsers
                 elif front_app in ALLOWED_BROWSERS:
                     active_url = get_active_browser_url(front_app)
-                    if is_allowed_url(active_url):
+                    if is_allowed_url(active_url, current_allowed_websites):
                         is_allowed = True
                         consecutive_violations = 0
                     else:

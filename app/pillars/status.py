@@ -157,6 +157,7 @@ async def compute_status(session: Session) -> Dict[str, Any]:
             "reason": reason,
             "completed": False,
             "error": entry.ankiVerificationError if active_window == "anki" else (entry.gymVerificationError if active_window == "gym" else None),
+            "allowedWebsites": getattr(config, "allowedWebsites", None) or list(settings.ALLOWED_WEBSITES),
             "entry": entry.dict()
         }
 
@@ -174,5 +175,6 @@ async def compute_status(session: Session) -> Dict[str, Any]:
         "reason": "Device usable. All logs for current period completed.",
         "completed": True,
         "error": None,
+        "allowedWebsites": getattr(config, "allowedWebsites", None) or list(settings.ALLOWED_WEBSITES),
         "entry": entry.dict()
     }

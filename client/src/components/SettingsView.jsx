@@ -10,8 +10,28 @@ export default function SettingsView({
 }) {
   const [newSuppInput, setNewSuppInput] = React.useState('');
   const [newDeckInput, setNewDeckInput] = React.useState('');
+  const [newWebsiteInput, setNewWebsiteInput] = React.useState('');
   const suppList = config.supplementsList || ['Vitamin D3', 'Vitamin K2', 'Omega-3', 'Creatine'];
   const ignoredDecksList = Array.isArray(config.ankiIgnoredDecks) ? config.ankiIgnoredDecks : [];
+  const allowedWebsitesList = Array.isArray(config.allowedWebsites) 
+    ? config.allowedWebsites 
+    : ['myfitnesspal.com', 'gemini.google.com', 'claude.ai', 'chatgpt.com', 'arxiv.org'];
+
+  const addWebsite = (siteOrEvent) => {
+    let site = typeof siteOrEvent === 'string' ? siteOrEvent : newWebsiteInput;
+    if (siteOrEvent && siteOrEvent.preventDefault) siteOrEvent.preventDefault();
+    const trimmed = (site || '').trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/.*$/, '');
+    if (!trimmed) return;
+    if (allowedWebsitesList.includes(trimmed)) return;
+    const updated = [...allowedWebsitesList, trimmed];
+    handleConfigChange({ target: { name: 'allowedWebsites', value: updated } });
+    setNewWebsiteInput('');
+  };
+
+  const removeWebsite = (siteToRemove) => {
+    const updated = allowedWebsitesList.filter(s => s !== siteToRemove);
+    handleConfigChange({ target: { name: 'allowedWebsites', value: updated } });
+  };
 
   const addSupplement = (e) => {
     e.preventDefault();
@@ -85,10 +105,93 @@ export default function SettingsView({
           </div>
         </div>
 
-        <hr style={{ borderColor: 'rgba(255, 255, 255, 0.1)', margin: '24px 0' }} />
+        <div className="form-group" style={{maxWidth: '240px', marginTop: '14px'}}>
+          <label className="form-label">Grace Period (Seconds)</label>
+          <input type="number" className="form-input" name="gracePeriodSec" value={config.gracePeriodSec} onChange={handleConfigChange} min="10" max="600" />
+          <span className="sub-label">Warning countdown duration before device locks.</span>
+        </div>
+      </div>
 
-        {/* Weekly Spec Lock Configuration */}
-        <h4 style={{ color: 'var(--text-primary)', marginBottom: '12px' }}>📅 Weekly Spec Lock Schedule</h4>
+      {/* Allowed Websites Whitelist Configuration */}
+      <div className="settings-section">
+        <h3 className="settings-section-title">🌐 Allowed Website Whitelist (During Lock)</h3>
+        <p className="settings-section-desc">
+          Specify websites you are permitted to visit even when Habit Armour lock is active (e.g. logging calories on MyFitnessPal, consulting AI assistants like Gemini & Claude, or reading research papers on Arxiv).
+        </p>
+
+        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '16px' }}>
+          {allowedWebsitesList.map((site) => (
+            <span
+              key={site}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '6px 12px',
+                background: 'rgba(99, 102, 241, 0.12)',
+                border: '1px solid rgba(99, 102, 241, 0.3)',
+                borderRadius: '20px',
+                fontSize: '0.85rem',
+                fontWeight: 600,
+                color: '#a5b4fc'
+              }}
+            >
+              🌐 {site}
+              <button
+                type="button"
+                onClick={() => removeWebsite(site)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: '#f87171',
+                  cursor: 'pointer',
+                  fontSize: '0.9rem',
+                  padding: '0 2px',
+                  lineHeight: 1
+                }}
+                title={`Remove ${site}`}
+              >
+                ✕
+              </button>
+            </span>
+          ))}
+        </div>
+
+        <form onSubmit={addWebsite} style={{ display: 'flex', gap: '10px', maxWidth: '480px', marginBottom: '14px' }}>
+          <input
+            type="text"
+            className="form-input"
+            placeholder="Add website (e.g. myfitnesspal.com, claude.ai)"
+            value={newWebsiteInput}
+            onChange={(e) => setNewWebsiteInput(e.target.value)}
+          />
+          <button type="submit" className="btn btn-secondary" style={{ whiteSpace: 'nowrap' }}>
+            + Add Domain
+          </button>
+        </form>
+
+        <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center' }}>
+          <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>Quick Presets:</span>
+          {['myfitnesspal.com', 'gemini.google.com', 'claude.ai', 'chatgpt.com', 'arxiv.org', 'wandb.ai'].map((preset) => (
+            <button
+              key={preset}
+              type="button"
+              className="btn btn-link"
+              style={{ fontSize: '0.78rem', padding: '2px 8px', background: 'rgba(255,255,255,0.05)', borderRadius: '6px' }}
+              onClick={() => addWebsite(preset)}
+              disabled={allowedWebsitesList.includes(preset)}
+            >
+              + {preset}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Weekly Spec Lock Configuration */}
+      <div className="settings-section">
+        <h3 className="settings-section-title">📅 Weekly Spec Lock Schedule</h3>
+        <p className="settings-section-desc">Configure weekly review and photo verification deadlines.</p>
+        
         <div className="form-group" style={{display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px'}}>
           <input 
             type="checkbox" 
