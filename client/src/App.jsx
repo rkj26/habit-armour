@@ -137,7 +137,18 @@ export default function App() {
     practiceNewCardsPerDay: 1,
     practiceReviewTopicsPerDay: 1,
     supplementsList: DEFAULT_SUPPLEMENTS,
-    enforceSupplementsBlocker: true
+    enforceSupplementsBlocker: true,
+    allowedWebsites: [
+      "localhost:3000",
+      "127.0.0.1:3000",
+      "myfitnesspal.com",
+      "gemini.google.com",
+      "claude.ai",
+      "chatgpt.com",
+      "chat.openai.com",
+      "anthropic.com",
+      "arxiv.org"
+    ]
   });
   const [ipInfo, setIpInfo] = useState('localhost');
   const [history, setHistory] = useState([]);

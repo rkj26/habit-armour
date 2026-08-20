@@ -23,7 +23,23 @@ def _coerce_to_field_type(field_name: str, value: Any) -> Any:
     validation on table models, so an unchecked setattr would happily persist
     e.g. morningStart="abc" and make every later /api/status raise a 500.
     """
-    annotation = AppConfigModel.model_fields[field_name].annotation
+    field = AppConfigModel.model_fields[field_name]
+    annotation = field.annotation
+
+    if value is None:
+        if field_name == "allowedWebsites":
+            from app.config import settings
+
+            return list(settings.ALLOWED_WEBSITES)
+        if field_name == "ankiIgnoredDecks":
+            return []
+        if field_name == "supplementsList":
+            return ["Vitamin D3", "Vitamin K2", "Omega-3", "Creatine"]
+        if field.default is not None and field.default is not ...:
+            return field.default
+        if field.default_factory is not None:
+            return field.default_factory()
+
     return TypeAdapter(annotation).validate_python(value)
 
 

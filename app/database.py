@@ -45,6 +45,13 @@ def init_db():
                 )
             if "allowedWebsites" not in cfg_cols:
                 conn.exec_driver_sql("ALTER TABLE app_config ADD COLUMN allowedWebsites JSON;")
+            # Ensure existing row doesn't have NULL allowedWebsites
+            import json
+
+            default_sites_json = json.dumps(list(settings.ALLOWED_WEBSITES))
+            conn.exec_driver_sql(
+                f"UPDATE app_config SET allowedWebsites = '{default_sites_json}' WHERE allowedWebsites IS NULL;"
+            )
             conn.commit()
         except Exception as e:
             print(f"[init_db] Column migration notice: {e}")

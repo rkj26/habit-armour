@@ -67,6 +67,16 @@ class TestConfigValidation:
         assert client.post("/api/config", json={"id": 99}).status_code == 200
         assert client.get("/api/config").json()["id"] == 1
 
+    def test_allowed_websites_none_coerced_to_default_list(self, client):
+        res = client.post("/api/config", json={"allowedWebsites": None})
+        assert res.status_code == 200
+        assert isinstance(client.get("/api/config").json()["allowedWebsites"], list)
+
+    def test_allowed_websites_custom_list_persisted(self, client):
+        res = client.post("/api/config", json={"allowedWebsites": ["claude.ai", "gemini.google.com"]})
+        assert res.status_code == 200
+        assert client.get("/api/config").json()["allowedWebsites"] == ["claude.ai", "gemini.google.com"]
+
 
 class TestUnknownApiRoutes:
     def test_unknown_api_path_is_404_not_the_spa_index(self, client):

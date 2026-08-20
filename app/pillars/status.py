@@ -28,6 +28,11 @@ def get_effective_config(session: Session) -> AppConfigModel:
         session.add(cfg)
         session.commit()
         session.refresh(cfg)
+    if cfg.allowedWebsites is None:
+        cfg.allowedWebsites = list(settings.ALLOWED_WEBSITES)
+        session.add(cfg)
+        session.commit()
+        session.refresh(cfg)
     return cfg
 
 
