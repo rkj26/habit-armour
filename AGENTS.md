@@ -1,141 +1,168 @@
 # AGENTS.md — Habit Armour
 
-Rules and context for any coding agent (Claude Code, Codex, Cursor, etc.) working in this repo.
-Read this before making changes. If something here turns out to be wrong or stale, fix it in the
-same commit that makes it stale — this file rots fast if left behind.
+Rules and context for any coding agent working in this repo. Read this before making changes.
+If something here turns out to be wrong or stale, fix it in the same commit that makes it stale —
+this file rots fast if left behind.
 
-## What this is
+## Before you say a change is done
 
-A personal, single-user macOS habit-tracking system: FastAPI + SQLite backend, React/Vite
-frontend, plus a native PyObjC "lock daemon" that enforces habit compliance by locking the screen.
-It runs as two background `launchd` services, not as a dev server you visit and forget. There is
-exactly one user (the repo owner) and no auth layer — don't add one unless asked.
+```bash
+make check     # ruff lint + format check + oxlint + CSS token check + pytest + vite build
+```
+
+That is the same command CI runs. `make install` first if there is no `.venv`. `make fmt`
+auto-fixes lint violations and formats. Do not hand-format Python; ruff owns it.
+
+Style, import order and line length are enforced by tooling and are therefore **not** documented
+here. If a rule can be checked by a machine, it belongs in `pyproject.toml` or `.flake8`, not in
+this file.
 
 ## Critical: the repo is not the running app
 
-The live app runs from `~/.habitarmour/`, a **separate deployed copy**, not this repo directory.
-`install.sh` builds the client, rsyncs source into `~/.habitarmour/` (excluding `.db*`, `uploads/`,
-`*.log`), and restarts the two launchd agents (`com.user.habitserver`, `com.user.habitlock`).
+The live app runs from `~/.habitarmour/`, a **separate deployed copy**. `make deploy` (i.e.
+`install.sh`) builds the client, rsyncs source into `~/.habitarmour/` and restarts the two launchd
+agents (`com.user.habitserver`, `com.user.habitlock`).
 
-**Consequences that matter every session:**
-- Editing files in this repo has **zero runtime effect** until you run `bash install.sh`.
-- The live SQLite database is `~/.habitarmour/habit_armour.db`, never the one (if any) sitting in
-  the repo root. Always operate on the `~/.habitarmour/` copy for real data; back it up
-  (`cp habit_armour.db habit_armour.db.backup-$(date +%Y%m%d-%H%M%S)`) before any bulk mutation.
-- After `install.sh`, verify with `curl -s http://localhost:3000/api/...` — don't assume a deploy
-  worked just because the script printed success.
-- `install.sh` unloads/reloads launchd agents, i.e. it restarts the live service. Treat that as a
-  "restart a running system" action — fine for this single-user local app, but say what you're
-  doing.
+- Editing files here has **zero runtime effect** until you deploy.
+- The live database is `~/.habitarmour/habit_armour.db`, never one in the repo. Back it up before
+  any bulk mutation: `cp habit_armour.db habit_armour.db.backup-$(date +%Y%m%d-%H%M%S)`.
+- `make deploy` restarts a running system. Say so before you do it.
+- After deploying, verify with `curl -s http://localhost:3000/api/...`. Don't trust the success message.
 
-## Architecture map
+## Architecture
 
-- `app/routes/*.py` — FastAPI routers, one per "pillar" (gym, anki, practice, habits, status,
-  config). HTTP layer only where possible.
-- `app/pillars/*.py` — business logic the routes call into (FSRS math, Gemini prompt construction,
-  JSON repair, satisfied/gate logic). `practice.py` here is math/AI logic; `routes/practice.py` is
-  the HTTP surface — don't blur that line further, and prefer moving logic *out* of routes into
-  pillars over adding more inline logic to routes.
-- `app/models/*.py` — SQLModel table definitions.
-- `app/database.py` — engine + `init_db()`, which also runs **hand-written migrations** (see below).
-- `client/src/components/*.jsx` — one big component per view, plain inline `style={{...}}` props
-  throughout (no CSS-in-JS lib, no Tailwind). `App.css` holds the shared class-based styles. Several
-  components are large (`PracticeView.jsx` ~1700 lines, `DashboardView.jsx` ~1550, `App.jsx` ~900) —
-  when touching one, prefer surgical edits over reflowing the whole file.
+| Path | Holds |
+|---|---|
+| `app/routes/*.py` | FastAPI routers, one per pillar. HTTP layer only. |
+| `app/pillars/*.py` | Business logic the routes call into: FSRS math, Gemini prompts, gate logic. |
+| `app/models/*.py` | SQLModel table definitions. |
+| `app/config.py` | Settings **and the clock helpers**. See below. |
+| `app/database.py` | Engine + `init_db()`, which runs hand-written migrations. |
+| `agent.py` | The PyObjC lock daemon. Polls `/api/status`, enforces the kiosk. |
+| `client/src/api/client.js` | The only place that knows the API base URL. |
+| `client/src/components/ui/` | UI primitives. Use these. |
 
-## Database migrations: no framework, do it by hand
+`practice.py` exists in both `pillars/` and `routes/` — one is math/AI logic, the other is the HTTP
+surface. Don't blur that line; prefer moving logic *out* of routes into pillars.
 
-There is no Alembic/migration tool. Schema changes are additive `ALTER TABLE` statements guarded by
-`PRAGMA table_info` checks inside `init_db()` in `app/database.py`, e.g.:
+## Invariants you cannot infer from the code
 
-```python
-if "order" not in existing_cols:
-    conn.exec_driver_sql('ALTER TABLE study_questions ADD COLUMN "order" INTEGER DEFAULT 0;')
-```
+**The logical day starts at 4 AM, not midnight.** Never call `datetime.now()` or `datetime.utcnow()`
+to decide what day it is. Use the helpers in `app/config.py`: `now_local()`, `get_local_date_string()`,
+`logical_date_of()`, `elapsed_logical_days()`. Mixing UTC timestamps with logical local dates
+previously put FSRS `elapsed_days` off by one for late-night reviews, and made Hevy verify against a
+different day than the lock enforced.
 
-Follow this exact pattern for any new column. `order` is a reserved SQL keyword — always
-double-quote it in raw SQL. This block only *adds* columns; it never drops/renames, and failures are
-swallowed with a `print()` (see the `except Exception as e` around it) — if you add a migration,
-sanity-check it actually ran (`PRAGMA table_info` on the live db) rather than trusting silence.
+**There is no auth layer.** Any client that reaches the port can read and write everything,
+including `POST /api/config`. That is why `HOST` defaults to `127.0.0.1` (`app/config.py` →
+`install.sh` → the launchd plist). Setting `HOST=0.0.0.0` re-enables the sidebar's iOS remote-status
+URL and simultaneously exposes every write endpoint to the local network — treat adding auth as a
+prerequisite, not a follow-up. Don't add auth unless asked.
 
-If you're mutating the live DB directly with a one-off script (not through the API), always: back up
-first, use parameterized queries, and re-verify counts/integrity after (see git history around the
-"Consistent Practice" ladder restructure for the pattern used).
+**Never take a raw `dict` as a request body.** Every route body is a Pydantic model in
+`app/schemas.py`; a new route adds one there. This is not tidiness — two real bugs came from
+unvalidated input reaching a sink. Copy the existing patterns:
+- `app/schemas.py` — request models. `_validate_logical_date` is shared by every model with a date
+  field, because a date here is a primary key *and* an Obsidian filename.
+- `resolve_static_file()` in `app/main.py` — containment check for anything path-shaped.
+- `_coerce_to_field_type()` in `app/routes/config.py` — `/api/config` is a *partial* update so it
+  can't use a plain model. SQLModel skips validation on table models, so an unchecked `setattr`
+  would persist `morningStart="abc"` and 500 every later `/api/status`, silently killing lock
+  enforcement.
 
-## Consistent Practice pillar (the FSRS study system)
+Free-form blobs stay `dict[str, Any]` deliberately: a habit log's `data` and a Hevy workout are
+owned by the frontend and by Hevy respectively, not by us.
 
-This is the most complex pillar — read `app/models/study.py`, `app/pillars/practice.py`, and
+**Schema changes are hand-written.** No Alembic. Additive `ALTER TABLE` guarded by a
+`PRAGMA table_info` check inside `init_db()` in `app/database.py`. `order` is a reserved word —
+always double-quote it. Failures are swallowed with a `print()`, so verify the migration actually
+ran against the live DB rather than trusting silence.
+
+## Consistent Practice (the FSRS pillar)
+
+The most complex pillar. Read `app/models/study.py`, `app/pillars/practice.py` and
 `app/routes/practice.py` together before touching it.
 
-- `StudyItem` = a topic or paper. `StudyQuestion` = one FSRS-tracked flashcard belonging to an item.
-  `StudyAttempt` = a graded submission log (never delete these — they're the real study history).
-- **FSRS-5 is per-question**, not per-topic. Spaced repetition, retention scoring, and due-dates all
-  operate at the individual-question level. Don't try to make a "topic" itself have a review state.
-- **`order`** (int on `StudyQuestion`) sequences questions within a topic into a "ladder" — easy to
-  hard, each building on the last, mixing theory/intuition with math. When adding questions to an
-  existing topic, continue the existing `order` sequence; don't leave gaps or duplicates
-  (`_next_order_for_item()` in `routes/practice.py` computes the next slot).
-- **Sections** (Foundations / Value Optimisation / Policy Optimisation / RLHF-RLAIF-RLVR / Papers)
-  are *not* a schema field — they're a `"Section: X"` string prepended to `StudyItem.tags`. This was
-  a deliberate choice to avoid a schema/migration for a purely organizational grouping; keep using
-  the tag convention rather than adding a `section` column unless the owner asks for one.
-- **Due-queue pacing** (`GET /api/practice/due` in `routes/practice.py`) groups due questions by
-  topic ("one box per topic") and separates them into:
-  - *in-progress* topics (any row in `study_attempts` for that item) — always shown in full, never
-    gated. Classify by attempt history, **not** by whether today's due subset happens to contain a
-    reviewed card — a topic you're mid-ladder on can have its next review land tomorrow while its
-    unattempted tail is still due today, and it must still show as one group.
-  - *new* topics (zero attempts ever) — capped at `config.practiceNewCardsPerDay` per day (this
-    field is semantically "new topic areas per day" now, not raw card count — it was repurposed
-    rather than adding a new column), surfaced in a stable syllabus order via a `SECTION_RANK` dict.
-  - Do **not** reintroduce per-card day-staggering for brand-new questions (e.g. via
-    `/api/practice/balance-backlog`, which still staggers by raw count and predates the topic-aware
-    pacing above) — it fragments a topic's ladder across multiple days and defeats the "one box"
-    design. That endpoint is legacy; ask before wiring it back into the UI.
-- **The ✨ "Generate Questions" and "✂️ Split into atomic" AI features are intentionally unused.**
-  The owner writes/curates questions directly (with agent help) rather than trusting Gemini
-  generation for this content. The code paths still exist and work — don't delete them, but don't
-  extend them either unless explicitly asked. Don't default to "let's use the generator" when adding
-  content to this pillar.
-- Gemini calls (`evaluate_answer_with_gemini`, `generate_model_solution_with_gemini`, etc., all in
-  `app/pillars/practice.py`) require `GEMINI_API_KEY` in `.env` — a personal, small-quota key. Don't
-  write code paths that call it in loops/bulk without the owner's awareness of the volume.
+- `StudyItem` = topic or paper. `StudyQuestion` = one FSRS-tracked card. `StudyAttempt` = a graded
+  submission — **never delete these**, they are the real study history.
+- **FSRS-5 is per-question**, not per-topic. Don't give a topic a review state.
+- **`order`** sequences questions within a topic into a ladder. Continue the existing sequence;
+  `_next_order_for_item()` computes the next slot.
+- **Sections are tags**, not a column — a `"Section: X"` string prepended to `StudyItem.tags`. A
+  deliberate choice to avoid a migration for a purely organisational grouping. Keep using it.
+- **Due-queue pacing** (`GET /api/practice/due`) groups by topic, one box per topic:
+  - *in-progress* topics (any row in `study_attempts`) are shown in full, capped at
+    `practiceReviewTopicsPerDay`, most urgent first. Classify by attempt history, **not** by whether
+    today's due subset happens to contain a reviewed card.
+  - *new* topics (zero attempts) are capped at `practiceNewCardsPerDay` — semantically "new topic
+    areas per day", repurposed rather than adding a column — ordered by `SECTION_RANK`.
+  - Do **not** reintroduce per-card day-staggering. `/api/practice/balance-backlog` still does this
+    and is legacy; ask before wiring it back in.
+- **`practiceMinDueToUnlock = 0` means "clear the whole queue"**, not "no requirement". It is
+  satisfiable: answering pushes each `dueDate` forward until `due_count` hits zero.
+- **The ✨ Generate Questions and ✂️ Split into atomic features are intentionally unused.** The owner
+  writes questions directly. The code works — don't delete it, don't extend it, don't suggest it.
+- Gemini calls need `GEMINI_API_KEY` — a personal, small-quota key. No bulk/loop calls without
+  flagging the volume first.
 
-## Testing & verification (there is no test suite)
+## Frontend
 
-There are no automated tests, no CI, and no Python linter/type-checker configured (only
-`client/.oxlintrc.json` for JS via `npm run lint`). This means:
-- Before claiming a change works, actually verify it: `python3 -c "import ast; ast.parse(open(f).read())"`
-  for syntax, `cd client && npx vite build` for the frontend, and `curl` the relevant endpoint
-  against the live (or a scratch) DB.
-- Prefer small, verifiable steps over large unverified batches, especially for anything touching
-  `app/routes/practice.py` or the DB directly.
-- If you add a feature substantial enough to deserve a test and there's reasonable time budget,
-  it's reasonable to introduce a minimal test setup (pytest + `TestClient`) rather than leaving
-  everything to manual curl checks forever — but this is a design decision worth flagging to the
-  owner first, not doing silently.
+**Use the primitives in `client/src/components/ui/`** — `Button`, `Card`, `Field`, `Alert`, `Badge`,
+`Stack`, `Spinner`, `EmptyState`, `Counter`. Run `npm --prefix client run dev` and open the
+**UI Gallery** tab (dev builds only) to see every variant. Adding a twelfth bespoke button style is
+the failure mode this exists to prevent; no linter can catch it, so it is your job.
 
-## Style & conventions actually used here
+**Use the design tokens, never raw values.** `client/src/index.css` has three layers: palette →
+semantic (`--color-danger`, `--space-4`, `--text-lg`) → component classes. Components reference the
+semantic layer only. `make tokens` fails the build on an undefined `var()`, which is how 78 dead
+references were found — including `--accent-red` used 26 times and defined nowhere, so every error
+message rendered in the default body colour.
 
-- Python: FastAPI + SQLModel, `snake_case` functions, route handlers return plain dicts (not
-  response models) — matches existing code, don't introduce Pydantic response models for just one
-  endpoint.
-- React: function components, `useState`/`useEffect`, inline styles, no component library. Keep new
-  UI consistent with this rather than introducing a new styling approach for one component.
-- Commit messages follow `type(scope): description` (e.g. `feat(practice): ...`, `fix(lock): ...`).
-- **Do not add `Co-Authored-By: Claude` (or any AI co-author trailer) to commits** — the owner wants
-  sole authorship on GitHub. This applies regardless of which agent is committing.
-- Secrets live in `.env` (gitignored) — `GEMINI_API_KEY`, `HEVY_API_KEY`. Never commit real values,
-  never print them in full.
+**All API calls go through `client/src/api/client.js`.** It resolves the base URL once and throws
+`ApiError` on non-2xx, with `.isOffline` for network failures. `fetch` does not throw on 4xx/5xx,
+which is how rejected submissions used to look identical to successful ones.
 
-## Known rough edges (real, not hypothetical — seen in review)
+Styling is inline `style={{...}}` plus classes in `App.css` — no Tailwind, no CSS-in-JS. Keep it
+that way. `DashboardView.jsx` (~1550 lines) and `App.css` (~1280) are large; prefer surgical edits,
+and treat splitting them as a deliberate reviewed project, not a drive-by.
 
-- CORS is wide open (`allow_origins=["*"]` with `allow_credentials=True`) in `app/main.py`. Low risk
-  today (localhost-only, single user) but worth tightening to explicit origins if this is ever
-  exposed beyond localhost.
-- No dependency lockfile for Python (`requirements.txt` uses loose `>=` pins; no `pip freeze` lock).
-  `client/package-lock.json` exists and is fine.
-- Several frontend components (`PracticeView.jsx`, `DashboardView.jsx`, `App.jsx`) are large,
-  single-file, and mix data-fetching, state, and heavily-styled markup. Splitting them is worthwhile
-  but is a real refactor with regression risk on a UI with no tests — treat as a deliberate,
-  reviewed project, not an opportunistic drive-by edit.
+## Testing
+
+`pytest` from the repo root. `tests/conftest.py` points `DATABASE_URL` at a temp SQLite file
+**before** importing `app.*`, so tests never touch the live DB.
+
+- `test_fsrs.py` — FSRS-5 math and the daily gate (pure functions).
+- `test_due_queue.py` — `/api/practice/due` grouping and pacing, via `TestClient`.
+- `test_hardening.py` — static-file containment, config validation, kiosk URL allowlist.
+
+**Add a case when you fix a bug.** Every test in `test_hardening.py` exists because the behaviour it
+pins was once wrong. There are no frontend component tests, so UI changes need `make check` plus a
+manual pass in both light and dark.
+
+## Conventions
+
+- Route handlers return plain dicts, not response models. Match that.
+- Commits: `type(scope): description` (`feat(practice):`, `fix(lock):`).
+- **No `Co-Authored-By: Claude`** or any AI trailer. The owner wants sole authorship.
+- Secrets live in `.env` (gitignored). Never commit or print them.
+
+## Deliberate omissions
+
+Don't "helpfully" add these without asking:
+
+- **mypy** — annotating ~3.5k untyped lines is its own project and would emit hundreds of day-one errors.
+- **Auth** — see above.
+
+If `ruff` ever dies with exit 137 (SIGKILL) rather than printing anything, that is the managed-Mac
+security tooling blocking the binary, not a config problem. It needs approving locally; don't
+replace the toolchain over it.
+
+## Known rough edges
+
+- `PracticeView.jsx` and `PracticeAnswerEditor.jsx` still derive their own base URL instead of using
+  `api/client.js`. Their logic is correct, just duplicated — migrate them when you next touch them.
+- `compute_next_fsrs` deviates slightly from published FSRS-5: no `(10-D)/9` damping on the
+  difficulty delta, and mean reversion targets `D0(3)` rather than `D0(4)`. Harmless at single-user
+  scale; don't "fix" it without re-checking the scheduling it produces.
+- 132 white-on-dark inline styles remain in unmigrated components, left over from a pre-light-mode
+  design. They render as invisible cards. Replace with `<Card>` as you touch each file.
