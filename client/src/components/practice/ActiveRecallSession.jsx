@@ -1,5 +1,40 @@
-import React from 'react';
-import { renderMarkdown } from '../../utils/renderMarkdown';
+import React from 'react'
+import { Camera, Clock, Key, TriangleAlert } from 'lucide-react'
+
+import { Badge } from '@/components/shadcn/badge'
+import { Button } from '@/components/shadcn/button'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/shadcn/dialog'
+import { Label } from '@/components/shadcn/label'
+import { Separator } from '@/components/shadcn/separator'
+import { Textarea } from '@/components/shadcn/textarea'
+import { DifficultyBadge, Prompt, TypeBadge } from './bits'
+
+const GRADES = {
+  4: 'Mastered',
+  3: 'Good',
+  2: 'Hard',
+  1: 'Lapse',
+}
+
+function SectionLabel({ children, tone }) {
+  return (
+    <span
+      className={
+        tone === 'danger'
+          ? 'text-destructive text-xs font-semibold tracking-wide uppercase'
+          : 'text-muted-foreground text-xs font-semibold tracking-wide uppercase'
+      }
+    >
+      {children}
+    </span>
+  )
+}
 
 export default function ActiveRecallSession({
   activeQuestion,
@@ -15,222 +50,204 @@ export default function ActiveRecallSession({
   fetchModelSolution,
   activeModelSolution,
   loadingModelSolution,
-  practiceTimer
+  practiceTimer,
 }) {
-  if (!activeQuestion) return null;
+  if (!activeQuestion) return null
+
+  const evaluation = evaluationResult?.evaluation
 
   return (
-    <div className="active-recall-overlay">
-      <div className="active-recall-workspace glass-card">
-        {/* Workspace Header */}
-        <div className="recall-header">
-          <div className="recall-title-box">
-            <span className="badge badge-topic">{activeQuestion.itemType === 'paper' ? '📄 PAPER' : '🧠 THEORY'}</span>
-            <span className="badge badge-difficulty">{activeQuestion.difficulty}</span>
-            <span className="badge badge-timer">⏱️ {practiceTimer}s elapsed</span>
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-5xl">
+        <DialogHeader>
+          <div className="flex flex-wrap items-center gap-2">
+            <TypeBadge type={activeQuestion.itemType} />
+            <DifficultyBadge difficulty={activeQuestion.difficulty} />
+            <Badge variant="outline" className="gap-1 tabular-nums">
+              <Clock className="size-3" />
+              {practiceTimer}s
+            </Badge>
             {activeQuestion.hasModelSolution && (
-              <span className="badge badge-cached" style={{ fontSize: '0.7rem' }}>⚡ Master Key Saved</span>
+              <Badge variant="outline" className="font-normal">
+                Key saved
+              </Badge>
             )}
-            <h2 className="recall-item-title">{activeQuestion.itemTitle}</h2>
           </div>
-          <button className="btn-icon close-btn" onClick={onClose} title="Exit Session">✕</button>
+          <DialogTitle>{activeQuestion.itemTitle}</DialogTitle>
+          <DialogDescription>Active recall — answer from memory before checking.</DialogDescription>
+        </DialogHeader>
+
+        <div className="bg-muted/40 rounded-lg border p-4">
+          <SectionLabel>Prompt</SectionLabel>
+          <Prompt className="mt-2">{activeQuestion.prompt}</Prompt>
         </div>
 
-        {/* Prompt Card */}
-        <div className="recall-prompt-card">
-          <div className="prompt-label">PRACTICE PROMPT (ACTIVE RECALL):</div>
-          <div className="prompt-content markdown-rendered">
-            {renderMarkdown(activeQuestion.prompt)}
-          </div>
-        </div>
-
-        {/* Evaluation Results Banner (When Submitted) */}
-        {evaluationResult && (
-          <div className="evaluation-result-container glass-card" style={{ marginTop: '20px', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-lg)', padding: '20px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', borderBottom: '1px solid var(--border-color)', paddingBottom: '14px' }}>
+        {evaluation && (
+          <div className="flex flex-col gap-4 rounded-lg border p-5">
+            <div className="flex flex-wrap items-start justify-between gap-4">
               <div>
-                <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>EVALUATION OUTCOME</span>
-                <div style={{ display: 'flex', alignItems: 'baseline', gap: '10px', marginTop: '2px' }}>
-                  <h3 style={{ fontSize: '1.8rem', fontWeight: 800, margin: 0, color: evaluationResult.evaluation.score >= 8.5 ? '#22c55e' : evaluationResult.evaluation.score >= 7.0 ? '#3b82f6' : evaluationResult.evaluation.score >= 5.0 ? '#eab308' : '#ef4444' }}>
-                    {evaluationResult.evaluation.score} <span style={{ fontSize: '1rem', color: 'var(--text-muted)' }}>/ 10.0</span>
-                  </h3>
-                  <span className="badge" style={{
-                    fontSize: '0.8rem',
-                    fontWeight: 700,
-                    background: evaluationResult.evaluation.grade === 4 ? 'rgba(34, 197, 94, 0.15)' : evaluationResult.evaluation.grade === 3 ? 'rgba(59, 130, 246, 0.15)' : evaluationResult.evaluation.grade === 2 ? 'rgba(234, 179, 8, 0.15)' : 'rgba(239, 68, 68, 0.15)',
-                    color: evaluationResult.evaluation.grade === 4 ? '#22c55e' : evaluationResult.evaluation.grade === 3 ? '#3b82f6' : evaluationResult.evaluation.grade === 2 ? '#eab308' : '#ef4444'
-                  }}>
-                    {evaluationResult.evaluation.grade === 4 ? '🌟 Mastered (Easy)' : evaluationResult.evaluation.grade === 3 ? '✓ Good (Solid Pass)' : evaluationResult.evaluation.grade === 2 ? '⚠️ Hard (Minor Gaps)' : '❌ Lapse (Again)'}
-                  </span>
+                <SectionLabel>Evaluation</SectionLabel>
+                <div className="mt-1 flex items-baseline gap-2">
+                  <span className="text-3xl font-bold tabular-nums">{evaluation.score}</span>
+                  <span className="text-muted-foreground text-sm">/ 10</span>
+                  <Badge variant={evaluation.grade >= 3 ? 'default' : 'secondary'}>
+                    {GRADES[evaluation.grade] || 'Graded'}
+                  </Badge>
                 </div>
               </div>
 
               {evaluationResult.fsrs && (
-                <div style={{ textAlign: 'right', background: 'var(--bg-surface)', padding: '8px 14px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
-                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>FSRS-5 MEMORY INTERVAL</div>
-                  <div style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--primary)' }}>
-                    Next Due: {evaluationResult.fsrs.dueDate} ({evaluationResult.fsrs.intervalDays}d)
-                  </div>
-                  <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-                    Stability: {evaluationResult.fsrs.stability}d • D: {evaluationResult.fsrs.fsrsDifficulty}
-                  </div>
+                <div className="rounded-md border px-3 py-2 text-right">
+                  <SectionLabel>Next review</SectionLabel>
+                  <p className="text-sm font-medium">
+                    {evaluationResult.fsrs.dueDate} · {evaluationResult.fsrs.intervalDays}d
+                  </p>
+                  <p className="text-muted-foreground text-xs">
+                    Stability {evaluationResult.fsrs.stability}d · D{' '}
+                    {evaluationResult.fsrs.fsrsDifficulty}
+                  </p>
                 </div>
               )}
             </div>
 
-            {/* Rubric Breakdown */}
-            {evaluationResult.evaluation.rubric && Object.keys(evaluationResult.evaluation.rubric).length > 0 && (
-              <div style={{ marginTop: '16px' }}>
-                <h4 style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '10px' }}>RUBRIC AUDIT</h4>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '10px' }}>
-                  {Object.entries(evaluationResult.evaluation.rubric).map(([category, item]) => (
-                    <div key={category} style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-md)', padding: '10px' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-                        <span style={{ fontSize: '0.78rem', fontWeight: 700, textTransform: 'capitalize' }}>{category}</span>
-                        <span className="badge" style={{ fontSize: '0.7rem' }}>{item.score} / 10</span>
+            {evaluation.rubric && Object.keys(evaluation.rubric).length > 0 && (
+              <>
+                <Separator />
+                <div className="flex flex-col gap-2">
+                  <SectionLabel>Rubric</SectionLabel>
+                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                    {Object.entries(evaluation.rubric).map(([category, item]) => (
+                      <div key={category} className="flex flex-col gap-1 rounded-md border p-3">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-sm font-medium capitalize">{category}</span>
+                          <Badge variant="outline" className="tabular-nums">
+                            {item.score}/10
+                          </Badge>
+                        </div>
+                        <p className="text-muted-foreground text-xs">{item.feedback}</p>
                       </div>
-                      <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.4 }}>{item.feedback}</p>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
                 </div>
+              </>
+            )}
+
+            {evaluation.critique && (
+              <div className="flex flex-col gap-2">
+                <SectionLabel>Critique</SectionLabel>
+                <Prompt>{evaluation.critique}</Prompt>
               </div>
             )}
 
-            {/* Detailed Critique */}
-            {evaluationResult.evaluation.critique && (
-              <div style={{ marginTop: '16px', background: 'var(--bg-surface)', padding: '14px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
-                <h4 style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', margin: '0 0 8px 0' }}>ACADEMIC CRITIQUE</h4>
-                <div className="markdown-rendered" style={{ fontSize: '0.88rem', lineHeight: 1.6 }}>
-                  {renderMarkdown(evaluationResult.evaluation.critique)}
-                </div>
+            {evaluation.flaggedIssues?.length > 0 && (
+              <div className="flex flex-col gap-2">
+                <SectionLabel tone="danger">Flagged issues</SectionLabel>
+                {evaluation.flaggedIssues.map((flag, idx) => (
+                  <div key={idx} className="border-destructive/30 rounded-md border p-3 text-sm">
+                    <p className="text-destructive flex items-center gap-1.5 font-medium">
+                      <TriangleAlert className="size-3.5" />
+                      [{flag.type}] “{flag.quote}”
+                    </p>
+                    <p className="text-muted-foreground mt-1">{flag.note}</p>
+                  </div>
+                ))}
               </div>
             )}
 
-            {/* Flagged Issues */}
-            {evaluationResult.evaluation.flaggedIssues && evaluationResult.evaluation.flaggedIssues.length > 0 && (
-              <div style={{ marginTop: '14px' }}>
-                <h4 style={{ fontSize: '0.85rem', color: '#f87171', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '8px' }}>⚠️ FLAGGED ISSUES</h4>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                  {evaluationResult.evaluation.flaggedIssues.map((flag, idx) => (
-                    <div key={idx} style={{ background: 'rgba(239, 68, 68, 0.05)', border: '1px solid rgba(239, 68, 68, 0.2)', borderRadius: 'var(--radius-md)', padding: '10px 12px', fontSize: '0.82rem' }}>
-                      <div style={{ fontWeight: 700, color: '#f87171', marginBottom: '4px' }}>[{flag.type}] "{flag.quote}"</div>
-                      <div style={{ color: 'var(--text-secondary)', lineHeight: 1.4 }}>{flag.note}</div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Model Solution Comparison */}
-            {evaluationResult.evaluation.idealAnswer && (
-              <div style={{ marginTop: '16px', background: 'rgba(99, 102, 241, 0.04)', border: '1px solid rgba(99, 102, 241, 0.25)', borderRadius: 'var(--radius-md)', padding: '14px' }}>
-                <h4 style={{ fontSize: '0.85rem', color: '#818cf8', textTransform: 'uppercase', letterSpacing: '0.05em', margin: '0 0 8px 0' }}>⚡ MASTER MODEL SOLUTION</h4>
-                <div className="markdown-rendered" style={{ fontSize: '0.88rem', lineHeight: 1.6 }}>
-                  {renderMarkdown(evaluationResult.evaluation.idealAnswer)}
-                </div>
+            {evaluation.idealAnswer && (
+              <div className="bg-muted/40 flex flex-col gap-2 rounded-md p-4">
+                <SectionLabel>Model solution</SectionLabel>
+                <Prompt>{evaluation.idealAnswer}</Prompt>
               </div>
             )}
           </div>
         )}
 
-        {/* Solution Input Area: Split Markdown Editor & Live Preview */}
-        {!evaluationResult && (
-          <form onSubmit={handleSubmitAttempt} style={{ marginTop: '16px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <label style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-                YOUR DERIVATION / SOLUTION (MARKDOWN, CODE, OR INTUITIVE PROSE):
-              </label>
-              <div style={{ display: 'flex', gap: '8px' }}>
+        {!evaluation && (
+          <form onSubmit={handleSubmitAttempt} className="flex flex-col gap-4">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <Label htmlFor="answer-markdown">Your derivation</Label>
+              <div className="flex gap-2">
                 <input
                   type="file"
                   accept="image/*"
                   ref={fileInputRef}
-                  style={{ display: 'none' }}
+                  className="sr-only"
                   onChange={handleImageUpload}
                 />
-                <button
+                <Button
                   type="button"
-                  className="btn btn-secondary"
-                  style={{ fontSize: '0.78rem', padding: '4px 10px' }}
+                  variant="outline"
+                  size="sm"
                   onClick={() => fileInputRef.current?.click()}
                   disabled={imageUploading}
                 >
-                  {imageUploading ? '⏳ Uploading...' : '📷 Attach Diagram / Whiteboard Photo'}
-                </button>
-                <button
+                  <Camera className="size-4" />
+                  {imageUploading ? 'Uploading…' : 'Attach diagram'}
+                </Button>
+                <Button
                   type="button"
-                  className="btn btn-secondary"
-                  style={{ fontSize: '0.78rem', padding: '4px 10px' }}
+                  variant="outline"
+                  size="sm"
                   onClick={fetchModelSolution}
                   disabled={loadingModelSolution}
                 >
-                  {loadingModelSolution ? '⏳ Loading Key...' : '⚡ View Answer Key'}
-                </button>
+                  <Key className="size-4" />
+                  {loadingModelSolution ? 'Loading…' : 'Answer key'}
+                </Button>
               </div>
             </div>
 
-            {/* Split Editor */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', minHeight: '260px' }}>
-              <div style={{ display: 'flex', flexDirection: 'column' }}>
-                <textarea
-                  className="form-input"
-                  rows={12}
-                  style={{ width: '100%', height: '100%', resize: 'vertical', fontFamily: 'monospace', fontSize: '0.85rem', lineHeight: '1.5' }}
-                  placeholder={`Write your derivation, proof, or conceptual mechanics here...
+            <div className="grid gap-4 lg:grid-cols-2">
+              <Textarea
+                id="answer-markdown"
+                rows={14}
+                className="resize-y font-mono text-sm"
+                placeholder={
+                  'Write your derivation, proof or conceptual mechanics here.\n\n' +
+                  'LaTeX works: $V^\\pi(s)$ or $$Q(s,a) = R + \\gamma \\mathbb{E}[V(s\')]$$'
+                }
+                value={answerMarkdown}
+                onChange={(e) => setAnswerMarkdown(e.target.value)}
+              />
 
-Tip: You can use:
-- PyTorch / shorthand: (b, nh, p, dh)
-- LaTeX equations: $V^\\pi(s)$ or $$Q(s,a) = R + \\gamma \\mathbb{E}[V(s')]$$
-- Intuitive prose, bullet points, or attached handwritten whiteboard photos.`}
-                  value={answerMarkdown}
-                  onChange={(e) => setAnswerMarkdown(e.target.value)}
-                />
-              </div>
-
-              <div style={{
-                background: 'rgba(0, 0, 0, 0.2)',
-                border: '1px solid var(--border-color)',
-                borderRadius: 'var(--radius-md)',
-                padding: '12px 14px',
-                overflowY: 'auto',
-                maxHeight: '400px'
-              }}>
-                <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '6px' }}>LIVE PREVIEW:</div>
-                <div className="markdown-rendered" style={{ fontSize: '0.85rem', lineHeight: '1.5' }}>
-                  {answerMarkdown.trim() ? renderMarkdown(answerMarkdown) : <span style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>Live math and markdown rendering will appear here...</span>}
+              <div className="bg-muted/40 max-h-100 overflow-y-auto rounded-md border p-4">
+                <SectionLabel>Live preview</SectionLabel>
+                <div className="mt-2">
+                  {answerMarkdown.trim() ? (
+                    <Prompt>{answerMarkdown}</Prompt>
+                  ) : (
+                    <p className="text-muted-foreground text-sm italic">
+                      Rendered maths and markdown appear here.
+                    </p>
+                  )}
                 </div>
               </div>
             </div>
 
-            {/* Answer Key Drawer */}
             {activeModelSolution && (
-              <div style={{ background: 'rgba(99, 102, 241, 0.05)', border: '1px solid rgba(99, 102, 241, 0.3)', borderRadius: 'var(--radius-md)', padding: '14px', marginTop: '6px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                  <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#818cf8' }}>⚡ REFERENCE MODEL SOLUTION</span>
-                  <span className="badge badge-cached" style={{ fontSize: '0.68rem' }}>{activeModelSolution.cached ? 'Saved in DB' : 'Generated via Gemini'}</span>
+              <div className="bg-muted/40 flex flex-col gap-2 rounded-md border p-4">
+                <div className="flex items-center justify-between gap-2">
+                  <SectionLabel>Reference solution</SectionLabel>
+                  <Badge variant="outline" className="font-normal">
+                    {activeModelSolution.cached ? 'Cached' : 'Generated'}
+                  </Badge>
                 </div>
-                <div className="markdown-rendered" style={{ fontSize: '0.85rem', lineHeight: '1.5' }}>
-                  {renderMarkdown(activeModelSolution.idealAnswer)}
-                </div>
+                <Prompt>{activeModelSolution.idealAnswer}</Prompt>
               </div>
             )}
 
-            {/* Submit Actions */}
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '8px' }}>
-              <button type="button" className="btn btn-secondary" onClick={onClose}>
+            <div className="flex justify-end gap-2">
+              <Button type="button" variant="outline" onClick={onClose}>
                 Cancel
-              </button>
-              <button
-                type="submit"
-                className="btn btn-primary btn-lg"
-                disabled={isSubmittingAttempt || !answerMarkdown.trim()}
-              >
-                {isSubmittingAttempt ? '🤖 Rigorous Academic Evaluation in Progress...' : '🚀 Submit for AI Grade & Update Spaced Repetition'}
-              </button>
+              </Button>
+              <Button type="submit" disabled={isSubmittingAttempt || !answerMarkdown.trim()}>
+                {isSubmittingAttempt ? 'Evaluating…' : 'Submit for grading'}
+              </Button>
             </div>
           </form>
         )}
-      </div>
-    </div>
-  );
+      </DialogContent>
+    </Dialog>
+  )
 }

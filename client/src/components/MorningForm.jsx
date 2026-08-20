@@ -1,152 +1,174 @@
-import React from 'react';
-import EditingBanner from './EditingBanner';
+import React from 'react'
 
-export default function MorningForm({ morningData, setMorningData, editingDate, cancelEditing, onSubmit }) {
+import EditingBanner from './EditingBanner'
+import { Button } from '@/components/shadcn/button'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/shadcn/card'
+import { Input } from '@/components/shadcn/input'
+import { Label } from '@/components/shadcn/label'
+import { Slider } from '@/components/shadcn/slider'
+
+/** Nine near-identical 1-10 sliders used to be nine copies of the same markup. */
+function ScaleField({ id, label, value, onChange, min = 1, max = 10 }) {
   return (
-    <form onSubmit={onSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-      {/* Header */}
-      <div className="section-title" style={{ marginBottom: '8px' }}>
-        <h2 style={{ fontSize: '1.4rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '10px', margin: 0 }}>
-          🌅 Waking Bio-Metrics & Sleep
-        </h2>
-        <p style={{ margin: '4px 0 0 0', color: 'var(--text-secondary)' }}>
-          Required immediately upon waking. Determines morning lock compliance and logs sleep, weight, and recovery metrics.
-        </p>
+    <div className="grid gap-2">
+      <div className="flex items-baseline justify-between gap-2">
+        <Label htmlFor={id}>{label}</Label>
+        <span className="font-mono text-xs tabular-nums text-muted-foreground">
+          {value}/{max}
+        </span>
       </div>
+      <Slider id={id} min={min} max={max} step={1} value={[value]} onValueChange={([v]) => onChange(v)} />
+    </div>
+  )
+}
 
+function TextField({ id, label, ...props }) {
+  return (
+    <div className="grid gap-2">
+      <Label htmlFor={id}>{label}</Label>
+      <Input id={id} {...props} />
+    </div>
+  )
+}
+
+export default function MorningForm({
+  morningData,
+  setMorningData,
+  editingDate,
+  cancelEditing,
+  onSubmit,
+}) {
+  const set = (patch) => setMorningData({ ...morningData, ...patch })
+
+  return (
+    <form onSubmit={onSubmit} className="flex flex-col gap-6">
       <EditingBanner editingDate={editingDate} cancelEditing={cancelEditing} />
 
-      {/* Card 1: Waking Bio-Metrics & Sleep */}
-      <div style={{
-        background: 'var(--bg-surface)',
-        border: '1px solid var(--border-color)',
-        borderRadius: 'var(--radius-md, 14px)',
-        padding: '24px',
-        boxShadow: 'var(--shadow-sm)'
-      }}>
-        <div style={{ marginBottom: '18px', borderBottom: '1px solid var(--border-color)', paddingBottom: '12px' }}>
-          <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px' }}>
-            💤 Waking Weight & Sleep Quality
-          </h3>
-          <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Track waking body mass, total sleep duration, device scores, and energy levels.</span>
-        </div>
+      <Card>
+        <CardHeader>
+          <CardTitle>Weight &amp; sleep</CardTitle>
+          <CardDescription>
+            Body mass, sleep duration, device score and energy. Submitting clears the morning
+            lock.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-6">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <TextField
+              id="waking-weight"
+              label="Waking weight (kg)"
+              type="number"
+              step="0.01"
+              min="20"
+              max="400"
+              required
+              placeholder="78.45"
+              value={morningData.wakingWeight}
+              onChange={(e) => set({ wakingWeight: e.target.value })}
+            />
+            <TextField
+              id="sleep-hours"
+              label="Sleep duration (hours)"
+              type="number"
+              step="0.1"
+              min="0"
+              max="24"
+              required
+              placeholder="7.5"
+              value={morningData.sleepHours}
+              onChange={(e) => set({ sleepHours: e.target.value })}
+            />
+          </div>
+          <div className="grid gap-4 sm:grid-cols-3">
+            <ScaleField
+              id="sleep-self"
+              label="Sleep quality (self)"
+              value={morningData.sleepQualitySelf}
+              onChange={(v) => set({ sleepQualitySelf: v })}
+            />
+            <TextField
+              id="sleep-device"
+              label="Sleep score (device)"
+              type="number"
+              min="0"
+              max="100"
+              placeholder="82"
+              value={morningData.sleepQualityDevice}
+              onChange={(e) => set({ sleepQualityDevice: e.target.value })}
+            />
+            <ScaleField
+              id="energy"
+              label="Energy level"
+              value={morningData.energyLevels}
+              onChange={(v) => set({ energyLevels: v })}
+            />
+          </div>
+        </CardContent>
+      </Card>
 
-        <div className="form-grid" style={{ gridTemplateColumns: '1fr 1fr', marginBottom: '18px' }}>
-          <div className="form-group">
-            <label className="form-label">Waking Weight (kg)</label>
-            <input type="number" step="0.01" className="form-input" required placeholder="e.g. 78.45" value={morningData.wakingWeight} onChange={(e) => setMorningData({...morningData, wakingWeight: e.target.value})} />
-          </div>
-          <div className="form-group">
-            <label className="form-label">Sleep Duration (Hours)</label>
-            <input type="number" step="0.1" className="form-input" required placeholder="e.g. 7.5" value={morningData.sleepHours} onChange={(e) => setMorningData({...morningData, sleepHours: e.target.value})} />
-          </div>
-        </div>
+      <Card>
+        <CardHeader>
+          <CardTitle>Mood &amp; recovery</CardTitle>
+          <CardDescription>Mood, stress, illness signs and muscle soreness.</CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+          <ScaleField id="mood" label="Mood" value={morningData.mood} onChange={(v) => set({ mood: v })} />
+          <ScaleField
+            id="stress"
+            label="Stress level"
+            value={morningData.stress}
+            onChange={(v) => set({ stress: v })}
+          />
+          <ScaleField
+            id="illness"
+            label="Signs of illness"
+            value={morningData.illnessSigns}
+            onChange={(v) => set({ illnessSigns: v })}
+          />
+          <ScaleField
+            id="doms"
+            label="Muscle soreness"
+            value={morningData.muscleSoreness}
+            onChange={(v) => set({ muscleSoreness: v })}
+          />
+        </CardContent>
+      </Card>
 
-        <div className="form-grid-3">
-          <div className="form-group">
-            <label className="form-label">Sleep Quality (Self Rated)</label>
-            <div className="slider-container">
-              <input type="range" min="1" max="10" className="slider" value={morningData.sleepQualitySelf} onChange={(e) => setMorningData({...morningData, sleepQualitySelf: parseInt(e.target.value)})} />
-              <span className="slider-val">{morningData.sleepQualitySelf}/10</span>
-            </div>
-          </div>
-          <div className="form-group">
-            <label className="form-label">Sleep Quality (Device Score)</label>
-            <div className="slider-container">
-              <input type="range" min="0" max="100" className="slider" value={morningData.sleepQualityDevice} onChange={(e) => setMorningData({...morningData, sleepQualityDevice: parseInt(e.target.value)})} />
-              <span className="slider-val">{morningData.sleepQualityDevice}/100</span>
-            </div>
-          </div>
-          <div className="form-group">
-            <label className="form-label">Energy Level</label>
-            <div className="slider-container">
-              <input type="range" min="1" max="10" className="slider" value={morningData.energyLevels} onChange={(e) => setMorningData({...morningData, energyLevels: parseInt(e.target.value)})} />
-              <span className="slider-val">{morningData.energyLevels}/10</span>
-            </div>
-          </div>
-        </div>
-      </div>
+      <Card>
+        <CardHeader>
+          <CardTitle>Vitals</CardTitle>
+          <CardDescription>Resting heart rate and blood pressure.</CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-4 sm:grid-cols-2">
+          <TextField
+            id="resting-hr"
+            label="Resting heart rate (bpm)"
+            type="number"
+            min="20"
+            max="250"
+            required
+            placeholder="58"
+            value={morningData.restingHR}
+            onChange={(e) => set({ restingHR: e.target.value })}
+          />
+          <TextField
+            id="blood-pressure"
+            label="Blood pressure (systolic/diastolic)"
+            inputMode="numeric"
+            pattern="\\d{2,3}\\s*/\\s*\\d{2,3}"
+            title="Two numbers separated by a slash, e.g. 118/74"
+            placeholder="118/74"
+            value={morningData.bloodPressure}
+            onChange={(e) => set({ bloodPressure: e.target.value })}
+          />
+        </CardContent>
+      </Card>
 
-      {/* Card 2: Wellness, Mood & Recovery */}
-      <div style={{
-        background: 'var(--bg-surface)',
-        border: '1px solid var(--border-color)',
-        borderRadius: 'var(--radius-md, 14px)',
-        padding: '24px',
-        boxShadow: 'var(--shadow-sm)'
-      }}>
-        <div style={{ marginBottom: '18px', borderBottom: '1px solid var(--border-color)', paddingBottom: '12px' }}>
-          <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px' }}>
-            🧠 Wellness, Mood & DOMS Recovery
-          </h3>
-          <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Evaluate subjective mood, stress, potential illness signs, and muscle soreness.</span>
-        </div>
-
-        <div className="form-grid-4">
-          <div className="form-group">
-            <label className="form-label">Mood</label>
-            <div className="slider-container">
-              <input type="range" min="1" max="10" className="slider" value={morningData.mood} onChange={(e) => setMorningData({...morningData, mood: parseInt(e.target.value)})} />
-              <span className="slider-val">{morningData.mood}/10</span>
-            </div>
-          </div>
-          <div className="form-group">
-            <label className="form-label">Stress Level</label>
-            <div className="slider-container">
-              <input type="range" min="1" max="10" className="slider" value={morningData.stress} onChange={(e) => setMorningData({...morningData, stress: parseInt(e.target.value)})} />
-              <span className="slider-val">{morningData.stress}/10</span>
-            </div>
-          </div>
-          <div className="form-group">
-            <label className="form-label">Signs of Illness</label>
-            <div className="slider-container">
-              <input type="range" min="1" max="10" className="slider" value={morningData.illnessSigns} onChange={(e) => setMorningData({...morningData, illnessSigns: parseInt(e.target.value)})} />
-              <span className="slider-val">{morningData.illnessSigns}/10</span>
-            </div>
-          </div>
-          <div className="form-group">
-            <label className="form-label">Muscle Soreness (DOMS)</label>
-            <div className="slider-container">
-              <input type="range" min="1" max="10" className="slider" value={morningData.muscleSoreness} onChange={(e) => setMorningData({...morningData, muscleSoreness: parseInt(e.target.value)})} />
-              <span className="slider-val">{morningData.muscleSoreness}/10</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Card 3: Cardiovascular Vitals */}
-      <div style={{
-        background: 'var(--bg-surface)',
-        border: '1px solid var(--border-color)',
-        borderRadius: 'var(--radius-md, 14px)',
-        padding: '24px',
-        boxShadow: 'var(--shadow-sm)'
-      }}>
-        <div style={{ marginBottom: '18px', borderBottom: '1px solid var(--border-color)', paddingBottom: '12px' }}>
-          <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px' }}>
-            🩺 Cardiovascular & Vitals
-          </h3>
-          <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Log resting heart rate and blood pressure measurements.</span>
-        </div>
-
-        <div className="form-grid" style={{ gridTemplateColumns: '1fr 1fr' }}>
-          <div className="form-group">
-            <label className="form-label">Resting Heart Rate (BPM)</label>
-            <input type="number" className="form-input" required placeholder="e.g. 58" value={morningData.restingHR} onChange={(e) => setMorningData({...morningData, restingHR: e.target.value})} />
-          </div>
-          <div className="form-group">
-            <label className="form-label">Blood Pressure (mmHg)</label>
-            <input type="text" className="form-input" placeholder="e.g. 120/80" value={morningData.bloodPressure} onChange={(e) => setMorningData({...morningData, bloodPressure: e.target.value})} />
-          </div>
-        </div>
-      </div>
-
-      {/* Form Actions */}
-      <div className="form-actions" style={{ marginTop: '8px', display: 'flex', justifyContent: 'flex-end' }}>
-        <button type="submit" className="btn btn-primary btn-lg" style={{ padding: '14px 32px', fontSize: '1rem', fontWeight: 700 }}>
-          🚀 Submit Morning Log
-        </button>
+      <div className="flex justify-end">
+        <Button type="submit" size="lg">
+          Submit morning log
+        </Button>
       </div>
     </form>
-  );
+  )
 }

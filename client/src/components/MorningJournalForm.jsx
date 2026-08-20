@@ -1,73 +1,82 @@
-import React from 'react';
-import EditingBanner from './EditingBanner';
-import { Alert, Button, Card, Counter, Field, Stack, Textarea } from './ui';
+import React from 'react'
 
-const MIN_WORDS = 100;
+import EditingBanner from './EditingBanner'
+import TodoListEditor from './TodoListEditor'
+import WordCountField from './WordCountField'
+import { Button } from '@/components/shadcn/button'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/shadcn/card'
+import { countWords } from '@/lib/useDraft'
+
+/** Words required before a journal clears the lock. */
+export const FEELING_MIN_WORDS = 50
+
+/**
+ * Morning journal: what you intend to do, and how you're arriving.
+ *
+ * Replaces the old single 100-word-minimum freeform box. The to-do list is the
+ * part the night journal reads back to tick off, so its shape is a contract
+ * between the two screens.
+ */
+export function morningJournalBlocker(data) {
+  const todos = (data.todos || []).filter((t) => t.text.trim())
+  if (todos.length === 0) return 'Add at least one to-do before submitting.'
+  const words = countWords(data.feeling)
+  if (words < FEELING_MIN_WORDS) {
+    return `${FEELING_MIN_WORDS - words} more words on how you're feeling.`
+  }
+  return null
+}
 
 export default function MorningJournalForm({
   morningData,
   setMorningData,
   editingDate,
   cancelEditing,
-  onSubmit
+  onSubmit,
 }) {
-  const text = morningData.journalEntry || '';
-  const wordCount = text.trim() ? text.trim().split(/\s+/).length : 0;
-  const isWordCountMet = wordCount >= MIN_WORDS;
+  const todos = morningData.todos || []
+  const feeling = morningData.feeling || ''
+  const blocker = morningJournalBlocker(morningData)
 
   return (
-    <Stack as="form" gap={5} onSubmit={onSubmit}>
-      <div className="section-title">
-        <h2>📝 Morning Intentions & Journal</h2>
-        <p style={{ margin: 'var(--space-1) 0 0 0', color: 'var(--text-secondary)' }}>
-          Daily goals, intentions, and reflection. Requires {MIN_WORDS} words to submit and clear the lock.
-        </p>
-      </div>
-
+    <form onSubmit={onSubmit} className="flex flex-col gap-6">
       <EditingBanner editingDate={editingDate} cancelEditing={cancelEditing} />
 
-      <Alert variant="info" icon="💡" title="Guiding prompts">
-        <ol style={{ margin: 'var(--space-1) 0 0 0', paddingLeft: 'var(--space-5)' }}>
-          <li>What are your top 3 priority goals for today?</li>
-          <li>How do you want to show up energetically/emotionally today?</li>
-          <li>What potential obstacles do you foresee, and how will you handle them?</li>
-        </ol>
-      </Alert>
-
       <Card>
-        <Field
-          label="Journal reflection entry"
-          hint={
-            isWordCountMet
-              ? undefined
-              : `${MIN_WORDS - wordCount} more words needed before this can be submitted.`
-          }
-        >
-          {(props) => (
-            <Stack gap={2}>
-              <Textarea
-                required
-                rows={10}
-                placeholder="Write your morning reflection, goals, and intentions here…"
-                value={text}
-                onChange={(e) => setMorningData({ ...morningData, journalEntry: e.target.value })}
-                style={{ minHeight: 220 }}
-                {...props}
-              />
-              <Counter value={wordCount} min={MIN_WORDS} />
-            </Stack>
-          )}
-        </Field>
+        <CardHeader>
+          <CardTitle>Today&apos;s to-dos</CardTitle>
+          <CardDescription>
+            As many as you need. Tonight you&apos;ll tick these off.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <TodoListEditor items={todos} onChange={(next) => setMorningData({ ...morningData, todos: next })} />
+        </CardContent>
       </Card>
 
-      <Stack direction="row" justify="between" align="center">
-        <span style={{ color: 'var(--text-muted)', fontSize: 'var(--text-sm)' }}>
-          {isWordCountMet ? 'Ready to submit.' : 'The submit button unlocks at 100 words.'}
-        </span>
-        <Button type="submit" variant="primary" size="lg" disabled={!isWordCountMet}>
-          🚀 Submit morning journal
+      <Card>
+        <CardHeader>
+          <CardTitle>How are you feeling?</CardTitle>
+          <CardDescription>At least {FEELING_MIN_WORDS} words — enough to actually think it through.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <WordCountField
+            id="morning-feeling"
+            label="This morning"
+            hint="Nice one."
+            value={feeling}
+            onChange={(v) => setMorningData({ ...morningData, feeling: v })}
+            min={FEELING_MIN_WORDS}
+          />
+        </CardContent>
+      </Card>
+
+      <div className="flex items-center justify-between gap-4">
+        <span className="text-sm text-muted-foreground">{blocker || 'Ready to submit.'}</span>
+        <Button type="submit" size="lg" disabled={Boolean(blocker)}>
+          Submit morning journal
         </Button>
-      </Stack>
-    </Stack>
-  );
+      </div>
+    </form>
+  )
 }

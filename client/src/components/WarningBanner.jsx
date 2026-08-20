@@ -1,16 +1,17 @@
-import React from 'react';
+import React from 'react'
+import { TriangleAlert } from 'lucide-react'
+import { Alert, AlertDescription, AlertTitle } from '@/components/shadcn/alert'
 
 export default function WarningBanner({ status }) {
-  if (!status.isWarning) return null;
+  if (!status.isWarning) return null
 
   return (
-    <div className="warning-banner pulse-glow">
-      <svg className="icon-warning" viewBox="0 0 24 24" fill="currentColor">
-        <path fillRule="evenodd" d="M9.401 3.003c1.155-2 4.043-2 5.197 0l7.355 12.748c1.154 2-.29 4.5-2.599 4.5H4.645c-2.309 0-3.753-2.5-2.598-4.5L9.4 3.003zM12 8.25a.75.75 0 01.75.75v3.75a.75.75 0 01-1.5 0V9a.75.75 0 01.75-.75zm0 8.25a.75.75 0 100-1.5.75.75 0 000 1.5z" clipRule="evenodd" />
-      </svg>
-      <div>
-        <strong>HABIT LOCK WARNING:</strong> You have <strong>{status.secondsRemaining} seconds</strong> to complete your <strong>{status.window} log</strong> before your device locks!
-      </div>
-    </div>
-  );
+    <Alert variant="destructive" className="mb-4">
+      <TriangleAlert />
+      <AlertTitle>Habit lock warning</AlertTitle>
+      <AlertDescription>
+        {status.secondsRemaining} seconds to complete your {status.window} log before the device locks.
+      </AlertDescription>
+    </Alert>
+  )
 }

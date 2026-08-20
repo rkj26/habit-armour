@@ -1,543 +1,538 @@
-import React, { useState, useEffect } from 'react';
-import { api } from '../api/client';
+import React, { useEffect, useState } from 'react'
+import { CalendarDays, Check, Clock, Plus, TriangleAlert, Upload, X } from 'lucide-react'
+
+import { api } from '@/api/client'
+import { Alert, AlertDescription, AlertTitle } from '@/components/shadcn/alert'
+import { Badge } from '@/components/shadcn/badge'
+import { Button } from '@/components/shadcn/button'
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/shadcn/card'
+import { Input } from '@/components/shadcn/input'
+import { Label } from '@/components/shadcn/label'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/shadcn/select'
+import { Separator } from '@/components/shadcn/separator'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/shadcn/tabs'
+import { ToggleGroup, ToggleGroupItem } from '@/components/shadcn/toggle-group'
+
+const CARDIO_PRESETS = {
+  walking: { title: 'Outdoor walk', templateId: '33EDD7DB', name: 'Walking' },
+  running: { title: 'Running session', templateId: '33EDD7DB', name: 'Running' },
+  elliptical: { title: 'Elliptical cardio', templateId: '3303376C', name: 'Elliptical' },
+  cycling: { title: 'Cycling workout', templateId: 'D8F7F851', name: 'Cycling' },
+}
+
+function Field({ id, label, children }) {
+  return (
+    <div className="grid gap-2">
+      <Label htmlFor={id}>{label}</Label>
+      {children}
+    </div>
+  )
+}
 
 export default function HevyView({
   hevyStatus,
   hevyWorkouts,
   workoutsLoading,
   workoutsError,
-  fetchHevyWorkouts
+  fetchHevyWorkouts,
 }) {
-  const [showCreator, setShowCreator] = useState(false);
-  const [creatorMode, setCreatorMode] = useState('quick'); // 'quick' or 'custom'
-  const [uploading, setUploading] = useState(false);
-  const [uploadError, setUploadError] = useState(null);
-  const [uploadSuccess, setUploadSuccess] = useState(null);
+  const [showCreator, setShowCreator] = useState(false)
+  const [uploading, setUploading] = useState(false)
+  const [uploadError, setUploadError] = useState(null)
+  const [uploadSuccess, setUploadSuccess] = useState(null)
 
-  // Quick Cardio Form State
-  const [quickActivity, setQuickActivity] = useState('walking');
-  const [quickDuration, setQuickDuration] = useState(30);
-  const [quickTitle, setQuickTitle] = useState('Outdoor Walk 🌙');
-  const [quickNotes, setQuickNotes] = useState('Logged via Habit Armour');
+  const [quickActivity, setQuickActivity] = useState('walking')
+  const [quickDuration, setQuickDuration] = useState(30)
+  const [quickTitle, setQuickTitle] = useState(CARDIO_PRESETS.walking.title)
+  const [quickNotes, setQuickNotes] = useState('Logged via Habit Armour')
 
-  // Custom Workout Form State
-  const [customTitle, setCustomTitle] = useState('Gym Workout Session');
-  const [customNotes, setCustomNotes] = useState('Pushed from Habit Armour');
+  const [customTitle, setCustomTitle] = useState('Gym workout session')
+  const [customNotes, setCustomNotes] = useState('Pushed from Habit Armour')
   const [exercisesList, setExercisesList] = useState([
     {
-      templateId: '7EB3F7C3', // Chest Press (Machine) default example
+      templateId: '7EB3F7C3',
       title: 'Chest Press (Machine)',
       sets: [
         { type: 'normal', weight_kg: 40, reps: 10 },
-        { type: 'normal', weight_kg: 45, reps: 8 }
-      ]
-    }
-  ]);
+        { type: 'normal', weight_kg: 45, reps: 8 },
+      ],
+    },
+  ])
 
-  // Exercise Templates State
-  const [templates, setTemplates] = useState([]);
-  const [templatesLoading, setTemplatesLoading] = useState(false);
+  const [templates, setTemplates] = useState([])
 
   useEffect(() => {
-    if (hevyStatus?.hevyApiKeyConfigured) {
-      fetchTemplates();
+    if (!hevyStatus?.hevyApiKeyConfigured) return
+    const fetchTemplates = async () => {
+      try {
+        const data = await api.hevy.templates()
+        setTemplates(data.exercise_templates || data || [])
+      } catch (err) {
+        setUploadError(err.message)
+      }
     }
-  }, [hevyStatus]);
+    fetchTemplates()
+  }, [hevyStatus])
 
-  const fetchTemplates = async () => {
-    setTemplatesLoading(true);
+  const selectPreset = (key) => {
+    if (!key) return
+    setQuickActivity(key)
+    setQuickTitle(CARDIO_PRESETS[key].title)
+  }
+
+  const pushWorkout = async (payload) => {
+    setUploading(true)
+    setUploadError(null)
+    setUploadSuccess(null)
     try {
-      const data = await api.hevy.templates();
-      setTemplates(data.exercise_templates || data || []);
+      await api.hevy.uploadWorkout(payload)
+      setUploadSuccess(`Uploaded “${payload.title}” to Hevy.`)
+      fetchHevyWorkouts?.()
+      setTimeout(() => setUploadSuccess(null), 4000)
     } catch (err) {
-      setUploadError(err.message);
+      setUploadError(err.message)
     } finally {
-      setTemplatesLoading(false);
+      setUploading(false)
     }
-  };
+  }
 
-  const CARDIO_PRESETS = {
-    walking: { title: 'Outdoor Walk 🌙', templateId: '33EDD7DB', name: 'Walking' },
-    running: { title: 'Running Session 🏃‍♂️', templateId: '33EDD7DB', name: 'Running' },
-    elliptical: { title: 'Elliptical Cardio ⚡', templateId: '3303376C', name: 'Elliptical Trainer' },
-    cycling: { title: 'Cycling Workout 🚴‍♂️', templateId: 'D8F7F851', name: 'Cycling' }
-  };
-
-  const handleSelectQuickPreset = (key) => {
-    setQuickActivity(key);
-    setQuickTitle(CARDIO_PRESETS[key].title);
-  };
-
-  const handleUploadQuickCardio = async (e) => {
-    e.preventDefault();
-    setUploading(true);
-    setUploadError(null);
-    setUploadSuccess(null);
-
-    const preset = CARDIO_PRESETS[quickActivity];
-    const durationSec = Number(quickDuration) * 60;
-    const now = new Date();
-    const startTime = new Date(now.getTime() - durationSec * 1000).toISOString();
-    const endTime = now.toISOString();
-
-    const payload = {
+  const handleUploadQuickCardio = (e) => {
+    e.preventDefault()
+    const preset = CARDIO_PRESETS[quickActivity]
+    const durationSec = Number(quickDuration) * 60
+    const now = new Date()
+    pushWorkout({
       title: quickTitle || preset.title,
       description: quickNotes,
-      start_time: startTime,
-      end_time: endTime,
+      start_time: new Date(now.getTime() - durationSec * 1000).toISOString(),
+      end_time: now.toISOString(),
       exercises: [
         {
           exercise_template_id: preset.templateId,
           notes: '',
-          sets: [
-            {
-              type: 'normal',
-              duration_seconds: durationSec
-            }
-          ]
-        }
-      ]
-    };
+          sets: [{ type: 'normal', duration_seconds: durationSec }],
+        },
+      ],
+    })
+  }
 
-    try {
-      await api.hevy.uploadWorkout(payload);
-      setUploadSuccess(`Successfully uploaded "${payload.title}" to Hevy!`);
-      if (fetchHevyWorkouts) fetchHevyWorkouts();
-      setTimeout(() => setUploadSuccess(null), 4000);
-    } catch (err) {
-      setUploadError(err.message);
-    } finally {
-      setUploading(false);
-    }
-  };
+  const handleUploadCustomWorkout = (e) => {
+    e.preventDefault()
+    const now = new Date()
+    pushWorkout({
+      title: customTitle || 'Custom gym session',
+      description: customNotes,
+      start_time: new Date(now.getTime() - 45 * 60000).toISOString(),
+      end_time: now.toISOString(),
+      exercises: exercisesList.map((ex) => ({
+        exercise_template_id: ex.templateId,
+        notes: '',
+        sets: ex.sets.map((s) => ({
+          type: s.type || 'normal',
+          weight_kg: Number(s.weight_kg) || 0,
+          reps: Number(s.reps) || 0,
+        })),
+      })),
+    })
+  }
 
-  const handleAddExerciseRow = () => {
-    setExercisesList(prev => [
+  const addExercise = () =>
+    setExercisesList((prev) => [
       ...prev,
       {
         templateId: templates[0]?.id || '7EB3F7C3',
         title: templates[0]?.title || 'Chest Press (Machine)',
-        sets: [{ type: 'normal', weight_kg: 30, reps: 10 }]
-      }
-    ]);
-  };
+        sets: [{ type: 'normal', weight_kg: 30, reps: 10 }],
+      },
+    ])
 
-  const handleRemoveExerciseRow = (idx) => {
-    setExercisesList(prev => prev.filter((_, i) => i !== idx));
-  };
+  const removeExercise = (idx) => setExercisesList((prev) => prev.filter((_, i) => i !== idx))
 
-  const handleAddSetRow = (exIdx) => {
-    setExercisesList(prev => {
-      const copy = [...prev];
-      const ex = { ...copy[exIdx] };
-      const lastSet = ex.sets[ex.sets.length - 1] || { type: 'normal', weight_kg: 20, reps: 10 };
-      ex.sets = [...ex.sets, { ...lastSet }];
-      copy[exIdx] = ex;
-      return copy;
-    });
-  };
+  const patchExercise = (exIdx, patch) =>
+    setExercisesList((prev) => prev.map((ex, i) => (i === exIdx ? { ...ex, ...patch } : ex)))
 
-  const handleRemoveSetRow = (exIdx, setIdx) => {
-    setExercisesList(prev => {
-      const copy = [...prev];
-      const ex = { ...copy[exIdx] };
-      ex.sets = ex.sets.filter((_, i) => i !== setIdx);
-      copy[exIdx] = ex;
-      return copy;
-    });
-  };
+  const addSet = (exIdx) =>
+    setExercisesList((prev) =>
+      prev.map((ex, i) =>
+        i === exIdx
+          ? { ...ex, sets: [...ex.sets, { ...(ex.sets.at(-1) || { type: 'normal', weight_kg: 20, reps: 10 }) }] }
+          : ex
+      )
+    )
 
-  const handleSetChange = (exIdx, setIdx, field, val) => {
-    setExercisesList(prev => {
-      const copy = [...prev];
-      const ex = { ...copy[exIdx] };
-      const sets = [...ex.sets];
-      sets[setIdx] = { ...sets[setIdx], [field]: val };
-      ex.sets = sets;
-      copy[exIdx] = ex;
-      return copy;
-    });
-  };
+  const removeSet = (exIdx, setIdx) =>
+    setExercisesList((prev) =>
+      prev.map((ex, i) => (i === exIdx ? { ...ex, sets: ex.sets.filter((_, j) => j !== setIdx) } : ex))
+    )
 
-  const handleUploadCustomWorkout = async (e) => {
-    e.preventDefault();
-    setUploading(true);
-    setUploadError(null);
-    setUploadSuccess(null);
+  const patchSet = (exIdx, setIdx, field, val) =>
+    setExercisesList((prev) =>
+      prev.map((ex, i) =>
+        i === exIdx
+          ? { ...ex, sets: ex.sets.map((s, j) => (j === setIdx ? { ...s, [field]: val } : s)) }
+          : ex
+      )
+    )
 
-    const now = new Date();
-    const startTime = new Date(now.getTime() - 45 * 60000).toISOString();
-    const endTime = now.toISOString();
-
-    const payload = {
-      title: customTitle || 'Custom Gym Session',
-      description: customNotes,
-      start_time: startTime,
-      end_time: endTime,
-      exercises: exercisesList.map(e => ({
-        exercise_template_id: e.templateId,
-        notes: '',
-        sets: e.sets.map(s => ({
-          type: s.type || 'normal',
-          weight_kg: Number(s.weight_kg) || 0,
-          reps: Number(s.reps) || 0
-        }))
-      }))
-    };
-
-    try {
-      await api.hevy.uploadWorkout(payload);
-      setUploadSuccess(`Successfully uploaded "${payload.title}" to Hevy!`);
-      if (fetchHevyWorkouts) fetchHevyWorkouts();
-      setTimeout(() => setUploadSuccess(null), 4000);
-    } catch (err) {
-      setUploadError(err.message);
-    } finally {
-      setUploading(false);
-    }
-  };
-
-
+  if (!hevyStatus.hevyApiKeyConfigured) {
+    return (
+      <div className="flex flex-col gap-6">
+        <Card>
+          <CardHeader>
+            <CardTitle>Hevy API key not configured</CardTitle>
+            <CardDescription>
+              Add the key to the <code className="font-mono">.env</code> file at the project root.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-3">
+            <pre className="bg-muted rounded-md border p-3 font-mono text-sm">
+              HEVY_API_KEY=your_hevy_api_key
+            </pre>
+            <p className="text-muted-foreground text-sm">
+              Generate one at <em>hevy.com/settings?developer</em> — requires Hevy Pro.
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
 
   return (
-    <div className="hevy-container">
-      <div className="section-title" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px' }}>
-        <div>
-          <h2 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '10px' }}>
-            💪 Gym Workouts & Hevy Integration
-          </h2>
-          <p style={{ margin: '4px 0 0 0', color: 'var(--text-secondary)' }}>
-            Sync training logs and post workouts directly to Hevy.
-          </p>
-        </div>
-        {hevyStatus.hevyApiKeyConfigured && (
-          <button 
-            className="btn btn-primary"
-            style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '10px 18px', fontWeight: 600 }}
-            onClick={() => setShowCreator(!showCreator)}
-          >
-            {showCreator ? '✖️ Close Creator' : '➕ Upload Workout to Hevy'}
-          </button>
-        )}
+    <div className="flex flex-col gap-6">
+      <div className="flex flex-wrap justify-end gap-2">
+        <Button
+          variant={showCreator ? 'outline' : 'default'}
+          onClick={() => setShowCreator(!showCreator)}
+        >
+          {showCreator ? <X className="size-4" /> : <Upload className="size-4" />}
+          {showCreator ? 'Close creator' : 'Upload workout'}
+        </Button>
       </div>
 
-      {!hevyStatus.hevyApiKeyConfigured ? (
-        <div className="settings-section">
-          <h3 className="settings-section-title" style={{ color: 'var(--color-danger)', borderBottomColor: 'rgba(239, 68, 68, 0.2)' }}>
-            🔑 Configure Hevy API Key
-          </h3>
-          <p className="settings-section-desc">To view & upload workouts, open the <strong>.env</strong> file at the root of your project and configure your Hevy API key:</p>
-          <pre style={{ background: '#f8fafc', padding: '12px', borderRadius: '4px', border: '1px solid var(--border-color)', margin: '12px 0', fontFamily: 'monospace', fontSize: '0.9rem' }}>HEVY_API_KEY=your_hevy_api_key</pre>
-          <p className="settings-section-desc" style={{ fontSize: '0.85rem' }}>You can generate an API key via the Hevy web app at <em>hevy.com/settings?developer</em> (requires Hevy Pro).</p>
-        </div>
-      ) : (
-        <div className="hevy-layout" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+      {uploadSuccess && (
+        <Alert>
+          <Check />
+          <AlertTitle>{uploadSuccess}</AlertTitle>
+        </Alert>
+      )}
+      {uploadError && (
+        <Alert variant="destructive">
+          <TriangleAlert />
+          <AlertTitle>Upload failed</AlertTitle>
+          <AlertDescription>{uploadError}</AlertDescription>
+        </Alert>
+      )}
 
-          {/* Interactive Hevy Workout Creator Card */}
-          {showCreator && (
-            <div className="card" style={{ background: 'var(--bg-surface)', border: '1px solid rgba(139, 92, 246, 0.3)', borderRadius: 'var(--radius-md)', padding: '24px', boxShadow: 'var(--shadow-sm)' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '12px' }}>
-                <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  📤 Create & Upload Workout to Hevy API
-                </h3>
-                <div style={{ display: 'flex', gap: '8px', background: 'rgba(0,0,0,0.2)', padding: '4px', borderRadius: '8px' }}>
-                  <button 
-                    type="button" 
-                    className={`btn ${creatorMode === 'quick' ? 'btn-primary' : ''}`} 
-                    style={{ padding: '6px 14px', fontSize: '0.85rem' }} 
-                    onClick={() => setCreatorMode('quick')}
-                  >
-                    ⚡ Quick Cardio Preset
-                  </button>
-                  <button 
-                    type="button" 
-                    className={`btn ${creatorMode === 'custom' ? 'btn-primary' : ''}`} 
-                    style={{ padding: '6px 14px', fontSize: '0.85rem' }} 
-                    onClick={() => setCreatorMode('custom')}
-                  >
-                    🏋️ Custom Workout Builder
-                  </button>
-                </div>
-              </div>
+      {showCreator && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Create a workout</CardTitle>
+            <CardDescription>Posted to Hevy through the developer API.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Tabs defaultValue="quick" className="gap-6">
+              <TabsList>
+                <TabsTrigger value="quick">Quick cardio</TabsTrigger>
+                <TabsTrigger value="custom">Custom builder</TabsTrigger>
+              </TabsList>
 
-              {uploadSuccess && (
-                <div className="alert alert-success" style={{ marginBottom: '16px', background: 'rgba(34, 197, 94, 0.15)', color: '#4ade80', border: '1px solid rgba(34, 197, 94, 0.3)', padding: '12px 16px', borderRadius: '8px' }}>
-                  ✅ {uploadSuccess}
-                </div>
-              )}
-              {uploadError && (
-                <div className="alert alert-error" style={{ marginBottom: '16px', background: 'rgba(239, 68, 68, 0.15)', color: '#f87171', border: '1px solid rgba(239, 68, 68, 0.3)', padding: '12px 16px', borderRadius: '8px' }}>
-                  ❌ {uploadError}
-                </div>
-              )}
-
-              {creatorMode === 'quick' ? (
-                <form onSubmit={handleUploadQuickCardio} style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
-                  <label style={{ fontWeight: 600, fontSize: '0.9rem' }}>Select Cardio Activity Preset:</label>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '12px' }}>
-                    {Object.keys(CARDIO_PRESETS).map(key => (
-                      <button
-                        key={key}
-                        type="button"
-                        onClick={() => handleSelectQuickPreset(key)}
-                        style={{
-                          background: quickActivity === key ? 'var(--color-accent)' : 'var(--bg-subtle)',
-                          color: quickActivity === key ? '#fff' : 'var(--text-primary)',
-                          border: `1px solid ${quickActivity === key ? 'var(--color-accent)' : 'var(--border-color)'}`,
-                          padding: '12px',
-                          borderRadius: '8px',
-                          fontWeight: 600,
-                          cursor: 'pointer',
-                          textAlign: 'center',
-                          transition: 'all 0.2s ease'
-                        }}
-                      >
-                        {CARDIO_PRESETS[key].name}
-                      </button>
-                    ))}
+              <TabsContent value="quick">
+                <form onSubmit={handleUploadQuickCardio} className="flex flex-col gap-5">
+                  <div className="grid gap-2">
+                    <Label>Activity</Label>
+                    <ToggleGroup
+                      type="single"
+                      variant="outline"
+                      value={quickActivity}
+                      onValueChange={selectPreset}
+                      className="justify-start"
+                    >
+                      {Object.entries(CARDIO_PRESETS).map(([key, preset]) => (
+                        <ToggleGroupItem key={key} value={key} className="px-4">
+                          {preset.name}
+                        </ToggleGroupItem>
+                      ))}
+                    </ToggleGroup>
                   </div>
 
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-                    <div>
-                      <label style={{ display: 'block', marginBottom: '6px', fontSize: '0.85rem', fontWeight: 600 }}>Workout Title</label>
-                      <input 
-                        type="text" 
-                        value={quickTitle} 
-                        onChange={(e) => setQuickTitle(e.target.value)} 
-                        className="form-control" 
-                        required 
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <Field id="quick-title" label="Workout title">
+                      <Input
+                        id="quick-title"
+                        value={quickTitle}
+                        onChange={(e) => setQuickTitle(e.target.value)}
+                        required
                       />
-                    </div>
-                    <div>
-                      <label style={{ display: 'block', marginBottom: '6px', fontSize: '0.85rem', fontWeight: 600 }}>Duration (Minutes)</label>
-                      <input 
-                        type="number" 
-                        value={quickDuration} 
-                        onChange={(e) => setQuickDuration(e.target.value)} 
-                        className="form-control" 
-                        min="1" 
-                        max="300" 
-                        required 
+                    </Field>
+                    <Field id="quick-duration" label="Duration (minutes)">
+                      <Input
+                        id="quick-duration"
+                        type="number"
+                        min="1"
+                        max="300"
+                        value={quickDuration}
+                        onChange={(e) => setQuickDuration(e.target.value)}
+                        required
                       />
-                    </div>
+                    </Field>
                   </div>
 
-                  <div>
-                    <label style={{ display: 'block', marginBottom: '6px', fontSize: '0.85rem', fontWeight: 600 }}>Notes / Description (Optional)</label>
-                    <input 
-                      type="text" 
-                      value={quickNotes} 
-                      onChange={(e) => setQuickNotes(e.target.value)} 
-                      className="form-control" 
-                      placeholder="e.g. Incline 5%, zone 2 cardio" 
+                  <Field id="quick-notes" label="Notes">
+                    <Input
+                      id="quick-notes"
+                      value={quickNotes}
+                      onChange={(e) => setQuickNotes(e.target.value)}
+                      placeholder="e.g. Incline 5%, zone 2"
                     />
-                  </div>
+                  </Field>
 
-                  <button 
-                    type="submit" 
-                    className="btn btn-primary" 
-                    disabled={uploading} 
-                    style={{ alignSelf: 'flex-start', padding: '12px 24px', fontWeight: 700 }}
-                  >
-                    {uploading ? 'Uploading to Hevy...' : '🚀 Push Session to Hevy'}
-                  </button>
+                  <Button type="submit" disabled={uploading} className="self-start">
+                    {uploading ? 'Uploading…' : 'Push session to Hevy'}
+                  </Button>
                 </form>
-              ) : (
-                <form onSubmit={handleUploadCustomWorkout} style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-                    <div>
-                      <label style={{ display: 'block', marginBottom: '6px', fontSize: '0.85rem', fontWeight: 600 }}>Workout Title</label>
-                      <input 
-                        type="text" 
-                        value={customTitle} 
-                        onChange={(e) => setCustomTitle(e.target.value)} 
-                        className="form-control" 
-                        required 
+              </TabsContent>
+
+              <TabsContent value="custom">
+                <form onSubmit={handleUploadCustomWorkout} className="flex flex-col gap-5">
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <Field id="custom-title" label="Workout title">
+                      <Input
+                        id="custom-title"
+                        value={customTitle}
+                        onChange={(e) => setCustomTitle(e.target.value)}
+                        required
                       />
-                    </div>
-                    <div>
-                      <label style={{ display: 'block', marginBottom: '6px', fontSize: '0.85rem', fontWeight: 600 }}>Notes</label>
-                      <input 
-                        type="text" 
-                        value={customNotes} 
-                        onChange={(e) => setCustomNotes(e.target.value)} 
-                        className="form-control" 
+                    </Field>
+                    <Field id="custom-notes" label="Notes">
+                      <Input
+                        id="custom-notes"
+                        value={customNotes}
+                        onChange={(e) => setCustomNotes(e.target.value)}
                       />
-                    </div>
+                    </Field>
                   </div>
 
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <label style={{ fontWeight: 700, fontSize: '0.95rem' }}>Exercises ({exercisesList.length})</label>
-                      <button 
-                        type="button" 
-                        className="btn" 
-                        onClick={handleAddExerciseRow} 
-                        style={{ fontSize: '0.8rem', padding: '6px 12px', background: 'var(--bg-subtle)' }}
-                      >
-                        ➕ Add Exercise
-                      </button>
-                    </div>
+                  <div className="flex items-center justify-between">
+                    <Label>Exercises ({exercisesList.length})</Label>
+                    <Button type="button" variant="outline" size="sm" onClick={addExercise}>
+                      <Plus className="size-4" />
+                      Add exercise
+                    </Button>
+                  </div>
 
-                    {exercisesList.map((ex, exIdx) => (
-                      <div key={exIdx} style={{ background: 'rgba(0,0,0,0.2)', padding: '16px', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-                          <select
-                            value={ex.templateId}
-                            onChange={(e) => {
-                              const selId = e.target.value;
-                              const match = templates.find(t => t.id === selId);
-                              setExercisesList(prev => {
-                                const copy = [...prev];
-                                copy[exIdx].templateId = selId;
-                                copy[exIdx].title = match?.title || selId;
-                                return copy;
-                              });
-                            }}
-                            className="form-control"
-                            style={{ maxWidth: '320px', fontWeight: 600 }}
-                          >
+                  {exercisesList.map((ex, exIdx) => (
+                    <div key={exIdx} className="flex flex-col gap-3 rounded-lg border p-4">
+                      <div className="flex items-center justify-between gap-3">
+                        <Select
+                          value={ex.templateId}
+                          onValueChange={(id) =>
+                            patchExercise(exIdx, {
+                              templateId: id,
+                              title: templates.find((t) => t.id === id)?.title || id,
+                            })
+                          }
+                        >
+                          <SelectTrigger className="max-w-xs">
+                            <SelectValue placeholder={ex.title} />
+                          </SelectTrigger>
+                          <SelectContent>
                             {templates.length > 0 ? (
-                              templates.map(t => (
-                                <option key={t.id} value={t.id}>{t.title} ({t.primary_muscle_group || 'exercise'})</option>
+                              templates.map((t) => (
+                                <SelectItem key={t.id} value={t.id}>
+                                  {t.title}
+                                </SelectItem>
                               ))
                             ) : (
-                              <option value={ex.templateId}>{ex.title}</option>
+                              <SelectItem value={ex.templateId}>{ex.title}</SelectItem>
                             )}
-                          </select>
-
-                          {exercisesList.length > 1 && (
-                            <button 
-                              type="button" 
-                              onClick={() => handleRemoveExerciseRow(exIdx)} 
-                              style={{ color: '#f87171', background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 600 }}
-                            >
-                              ✕ Remove
-                            </button>
-                          )}
-                        </div>
-
-                        {/* Sets table */}
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                          {ex.sets.map((s, setIdx) => (
-                            <div key={setIdx} style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                              <span style={{ fontSize: '0.85rem', minWidth: '50px', color: 'var(--text-secondary)' }}>Set {setIdx + 1}:</span>
-                              <input 
-                                type="number" 
-                                placeholder="Weight kg" 
-                                value={s.weight_kg} 
-                                onChange={(e) => handleSetChange(exIdx, setIdx, 'weight_kg', e.target.value)} 
-                                className="form-control" 
-                                style={{ width: '100px' }} 
-                              />
-                              <span style={{ fontSize: '0.85rem' }}>kg ×</span>
-                              <input 
-                                type="number" 
-                                placeholder="Reps" 
-                                value={s.reps} 
-                                onChange={(e) => handleSetChange(exIdx, setIdx, 'reps', e.target.value)} 
-                                className="form-control" 
-                                style={{ width: '90px' }} 
-                              />
-                              <span style={{ fontSize: '0.85rem' }}>reps</span>
-                              {ex.sets.length > 1 && (
-                                <button 
-                                  type="button" 
-                                  onClick={() => handleRemoveSetRow(exIdx, setIdx)} 
-                                  style={{ color: 'var(--text-secondary)', background: 'none', border: 'none', cursor: 'pointer', marginLeft: 'auto' }}
-                                >
-                                  ✕
-                                </button>
-                              )}
-                            </div>
-                          ))}
-                          <button 
-                            type="button" 
-                            onClick={() => handleAddSetRow(exIdx)} 
-                            style={{ alignSelf: 'flex-start', marginTop: '6px', fontSize: '0.8rem', background: 'none', border: 'none', color: 'var(--color-accent)', cursor: 'pointer', fontWeight: 600 }}
+                          </SelectContent>
+                        </Select>
+                        {exercisesList.length > 1 && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => removeExercise(exIdx)}
+                            aria-label="Remove exercise"
                           >
-                            + Add Set
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-
-                  <button 
-                    type="submit" 
-                    className="btn btn-primary" 
-                    disabled={uploading} 
-                    style={{ alignSelf: 'flex-start', padding: '12px 24px', fontWeight: 700 }}
-                  >
-                    {uploading ? 'Uploading Workout...' : '🚀 Push Workout to Hevy'}
-                  </button>
-                </form>
-              )}
-            </div>
-          )}
-
-          {/* Workouts Grid */}
-          <div className="workouts-section">
-            <h3 className="settings-section-title" style={{ marginBottom: '16px' }}>📅 Recent Workout Logs</h3>
-            {workoutsLoading && (
-              <div style={{ textAlign: 'center', padding: '40px 0' }}>
-                <p className="pulse-glow" style={{ fontWeight: 600, margin: 0 }}>Syncing with Hevy...</p>
-              </div>
-            )}
-            {workoutsError && (
-              <div className="alert alert-warning" style={{ padding: '16px', background: '#fff5f5', borderLeft: '4px solid var(--color-danger)' }}>
-                <p style={{ color: 'var(--color-danger)', fontWeight: 600, margin: 0 }}>Failed to fetch workouts: {workoutsError}</p>
-              </div>
-            )}
-            {!workoutsLoading && !workoutsError && hevyWorkouts.length === 0 && (
-              <p className="text-muted" style={{ textAlign: 'center', padding: '40px 0', margin: 0 }}>No workouts found. Log workouts in the Hevy app or use the Creator above!</p>
-            )}
-            {!workoutsLoading && !workoutsError && hevyWorkouts.length > 0 && (
-              <div className="workouts-grid">
-                {hevyWorkouts.map((w) => {
-                  const dateStr = w.start_time ? new Date(w.start_time).toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' }) : 'Unknown date';
-                  const durationMins = w.start_time && w.end_time ? Math.round((new Date(w.end_time) - new Date(w.start_time)) / 60000) : null;
-                  return (
-                    <div key={w.id} className="workout-card">
-                      <div className="workout-card-header">
-                        <h4>{w.title || 'Workout'}</h4>
-                        <div className="workout-meta">
-                          <span>📅 {dateStr}</span>
-                          {durationMins && <span>⏱️ {durationMins} mins</span>}
-                        </div>
-                        {w.notes && (
-                          <p className="workout-notes">"{w.notes}"</p>
+                            <X className="size-4" />
+                          </Button>
                         )}
                       </div>
-                      
-                      <div className="workout-exercises" style={{ flexGrow: 1 }}>
-                        {w.exercises?.map((e, eIdx) => (
-                          <div key={eIdx} className="workout-exercise-item">
-                            <h5>{e.title}</h5>
-                            <div className="workout-sets-list">
-                              {e.sets?.map((s, sIdx) => {
-                                const wt = s.weight_kg !== null && s.weight_kg !== undefined ? `${s.weight_kg} kg` : (s.duration_seconds ? `${Math.round(s.duration_seconds / 60)} mins` : 'Bodyweight');
-                                const reps = s.reps || (s.duration_seconds ? '' : 0);
-                                const rpe = s.rpe ? ` (RPE ${s.rpe})` : '';
-                                return (
-                                  <div key={sIdx} className="workout-set-row">
-                                    <span>Set {sIdx + 1}: {reps ? `${reps} reps` : 'Cardio'}</span>
-                                    <span style={{ fontWeight: 500 }}>{wt}{rpe}</span>
-                                  </div>
-                                );
-                              })}
-                            </div>
+
+                      <Separator />
+
+                      <div className="flex flex-col gap-2">
+                        {ex.sets.map((s, setIdx) => (
+                          <div key={setIdx} className="flex items-center gap-2">
+                            <span className="text-muted-foreground w-12 text-sm">
+                              Set {setIdx + 1}
+                            </span>
+                            <Input
+                              type="number"
+                              className="w-24"
+                              min="0"
+                              step="0.5"
+                              placeholder="kg"
+                              value={s.weight_kg}
+                              onChange={(e) => patchSet(exIdx, setIdx, 'weight_kg', e.target.value)}
+                            />
+                            <span className="text-muted-foreground text-sm">kg ×</span>
+                            <Input
+                              type="number"
+                              className="w-20"
+                              min="0"
+                              step="1"
+                              placeholder="reps"
+                              value={s.reps}
+                              onChange={(e) => patchSet(exIdx, setIdx, 'reps', e.target.value)}
+                            />
+                            <span className="text-muted-foreground text-sm">reps</span>
+                            {ex.sets.length > 1 && (
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                className="ml-auto"
+                                onClick={() => removeSet(exIdx, setIdx)}
+                                aria-label="Remove set"
+                              >
+                                <X className="size-4" />
+                              </Button>
+                            )}
                           </div>
                         ))}
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="self-start"
+                          onClick={() => addSet(exIdx)}
+                        >
+                          <Plus className="size-3" />
+                          Add set
+                        </Button>
                       </div>
                     </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        </div>
+                  ))}
+
+                  <Button type="submit" disabled={uploading} className="self-start">
+                    {uploading ? 'Uploading…' : 'Push workout to Hevy'}
+                  </Button>
+                </form>
+              </TabsContent>
+            </Tabs>
+          </CardContent>
+        </Card>
       )}
+
+      <div className="flex flex-col gap-4">
+        <h3 className="text-lg font-semibold">Recent workouts</h3>
+
+        {workoutsLoading && (
+          <p className="text-muted-foreground py-10 text-center text-sm">Syncing with Hevy…</p>
+        )}
+
+        {workoutsError && (
+          <Alert variant="destructive">
+            <TriangleAlert />
+            <AlertTitle>Couldn&apos;t fetch workouts</AlertTitle>
+            <AlertDescription>{workoutsError}</AlertDescription>
+          </Alert>
+        )}
+
+        {!workoutsLoading && !workoutsError && hevyWorkouts.length === 0 && (
+          <p className="text-muted-foreground py-10 text-center text-sm">
+            No workouts yet. Log one in Hevy or use the creator above.
+          </p>
+        )}
+
+        {!workoutsLoading && !workoutsError && hevyWorkouts.length > 0 && (
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            {hevyWorkouts.map((w) => {
+              const dateStr = w.start_time
+                ? new Date(w.start_time).toLocaleDateString([], {
+                    weekday: 'short',
+                    month: 'short',
+                    day: 'numeric',
+                  })
+                : 'Unknown date'
+              const durationMins =
+                w.start_time && w.end_time
+                  ? Math.round((new Date(w.end_time) - new Date(w.start_time)) / 60000)
+                  : null
+
+              return (
+                <Card key={w.id}>
+                  <CardHeader>
+                    <CardTitle>{w.title || 'Workout'}</CardTitle>
+                    <CardDescription className="flex flex-wrap items-center gap-3">
+                      <span className="inline-flex items-center gap-1">
+                        <CalendarDays className="size-3.5" />
+                        {dateStr}
+                      </span>
+                      {durationMins !== null && (
+                        <span className="inline-flex items-center gap-1">
+                          <Clock className="size-3.5" />
+                          {durationMins} min
+                        </span>
+                      )}
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="flex flex-col gap-4">
+                    {w.notes && <p className="text-muted-foreground text-sm italic">“{w.notes}”</p>}
+                    {w.exercises?.map((e, eIdx) => (
+                      <div key={eIdx} className="flex flex-col gap-1.5">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-sm font-medium">{e.title}</span>
+                          <Badge variant="outline" className="shrink-0">
+                            {e.sets?.length || 0} sets
+                          </Badge>
+                        </div>
+                        {e.sets?.map((s, sIdx) => {
+                          const weight =
+                            s.weight_kg !== null && s.weight_kg !== undefined
+                              ? `${s.weight_kg} kg`
+                              : s.duration_seconds
+                                ? `${Math.round(s.duration_seconds / 60)} min`
+                                : 'Bodyweight'
+                          const reps = s.reps || (s.duration_seconds ? '' : 0)
+                          return (
+                            <div
+                              key={sIdx}
+                              className="text-muted-foreground flex justify-between text-xs tabular-nums"
+                            >
+                              <span>
+                                Set {sIdx + 1}: {reps ? `${reps} reps` : 'Cardio'}
+                              </span>
+                              <span className="text-foreground font-medium">
+                                {weight}
+                                {s.rpe ? ` · RPE ${s.rpe}` : ''}
+                              </span>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    ))}
+                  </CardContent>
+                </Card>
+              )
+            })}
+          </div>
+        )}
+      </div>
     </div>
-  );
+  )
 }

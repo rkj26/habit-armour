@@ -1,10 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import './App.css';
 
 // Import subcomponents
 import WarningBanner from './components/WarningBanner';
-import Header from './components/Header';
-import Navigation from './components/Navigation';
+import AppSidebar from './components/AppSidebar';
+import SiteHeader from './components/SiteHeader';
 import MorningForm from './components/MorningForm';
 import MorningJournalForm from './components/MorningJournalForm';
 import NightForm from './components/NightForm';
@@ -17,18 +16,101 @@ import GymView from './components/GymView';
 import AnkiView from './components/AnkiView';
 import PracticeView from './components/PracticeView';
 import SettingsView from './components/SettingsView';
-import Gallery from './components/ui/Gallery';
-import { Alert, Stack } from './components/ui';
+import { Alert, AlertDescription, AlertTitle } from '@/components/shadcn/alert';
+import { SidebarInset, SidebarProvider } from '@/components/shadcn/sidebar';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/shadcn/tabs';
+import { TODAY_TABS, WINDOW_TO_TAB } from '@/nav';
+import { WifiOff, TriangleAlert, Check } from 'lucide-react';
+import { logicalToday } from '@/lib/logicalDay';
+import { useDraft } from '@/lib/useDraft';
+import { morningJournalBlocker } from './components/MorningJournalForm';
+import { nightJournalBlocker } from './components/NightJournalForm';
 import { api, API_URL } from './api/client';
 
+const DEFAULT_SUPPLEMENTS = ['Vitamin D3', 'Vitamin K2', 'Omega-3', 'Creatine'];
+
+const suppMap = (list, taken = false) =>
+  Object.fromEntries((list || DEFAULT_SUPPLEMENTS).map((s) => [s, taken]));
+
+const EMPTY_MORNING = {
+  wakingWeight: '',
+  sleepHours: '',
+  sleepQualitySelf: 5,
+  sleepQualityDevice: 70,
+  energyLevels: 5,
+  mood: 5,
+  stress: 5,
+  illnessSigns: 1,
+  muscleSoreness: 1,
+  restingHR: '',
+  bloodPressure: '',
+  todos: [],
+  feeling: ''
+};
+
+const EMPTY_NIGHT = {
+  calories: '',
+  protein: '',
+  carbs: '',
+  fats: '',
+  foodQuality: 5,
+  waterConsumed: '',
+  alcoholConsumed: 'No',
+  hunger: 5,
+  digestiveStress: 1,
+  supplements: suppMap(DEFAULT_SUPPLEMENTS),
+  proteinShake: { taken: false, photoUrl: '' },
+  trainingDay: 'No',
+  strengthPerformance: 5,
+  steps: '',
+  cardioPerformed: 'No',
+  todosCompleted: [],
+  feeling: '',
+  tomorrow: ''
+};
+
+const emptyWeekly = () => ({
+  weekCommencing: new Date().toISOString().split('T')[0],
+  startWeight: '',
+  responseAction: '',
+  umbilical: '',
+  bicepL: '',
+  bicepR: '',
+  quadL: '',
+  quadR: '',
+  glutes: '',
+  chest: '',
+  photos: { front: '', back: '', sideLeft: '', sideRight: '' }
+});
+
+/**
+ * `parseInt` used to run on every numeric field. Two consequences: targetWeight
+ * is a float server-side, so 75.5 was silently saved as 75; and `parseInt('')`
+ * is NaN, so clearing a field to retype it snapped the value to 0 mid-edit.
+ *
+ * An empty string is a legitimate mid-edit state and is kept. Saving one gets a
+ * 422 naming the field, which is more useful than writing a 0 nobody asked for.
+ */
+function coerceConfigValue(type, value, checked) {
+  if (type === 'checkbox') return checked;
+  if (type !== 'number' || value === '') return value;
+  const parsed = Number(value);
+  return Number.isNaN(parsed) ? value : parsed;
+}
+
 export default function App() {
-  const [activeTab, setActiveTab] = useState('morning');
+  const [activeTab, setActiveTab] = useState('today');
+  // Sub-tabs of the three grouped pages. Kept separate from `activeTab` so
+  // leaving a page and coming back lands you where you were.
+  const [todayTab, setTodayTab] = useState('morning');
+  const [trainingTab, setTrainingTab] = useState('workouts');
+  const [learningTab, setLearningTab] = useState('anki');
   const [status, setStatus] = useState({ locked: false, isWarning: false, secondsRemaining: 0, window: null, completed: true, reason: "" });
-  const [config, setConfig] = useState({ 
-    morningStart: 5, 
-    morningEnd: 12, 
-    nightStart: 20, 
-    nightEnd: 24, 
+  const [config, setConfig] = useState({
+    morningStart: 5,
+    morningEnd: 12,
+    nightStart: 20,
+    nightEnd: 24,
     gracePeriodSec: 120,
     journalStorage: "none",
     obsidianVaultPath: "",
@@ -54,7 +136,7 @@ export default function App() {
     practiceMinDueToUnlock: 1,
     practiceNewCardsPerDay: 1,
     practiceReviewTopicsPerDay: 1,
-    supplementsList: ['Vitamin D3', 'Vitamin K2', 'Omega-3', 'Creatine'],
+    supplementsList: DEFAULT_SUPPLEMENTS,
     enforceSupplementsBlocker: true
   });
   const [ipInfo, setIpInfo] = useState('localhost');
@@ -68,120 +150,18 @@ export default function App() {
   const [offline, setOffline] = useState(false);
   const [formError, setFormError] = useState(null);
   const [configError, setConfigError] = useState(null);
-  
+
   // Gym verification states
   const [gymVerifyLoading, setGymVerifyLoading] = useState(false);
   const [gymVerifyResult, setGymVerifyResult] = useState(null);
   const [gymVerifyError, setGymVerifyError] = useState(null);
 
-  // Form states with localStorage draft persistence
-  const [morningData, setMorningData] = useState(() => {
-    try {
-      const saved = localStorage.getItem('habitarmour_draft_morning');
-      if (saved) return JSON.parse(saved);
-    } catch (e) {
-      console.error('Failed to load morningData draft:', e);
-    }
-    return {
-      wakingWeight: '',
-      sleepHours: '',
-      sleepQualitySelf: 5,
-      sleepQualityDevice: 70,
-      energyLevels: 5,
-      mood: 5,
-      stress: 5,
-      illnessSigns: 1,
-      muscleSoreness: 1,
-      restingHR: '',
-      bloodPressure: '',
-      journalEntry: ''
-    };
-  });
-
-  const [nightData, setNightData] = useState(() => {
-    try {
-      const saved = localStorage.getItem('habitarmour_draft_night');
-      if (saved) return JSON.parse(saved);
-    } catch (e) {
-      console.error('Failed to load nightData draft:', e);
-    }
-    return {
-      calories: '',
-      protein: '',
-      carbs: '',
-      fats: '',
-      foodQuality: 5,
-      waterConsumed: '',
-      alcoholConsumed: 'No',
-      hunger: 5,
-      digestiveStress: 1,
-      supplements: {
-        'Vitamin D3': false,
-        'Vitamin K2': false,
-        'Omega-3': false,
-        'Creatine': false
-      },
-      proteinShake: { taken: false, photoUrl: '' },
-      trainingDay: 'No',
-      strengthPerformance: 5,
-      steps: '',
-      cardioPerformed: 'No',
-      journalEntry: ''
-    };
-  });
-
-  const [weeklyData, setWeeklyData] = useState(() => {
-    try {
-      const saved = localStorage.getItem('habitarmour_draft_weekly');
-      if (saved) return JSON.parse(saved);
-    } catch (e) {
-      console.error('Failed to load weeklyData draft:', e);
-    }
-    return {
-      weekCommencing: new Date().toISOString().split('T')[0],
-      startWeight: '',
-      responseAction: '',
-      umbilical: '',
-      bicepL: '',
-      bicepR: '',
-      quadL: '',
-      quadR: '',
-      glutes: '',
-      chest: '',
-      photos: { front: '', back: '', sideLeft: '', sideRight: '' }
-    };
-  });
-
-  // Auto-save form drafts to localStorage whenever fields change
-  useEffect(() => {
-    try {
-      if (!editingDate) {
-        localStorage.setItem('habitarmour_draft_morning', JSON.stringify(morningData));
-      }
-    } catch (err) {
-      console.error('Failed to save morningData draft:', err);
-    }
-  }, [morningData, editingDate]);
-
-  useEffect(() => {
-    try {
-      if (!editingDate) {
-        localStorage.setItem('habitarmour_draft_night', JSON.stringify(nightData));
-      }
-    } catch (err) {
-      console.error('Failed to save nightData draft:', err);
-    }
-  }, [nightData, editingDate]);
-
-  useEffect(() => {
-    try {
-      if (!editingDate) {
-        localStorage.setItem('habitarmour_draft_weekly', JSON.stringify(weeklyData));
-      }
-    } catch (err) {
-      console.error('Failed to save weeklyData draft:', err);
-    }
-  }, [weeklyData, editingDate]);
+  // Drafts are stamped with the logical day they were written on, so a
+  // half-finished log from yesterday does not come back this morning.
+  const draftsEnabled = !editingDate;
+  const [morningData, setMorningData, clearMorningDraft] = useDraft('morning', EMPTY_MORNING, { enabled: draftsEnabled });
+  const [nightData, setNightData, clearNightDraft] = useDraft('night', EMPTY_NIGHT, { enabled: draftsEnabled });
+  const [weeklyData, setWeeklyData, clearWeeklyDraft] = useDraft('weekly', emptyWeekly(), { enabled: draftsEnabled });
 
   // Hevy Gym States
   const [hevyStatus, setHevyStatus] = useState({ hevyApiKeyConfigured: false, geminiApiKeyConfigured: false });
@@ -283,10 +263,7 @@ export default function App() {
 
   const handleConfigChange = (e) => {
     const { name, value, type, checked } = e.target;
-    setConfig(prev => ({
-      ...prev,
-      [name]: type === 'checkbox' ? checked : (type === 'number' ? parseInt(value) || 0 : value)
-    }));
+    setConfig(prev => ({ ...prev, [name]: coerceConfigValue(type, value, checked) }));
   };
 
   const saveConfig = async () => {
@@ -314,138 +291,59 @@ export default function App() {
     }
   };
 
+  /** Sends you to the page that owns a log window, and to the right tab on it. */
+  const openWindow = (windowType) => {
+    setActiveTab(WINDOW_TO_TAB[windowType] || windowType);
+    if (WINDOW_TO_TAB[windowType] === 'today') setTodayTab(windowType);
+  };
+
   const startEditingLog = (date, windowType) => {
     const entry = history.find(h => h.date === date);
     setEditingDate(date);
-    
+
     if (windowType === 'morning') {
-      setMorningData(entry?.morningData || {
-        wakingWeight: '',
-        sleepHours: '',
-        sleepQualitySelf: 5,
-        sleepQualityDevice: 70,
-        energyLevels: 5,
-        mood: 5,
-        stress: 5,
-        illnessSigns: 1,
-        muscleSoreness: 1,
-        restingHR: '',
-        bloodPressure: '',
-        journalEntry: ''
-      });
-      setActiveTab('morning');
+      setMorningData(entry?.morningData || EMPTY_MORNING);
+      openWindow('morning');
     } else if (windowType === 'morningJournal') {
-      setMorningData(prev => ({ ...prev, journalEntry: entry?.morningJournalData?.journalEntry || '' }));
-      setActiveTab('morningJournal');
+      setMorningData(prev => ({ ...prev, todos: entry?.morningJournalData?.todos || [], feeling: entry?.morningJournalData?.feeling || '' }));
+      openWindow('morningJournal');
     } else if (windowType === 'night') {
-      const suppList = config.supplementsList || ['Vitamin D3', 'Vitamin K2', 'Omega-3', 'Creatine'];
-      const defaultSuppMap = {};
-      suppList.forEach(s => { defaultSuppMap[s] = false; });
+      const suppList = config.supplementsList || DEFAULT_SUPPLEMENTS;
 
       if (entry?.nightData) {
-        let loadedSupps = entry.nightData.supplements;
-        let formattedSupps = { ...defaultSuppMap };
+        const loadedSupps = entry.nightData.supplements;
+        let formattedSupps = suppMap(suppList);
         if (typeof loadedSupps === 'object' && loadedSupps !== null && !Array.isArray(loadedSupps)) {
-          formattedSupps = { ...defaultSuppMap, ...loadedSupps };
+          formattedSupps = { ...formattedSupps, ...loadedSupps };
         } else if (typeof loadedSupps === 'number') {
-          suppList.forEach(s => { formattedSupps[s] = loadedSupps === 10; });
+          formattedSupps = suppMap(suppList, loadedSupps === 10);
         }
         setNightData({ ...entry.nightData, supplements: formattedSupps });
       } else {
-        setNightData({
-          calories: '',
-          protein: '',
-          carbs: '',
-          fats: '',
-          foodQuality: 5,
-          waterConsumed: '',
-          alcoholConsumed: 'No',
-          hunger: 5,
-          digestiveStress: 1,
-          supplements: defaultSuppMap,
-          trainingDay: 'No',
-          strengthPerformance: 5,
-          steps: '',
-          cardioPerformed: 'No',
-          journalEntry: ''
-        });
+        setNightData({ ...EMPTY_NIGHT, supplements: suppMap(suppList) });
       }
-      setActiveTab('night');
+      openWindow('night');
     } else if (windowType === 'nightJournal') {
-      setNightData(prev => ({ ...prev, journalEntry: entry?.nightJournalData?.journalEntry || '' }));
-      setActiveTab('nightJournal');
+      setNightData(prev => ({ ...prev, todosCompleted: entry?.nightJournalData?.todosCompleted || [], feeling: entry?.nightJournalData?.feeling || '', tomorrow: entry?.nightJournalData?.tomorrow || '' }));
+      openWindow('nightJournal');
     } else if (windowType === 'weekly') {
       setWeeklyData(entry?.weeklyData ? {
         ...entry.weeklyData,
         photos: entry.weeklyData.photos || { front: '', back: '', sideLeft: '', sideRight: '' }
-      } : {
-        weekCommencing: date,
-        startWeight: '',
-        responseAction: '',
-        umbilical: '',
-        bicepL: '',
-        bicepR: '',
-        quadL: '',
-        quadR: '',
-        glutes: '',
-        chest: '',
-        photos: { front: '', back: '', sideLeft: '', sideRight: '' }
-      });
-      setActiveTab('weekly');
+      } : { ...emptyWeekly(), weekCommencing: date });
+      openWindow('weekly');
     }
   };
 
   const cancelEditing = () => {
     setEditingDate(null);
-    const suppList = config.supplementsList || ['Vitamin D3', 'Vitamin K2', 'Omega-3', 'Creatine'];
-    const defaultSuppMap = {};
-    suppList.forEach(s => { defaultSuppMap[s] = false; });
+    const suppList = config.supplementsList || DEFAULT_SUPPLEMENTS;
 
-    // Reset forms
-    setMorningData({
-      wakingWeight: '',
-      sleepHours: '',
-      sleepQualitySelf: 5,
-      sleepQualityDevice: 70,
-      energyLevels: 5,
-      mood: 5,
-      stress: 5,
-      illnessSigns: 1,
-      muscleSoreness: 1,
-      restingHR: '',
-      bloodPressure: '',
-      journalEntry: ''
-    });
-    setNightData({
-      calories: '',
-      protein: '',
-      carbs: '',
-      fats: '',
-      foodQuality: 5,
-      waterConsumed: '',
-      alcoholConsumed: 'No',
-      hunger: 5,
-      digestiveStress: 1,
-      supplements: defaultSuppMap,
-      trainingDay: 'No',
-      strengthPerformance: 5,
-      steps: '',
-      cardioPerformed: 'No',
-      journalEntry: ''
-    });
-    setWeeklyData({
-      weekCommencing: new Date().toISOString().split('T')[0],
-      startWeight: '',
-      responseAction: '',
-      umbilical: '',
-      bicepL: '',
-      bicepR: '',
-      quadL: '',
-      quadR: '',
-      glutes: '',
-      chest: '',
-      photos: { front: '', back: '', sideLeft: '', sideRight: '' }
-    });
+    // Drops the edited entry out of state *and* out of storage, so cancelling
+    // never leaves a past day's numbers sitting in today's draft.
+    clearMorningDraft(EMPTY_MORNING);
+    clearNightDraft({ ...EMPTY_NIGHT, supplements: suppMap(suppList) });
+    clearWeeklyDraft(emptyWeekly());
     setActiveTab('history');
   };
 
@@ -455,15 +353,11 @@ export default function App() {
    * a disabled submit button, rather than only firing after a failed click.
    */
   const getSubmitBlocker = (windowType, data) => {
-    if (windowType === 'morningJournal' || windowType === 'nightJournal') {
-      const words = (data.journalEntry || '').trim().split(/\s+/).filter(Boolean).length;
-      if (words < 100) {
-        return `Journal entry has ${words} of the 100 words required to submit.`;
-      }
-    }
+    if (windowType === 'morningJournal') return morningJournalBlocker(data);
+    if (windowType === 'nightJournal') return nightJournalBlocker(data);
 
     if (windowType === 'night' && config.enforceSupplementsBlocker !== false) {
-      const suppList = config.supplementsList || ['Vitamin D3', 'Vitamin K2', 'Omega-3', 'Creatine'];
+      const suppList = config.supplementsList || DEFAULT_SUPPLEMENTS;
       const userSupps = data.supplements || {};
       const missing = suppList.filter(s => !userSupps[s]);
       if (missing.length > 0) {
@@ -511,38 +405,25 @@ export default function App() {
     }
 
     try {
-      {
-        await api.submitLog({ window: windowType, data: dataToSubmit, date: editingDate });
-        setSubmitSuccess(`${windowType.toUpperCase()} log ${editingDate ? 'updated' : 'submitted'} successfully!`);
-        if (windowType === 'morning') {
-          setMorningData(prev => {
-            const updated = { ...prev, wakingWeight: '', sleepHours: '', restingHR: '', bloodPressure: '' };
-            localStorage.setItem('habitarmour_draft_morning', JSON.stringify(updated));
-            return updated;
-          });
-        } else if (windowType === 'morningJournal') {
-          setMorningData(prev => {
-            const updated = { ...prev, journalEntry: '' };
-            localStorage.setItem('habitarmour_draft_morning', JSON.stringify(updated));
-            return updated;
-          });
-        } else if (windowType === 'night') {
-          localStorage.removeItem('habitarmour_draft_night');
-        } else if (windowType === 'nightJournal') {
-          setNightData(prev => {
-            const updated = { ...prev, journalEntry: '' };
-            localStorage.setItem('habitarmour_draft_night', JSON.stringify(updated));
-            return updated;
-          });
-        } else if (windowType === 'weekly') {
-          localStorage.removeItem('habitarmour_draft_weekly');
-        }
-        setEditingDate(null);
-        fetchStatus();
-        fetchHistory();
-        setTimeout(() => setSubmitSuccess(null), 3000);
-        setActiveTab('history');
+      await api.submitLog({ window: windowType, data: dataToSubmit, date: editingDate });
+      setSubmitSuccess(`${windowType.toUpperCase()} log ${editingDate ? 'updated' : 'submitted'} successfully!`);
+      if (windowType === 'morning') {
+        // Sliders keep their positions -- they are calibrated to you, not to today.
+        setMorningData(prev => ({ ...prev, wakingWeight: '', sleepHours: '', restingHR: '', bloodPressure: '' }));
+      } else if (windowType === 'morningJournal') {
+        setMorningData(prev => ({ ...prev, todos: [], feeling: '' }));
+      } else if (windowType === 'night') {
+        clearNightDraft({ ...EMPTY_NIGHT, supplements: suppMap(config.supplementsList) });
+      } else if (windowType === 'nightJournal') {
+        setNightData(prev => ({ ...prev, todosCompleted: [], feeling: '', tomorrow: '' }));
+      } else if (windowType === 'weekly') {
+        clearWeeklyDraft(emptyWeekly());
       }
+      setEditingDate(null);
+      fetchStatus();
+      fetchHistory();
+      setTimeout(() => setSubmitSuccess(null), 3000);
+      setActiveTab('history');
     } catch (err) {
       setFormError(err.message);
     }
@@ -611,169 +492,195 @@ export default function App() {
     return { complianceRate, avgWeight, avgSleep, avgSteps, avgCalories };
   };
 
+  const todayEntry = history.find(h => h.date === logicalToday());
+  const morningTodos = (todayEntry?.morningJournalData?.todos || []).filter(t => t?.text?.trim());
+
   const stats = getStats();
 
   return (
-    <div className="app-container">
-      <WarningBanner status={status} />
-      <Header status={status} />
+    <SidebarProvider>
+      <AppSidebar
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
+        status={status}
+        ipInfo={ipInfo}
+        triggerTestLock={triggerTestLock}
+      />
 
-      <div className="dashboard-grid">
-        <Navigation 
-          activeTab={activeTab}
-          setActiveTab={setActiveTab}
-          status={status}
-          ipInfo={ipInfo}
-          triggerTestLock={triggerTestLock}
-          config={config}
-        />
+      <SidebarInset>
+        <SiteHeader activeTab={activeTab} status={status} />
 
-        <main className="main-content glass-card">
-          {submitSuccess && <div className="success-toast">{submitSuccess}</div>}
+        <div className="flex flex-1 flex-col gap-4 p-4 lg:gap-6 lg:p-6">
+          <WarningBanner status={status} />
 
-          <Stack gap={3} style={{ marginBottom: (offline || formError || configError) ? 'var(--space-4)' : 0 }}>
-            {offline && (
-              <Alert variant="warning" title="Can't reach Habit Armour">
-                Everything below is the last state received. Check that the server is running on port{' '}
-                {new URL(API_URL || window.location.origin).port || '3000'}.
-              </Alert>
-            )}
-            {formError && (
-              <Alert variant="danger" title="Couldn't submit" onDismiss={() => setFormError(null)}>
-                {formError}
-              </Alert>
-            )}
-            {configError && (
-              <Alert variant="danger" title="Couldn't save settings" onDismiss={() => setConfigError(null)}>
-                {configError}
-              </Alert>
-            )}
-          </Stack>
+          {submitSuccess && (
+            <Alert>
+              <Check />
+              <AlertTitle>{submitSuccess}</AlertTitle>
+            </Alert>
+          )}
 
-          <div className="tab-pane">
-            {activeTab === 'morning' && (
-              <MorningForm 
-                morningData={morningData}
-                setMorningData={setMorningData}
-                editingDate={editingDate}
-                cancelEditing={cancelEditing}
-                onSubmit={(e) => handleFormSubmit(e, 'morning')}
-              />
-            )}
+          {offline && (
+            <Alert>
+              <WifiOff />
+              <AlertTitle>Can&apos;t reach Habit Armour</AlertTitle>
+              <AlertDescription>
+                Everything below is the last state received. Check the server is running.
+              </AlertDescription>
+            </Alert>
+          )}
+          {formError && (
+            <Alert variant="destructive">
+              <TriangleAlert />
+              <AlertTitle>Couldn&apos;t submit</AlertTitle>
+              <AlertDescription>{formError}</AlertDescription>
+            </Alert>
+          )}
+          {configError && (
+            <Alert variant="destructive">
+              <TriangleAlert />
+              <AlertTitle>Couldn&apos;t save settings</AlertTitle>
+              <AlertDescription>{configError}</AlertDescription>
+            </Alert>
+          )}
 
-            {activeTab === 'morningJournal' && (
-              <MorningJournalForm 
-                morningData={morningData}
-                setMorningData={setMorningData}
-                editingDate={editingDate}
-                cancelEditing={cancelEditing}
-                onSubmit={(e) => handleFormSubmit(e, 'morningJournal')}
-              />
-            )}
+          {activeTab === 'today' && (
+            <Tabs value={todayTab} onValueChange={setTodayTab} className="gap-6">
+              <TabsList>
+                {TODAY_TABS.map(({ id, label }) => (
+                  <TabsTrigger key={id} value={id}>
+                    {label}
+                  </TabsTrigger>
+                ))}
+              </TabsList>
 
-            {activeTab === 'night' && (
-              <NightForm 
-                nightData={nightData}
-                setNightData={setNightData}
-                supplementsList={config.supplementsList || ['Vitamin D3', 'Vitamin K2', 'Omega-3', 'Creatine']}
-                enforceBlocker={config.enforceSupplementsBlocker !== false}
-                enforceProteinShakeBlocker={config.enforceProteinShakeBlocker !== false}
-                API_URL={API_URL}
-                editingDate={editingDate}
-                cancelEditing={cancelEditing}
-                onSubmit={(e) => handleFormSubmit(e, 'night')}
-              />
-            )}
+              <TabsContent value="morning">
+                <MorningForm
+                  morningData={morningData}
+                  setMorningData={setMorningData}
+                  editingDate={editingDate}
+                  cancelEditing={cancelEditing}
+                  onSubmit={(e) => handleFormSubmit(e, 'morning')}
+                />
+              </TabsContent>
 
-            {activeTab === 'nightJournal' && (
-              <NightJournalForm 
-                nightData={nightData}
-                setNightData={setNightData}
-                status={status}
-                editingDate={editingDate}
-                cancelEditing={cancelEditing}
-                onSubmit={(e) => handleFormSubmit(e, 'nightJournal')}
-              />
-            )}
+              <TabsContent value="morningJournal">
+                <MorningJournalForm
+                  morningData={morningData}
+                  setMorningData={setMorningData}
+                  editingDate={editingDate}
+                  cancelEditing={cancelEditing}
+                  onSubmit={(e) => handleFormSubmit(e, 'morningJournal')}
+                />
+              </TabsContent>
 
-            {activeTab === 'weekly' && (
-              <WeeklyForm 
-                weeklyData={weeklyData}
-                setWeeklyData={setWeeklyData}
-                photosRequired={config.weeklyPhotosRequired !== false}
-                API_URL={API_URL}
-                editingDate={editingDate}
-                cancelEditing={cancelEditing}
-                onSubmit={(e) => handleFormSubmit(e, 'weekly')}
-              />
-            )}
+              <TabsContent value="night">
+                <NightForm
+                  nightData={nightData}
+                  setNightData={setNightData}
+                  supplementsList={config.supplementsList || DEFAULT_SUPPLEMENTS}
+                  enforceBlocker={config.enforceSupplementsBlocker !== false}
+                  enforceProteinShakeBlocker={config.enforceProteinShakeBlocker !== false}
+                  editingDate={editingDate}
+                  cancelEditing={cancelEditing}
+                  onSubmit={(e) => handleFormSubmit(e, 'night')}
+                />
+              </TabsContent>
 
-            {activeTab === 'dashboard' && (
-              <DashboardView 
-                stats={stats}
-                history={history}
-                config={config}
-              />
-            )}
+              <TabsContent value="nightJournal">
+                <NightJournalForm
+                  nightData={nightData}
+                  setNightData={setNightData}
+                  status={status}
+                  morningTodos={morningTodos}
+                  editingDate={editingDate}
+                  cancelEditing={cancelEditing}
+                  onSubmit={(e) => handleFormSubmit(e, 'nightJournal')}
+                />
+              </TabsContent>
+            </Tabs>
+          )}
 
-            {activeTab === 'history' && (
-              <HistoryView 
-                history={history}
-                config={config}
-                API_URL={API_URL}
-                startEditingLog={startEditingLog}
-              />
-            )}
+          {activeTab === 'weekly' && (
+            <WeeklyForm
+              weeklyData={weeklyData}
+              setWeeklyData={setWeeklyData}
+              photosRequired={config.weeklyPhotosRequired !== false}
+              editingDate={editingDate}
+              cancelEditing={cancelEditing}
+              onSubmit={(e) => handleFormSubmit(e, 'weekly')}
+            />
+          )}
 
-            {activeTab === 'hevy' && (
-              <HevyView 
-                hevyStatus={hevyStatus}
-                hevyWorkouts={hevyWorkouts}
-                workoutsLoading={workoutsLoading}
-                workoutsError={workoutsError}
-                fetchHevyWorkouts={fetchHevyWorkouts}
-              />
-            )}
+          {activeTab === 'training' && (
+            <Tabs value={trainingTab} onValueChange={setTrainingTab} className="gap-6">
+              <TabsList>
+                <TabsTrigger value="workouts">Workouts</TabsTrigger>
+                <TabsTrigger value="verification">Verification</TabsTrigger>
+              </TabsList>
 
-            {activeTab === 'gym' && (
-              <GymView 
-                status={status}
-                config={config}
-                gymVerifyLoading={gymVerifyLoading}
-                gymVerifyResult={gymVerifyResult}
-                gymVerifyError={gymVerifyError}
-                handleVerifyGymWorkout={handleVerifyGymWorkout}
-              />
-            )}
+              <TabsContent value="workouts">
+                <HevyView
+                  hevyStatus={hevyStatus}
+                  hevyWorkouts={hevyWorkouts}
+                  workoutsLoading={workoutsLoading}
+                  workoutsError={workoutsError}
+                  fetchHevyWorkouts={fetchHevyWorkouts}
+                />
+              </TabsContent>
 
-            {activeTab === 'anki' && (
-              <AnkiView 
-                API_URL={API_URL}
-                status={status}
-                onRefreshStatus={fetchStatus}
-              />
-            )}
+              <TabsContent value="verification">
+                <GymView
+                  status={status}
+                  config={config}
+                  gymVerifyLoading={gymVerifyLoading}
+                  gymVerifyResult={gymVerifyResult}
+                  gymVerifyError={gymVerifyError}
+                  handleVerifyGymWorkout={handleVerifyGymWorkout}
+                />
+              </TabsContent>
+            </Tabs>
+          )}
 
-            {activeTab === 'practice' && (
-              <PracticeView 
-                API_URL={API_URL}
-                status={status}
-                onRefreshStatus={fetchStatus}
-              />
-            )}
+          {activeTab === 'learning' && (
+            <Tabs value={learningTab} onValueChange={setLearningTab} className="gap-6">
+              <TabsList>
+                <TabsTrigger value="anki">Anki</TabsTrigger>
+                <TabsTrigger value="practice">Practice</TabsTrigger>
+              </TabsList>
 
-            {activeTab === 'settings' && (
-              <SettingsView 
-                config={config}
-                handleConfigChange={handleConfigChange}
-                saveConfig={saveConfig}
-              />
-            )}
+              <TabsContent value="anki">
+                <AnkiView onRefreshStatus={fetchStatus} />
+              </TabsContent>
 
-            {activeTab === 'gallery' && import.meta.env.DEV && <Gallery />}
-          </div>
-        </main>
-      </div>
-    </div>
+              <TabsContent value="practice">
+                <PracticeView onRefreshStatus={fetchStatus} />
+              </TabsContent>
+            </Tabs>
+          )}
+
+          {activeTab === 'dashboard' && (
+            <DashboardView stats={stats} history={history} config={config} />
+          )}
+
+          {activeTab === 'history' && (
+            <HistoryView
+              history={history}
+              config={config}
+              API_URL={API_URL}
+              startEditingLog={startEditingLog}
+            />
+          )}
+
+          {activeTab === 'settings' && (
+            <SettingsView
+              config={config}
+              handleConfigChange={handleConfigChange}
+              saveConfig={saveConfig}
+            />
+          )}
+        </div>
+      </SidebarInset>
+    </SidebarProvider>
   );
 }

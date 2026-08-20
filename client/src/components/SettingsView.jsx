@@ -1,758 +1,685 @@
-import React from 'react';
+import React, { useState } from 'react'
+import { Plus, Save, X } from 'lucide-react'
 
-export default function SettingsView({
-  config,
-  handleConfigChange,
-  saveConfig
-}) {
-  const [newSuppInput, setNewSuppInput] = React.useState('');
-  const [newDeckInput, setNewDeckInput] = React.useState('');
-  const [newWebsiteInput, setNewWebsiteInput] = React.useState('');
-  const suppList = config.supplementsList || ['Vitamin D3', 'Vitamin K2', 'Omega-3', 'Creatine'];
-  const ignoredDecksList = Array.isArray(config.ankiIgnoredDecks) ? config.ankiIgnoredDecks : [];
-  const allowedWebsitesList = Array.isArray(config.allowedWebsites) 
-    ? config.allowedWebsites 
-    : ['myfitnesspal.com', 'gemini.google.com', 'claude.ai', 'chatgpt.com', 'arxiv.org'];
+import { Badge } from '@/components/shadcn/badge'
+import { Button } from '@/components/shadcn/button'
+import {
+  Card,
+  CardAction,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/shadcn/card'
+import { Input } from '@/components/shadcn/input'
+import { Label } from '@/components/shadcn/label'
+import { cn } from '@/lib/utils'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/shadcn/select'
+import { Switch } from '@/components/shadcn/switch'
+import { ToggleGroup, ToggleGroupItem } from '@/components/shadcn/toggle-group'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/shadcn/tabs'
 
-  const addWebsite = (siteOrEvent) => {
-    let site = typeof siteOrEvent === 'string' ? siteOrEvent : newWebsiteInput;
-    if (siteOrEvent && siteOrEvent.preventDefault) siteOrEvent.preventDefault();
-    const trimmed = (site || '').trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/.*$/, '');
-    if (!trimmed) return;
-    if (allowedWebsitesList.includes(trimmed)) return;
-    const updated = [...allowedWebsitesList, trimmed];
-    handleConfigChange({ target: { name: 'allowedWebsites', value: updated } });
-    setNewWebsiteInput('');
-  };
+const DEFAULT_SUPPLEMENTS = ['Vitamin D3', 'Vitamin K2', 'Omega-3', 'Creatine']
+const DEFAULT_SITES = ['myfitnesspal.com', 'gemini.google.com', 'claude.ai', 'chatgpt.com', 'arxiv.org']
+const SITE_PRESETS = [...DEFAULT_SITES, 'wandb.ai']
+const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
 
-  const removeWebsite = (siteToRemove) => {
-    const updated = allowedWebsitesList.filter(s => s !== siteToRemove);
-    handleConfigChange({ target: { name: 'allowedWebsites', value: updated } });
-  };
+function Field({ id, label, hint, invalid, children }) {
+  return (
+    <div className="grid gap-2">
+      <Label htmlFor={id}>{label}</Label>
+      {children}
+      {hint && (
+        <p className={cn('text-xs', invalid ? 'text-destructive' : 'text-muted-foreground')}>{hint}</p>
+      )}
+    </div>
+  )
+}
 
-  const addSupplement = (e) => {
-    e.preventDefault();
-    const trimmed = newSuppInput.trim();
-    if (!trimmed) return;
-    if (suppList.includes(trimmed)) return;
-    const updated = [...suppList, trimmed];
-    handleConfigChange({ target: { name: 'supplementsList', value: updated } });
-    setNewSuppInput('');
-  };
+/**
+ * Hours were nine bare 0-23 number boxes. You think about these in clock time,
+ * so they render as clock time; the stored value is still the integer hour.
+ */
+function HourField({ name, label, hint, value, fallback, onChange, includeMidnightEnd = false }) {
+  const hours = Array.from({ length: includeMidnightEnd ? 25 : 24 }, (_, h) => h)
+  return (
+    <Field id={name} label={label} hint={hint}>
+      <Select
+        value={String(value !== undefined ? value : fallback)}
+        onValueChange={(v) => onChange({ target: { name, type: 'number', value: v } })}
+      >
+        <SelectTrigger id={name} className="w-full">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {hours.map((h) => (
+            <SelectItem key={h} value={String(h)}>
+              {h === 24 ? '24:00 (midnight)' : `${String(h).padStart(2, '0')}:00`}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </Field>
+  )
+}
 
-  const removeSupplement = (suppToRemove) => {
-    const updated = suppList.filter(s => s !== suppToRemove);
-    handleConfigChange({ target: { name: 'supplementsList', value: updated } });
-  };
+function NumField({ name, label, hint, value, fallback, onChange, ...props }) {
+  return (
+    <Field id={name} label={label} hint={hint}>
+      <Input
+        id={name}
+        name={name}
+        type="number"
+        value={value !== undefined ? value : fallback}
+        onChange={onChange}
+        {...props}
+      />
+    </Field>
+  )
+}
 
-  const addIgnoredDeck = (e) => {
-    e.preventDefault();
-    const trimmed = newDeckInput.trim();
-    if (!trimmed) return;
-    if (ignoredDecksList.includes(trimmed)) return;
-    const updated = [...ignoredDecksList, trimmed];
-    handleConfigChange({ target: { name: 'ankiIgnoredDecks', value: updated } });
-    setNewDeckInput('');
-  };
+function TextField({ name, label, hint, value, onChange, ...props }) {
+  return (
+    <Field id={name} label={label} hint={hint} invalid={props['aria-invalid']}>
+      <Input id={name} name={name} value={value} onChange={onChange} {...props} />
+    </Field>
+  )
+}
 
-  const removeIgnoredDeck = (deckToRemove) => {
-    const updated = ignoredDecksList.filter(d => d !== deckToRemove);
-    handleConfigChange({ target: { name: 'ankiIgnoredDecks', value: updated } });
-  };
+/** Switch reports a boolean, so it is adapted to the change-event shape config state expects. */
+function SwitchRow({ name, label, description, checked, onChange }) {
+  return (
+    <div className="flex items-start justify-between gap-4 rounded-lg border p-4">
+      <div className="grid gap-1">
+        <Label htmlFor={name} className="cursor-pointer">
+          {label}
+        </Label>
+        {description && <p className="text-muted-foreground text-xs">{description}</p>}
+      </div>
+      <Switch
+        id={name}
+        checked={checked}
+        onCheckedChange={(v) => onChange({ target: { name, type: 'checkbox', checked: v } })}
+      />
+    </div>
+  )
+}
+
+function ChipList({ items, onRemove, empty }) {
+  if (items.length === 0) {
+    return <p className="text-muted-foreground text-sm italic">{empty}</p>
+  }
+  return (
+    <div className="flex flex-wrap gap-2">
+      {items.map((item) => (
+        <Badge key={item} variant="secondary" className="gap-1 pr-1 pl-2.5 font-normal">
+          {item}
+          <button
+            type="button"
+            onClick={() => onRemove(item)}
+            title={`Remove ${item}`}
+            className="hover:bg-background/80 rounded-full p-0.5"
+          >
+            <X className="size-3" />
+          </button>
+        </Badge>
+      ))}
+    </div>
+  )
+}
+
+function AddForm({ onSubmit, value, setValue, placeholder, cta }) {
+  return (
+    <form
+      onSubmit={(e) => {
+        e.preventDefault()
+        onSubmit(value)
+        setValue('')
+      }}
+      className="flex max-w-md gap-2"
+    >
+      <Input placeholder={placeholder} value={value} onChange={(e) => setValue(e.target.value)} />
+      <Button type="submit" variant="secondary" className="shrink-0">
+        <Plus className="size-4" />
+        {cta}
+      </Button>
+    </form>
+  )
+}
+
+export default function SettingsView({ config, handleConfigChange, saveConfig }) {
+  const [newSupp, setNewSupp] = useState('')
+  const [newDeck, setNewDeck] = useState('')
+  const [newSite, setNewSite] = useState('')
+
+  const suppList = config.supplementsList || DEFAULT_SUPPLEMENTS
+  const ignoredDecks = Array.isArray(config.ankiIgnoredDecks) ? config.ankiIgnoredDecks : []
+  const allowedSites = Array.isArray(config.allowedWebsites) ? config.allowedWebsites : DEFAULT_SITES
+
+  const setList = (name, value) => handleConfigChange({ target: { name, value } })
+
+  const addTo = (name, list, raw, normalise = (s) => s.trim()) => {
+    const item = normalise(raw || '')
+    if (!item || list.includes(item)) return
+    setList(name, [...list, item])
+  }
+  const removeFrom = (name, list, item) => setList(name, list.filter((x) => x !== item))
+
+  const syncsToObsidian = config.journalStorage === 'obsidian' || config.journalStorage === 'both'
+  const vaultPathMissing = syncsToObsidian && !(config.obsidianVaultPath || '').trim()
+
+  const normaliseDomain = (s) =>
+    s.trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/.*$/, '')
 
   return (
-    <div className="settings-container">
-      <div className="section-title">
-        <h2>Habit Armor Settings</h2>
-        <p>Configure device security, lock schedules, and third-party integrations.</p>
+    <div className="flex flex-col gap-6">
+      <div className="flex flex-wrap justify-end gap-2">
+        <Button onClick={saveConfig}>
+          <Save className="size-4" />
+          Save configuration
+        </Button>
       </div>
 
-      {/* Device Lock Window Settings */}
-      <div className="settings-section">
-        <h3 className="settings-section-title">🔒 Hardware Lock Configuration</h3>
-        <p className="settings-section-desc">Define the locking hours and warning windows. During warning hours, a grace period timer will trigger before locking your macOS session.</p>
-        
-        <div className="form-grid">
-          <div className="form-group">
-            <label className="form-label">Morning Window (Hours)</label>
-            <div className="form-row">
-              <div>
-                <span className="sub-label">Start Hour (0-23)</span>
-                <input type="number" className="form-input" name="morningStart" value={config.morningStart} onChange={handleConfigChange} min="0" max="23" />
+      <Tabs defaultValue="locks" className="gap-6">
+        <TabsList>
+          <TabsTrigger value="locks">Locks</TabsTrigger>
+          <TabsTrigger value="learning">Learning</TabsTrigger>
+          <TabsTrigger value="nutrition">Nutrition</TabsTrigger>
+          <TabsTrigger value="integrations">Integrations</TabsTrigger>
+          <TabsTrigger value="targets">Targets</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="locks" className="flex flex-col gap-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Lock windows</CardTitle>
+              <CardDescription>
+                Hours the logs are due. Inside a window an unfinished log starts a grace countdown,
+                then locks the Mac.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+              <div className="grid grid-cols-2 gap-3">
+                <HourField
+                    name="morningStart"
+                    label="Morning start"
+                    value={config.morningStart}
+                    fallback={5}
+                    onChange={handleConfigChange}
+                  />
+                <HourField
+                    name="morningEnd"
+                    label="Morning end"
+                    value={config.morningEnd}
+                    fallback={12}
+                    onChange={handleConfigChange}
+                  />
               </div>
-              <div>
-                <span className="sub-label">End Hour (0-23)</span>
-                <input type="number" className="form-input" name="morningEnd" value={config.morningEnd} onChange={handleConfigChange} min="0" max="23" />
+              <div className="grid grid-cols-2 gap-3">
+                <HourField
+                    name="nightStart"
+                    label="Night start"
+                    value={config.nightStart}
+                    fallback={20}
+                    onChange={handleConfigChange}
+                  />
+                <HourField
+                    name="nightEnd"
+                    label="Night end"
+                    value={config.nightEnd}
+                    fallback={24}
+                    onChange={handleConfigChange}
+                    includeMidnightEnd
+                  />
               </div>
-            </div>
-          </div>
-          
-          <div className="form-group">
-            <label className="form-label">Night Window (Hours)</label>
-            <div className="form-row">
-              <div>
-                <span className="sub-label">Start Hour (0-23)</span>
-                <input type="number" className="form-input" name="nightStart" value={config.nightStart} onChange={handleConfigChange} min="0" max="23" />
-              </div>
-              <div>
-                <span className="sub-label">End Hour (0-23)</span>
-                <input type="number" className="form-input" name="nightEnd" value={config.nightEnd} onChange={handleConfigChange} min="0" max="23" />
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="form-group" style={{maxWidth: '240px', marginTop: '14px'}}>
-          <label className="form-label">Grace Period (Seconds)</label>
-          <input type="number" className="form-input" name="gracePeriodSec" value={config.gracePeriodSec} onChange={handleConfigChange} min="10" max="600" />
-          <span className="sub-label">Warning countdown duration before device locks.</span>
-        </div>
-      </div>
-
-      {/* Allowed Websites Whitelist Configuration */}
-      <div className="settings-section">
-        <h3 className="settings-section-title">🌐 Allowed Website Whitelist (During Lock)</h3>
-        <p className="settings-section-desc">
-          Specify websites you are permitted to visit even when Habit Armour lock is active (e.g. logging calories on MyFitnessPal, consulting AI assistants like Gemini & Claude, or reading research papers on Arxiv).
-        </p>
-
-        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '16px' }}>
-          {allowedWebsitesList.map((site) => (
-            <span
-              key={site}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '8px',
-                padding: '6px 12px',
-                background: 'rgba(99, 102, 241, 0.12)',
-                border: '1px solid rgba(99, 102, 241, 0.3)',
-                borderRadius: '20px',
-                fontSize: '0.85rem',
-                fontWeight: 600,
-                color: '#a5b4fc'
-              }}
-            >
-              🌐 {site}
-              <button
-                type="button"
-                onClick={() => removeWebsite(site)}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  color: '#f87171',
-                  cursor: 'pointer',
-                  fontSize: '0.9rem',
-                  padding: '0 2px',
-                  lineHeight: 1
-                }}
-                title={`Remove ${site}`}
-              >
-                ✕
-              </button>
-            </span>
-          ))}
-        </div>
-
-        <form onSubmit={addWebsite} style={{ display: 'flex', gap: '10px', maxWidth: '480px', marginBottom: '14px' }}>
-          <input
-            type="text"
-            className="form-input"
-            placeholder="Add website (e.g. myfitnesspal.com, claude.ai)"
-            value={newWebsiteInput}
-            onChange={(e) => setNewWebsiteInput(e.target.value)}
-          />
-          <button type="submit" className="btn btn-secondary" style={{ whiteSpace: 'nowrap' }}>
-            + Add Domain
-          </button>
-        </form>
-
-        <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center' }}>
-          <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>Quick Presets:</span>
-          {['myfitnesspal.com', 'gemini.google.com', 'claude.ai', 'chatgpt.com', 'arxiv.org', 'wandb.ai'].map((preset) => (
-            <button
-              key={preset}
-              type="button"
-              className="btn btn-link"
-              style={{ fontSize: '0.78rem', padding: '2px 8px', background: 'var(--bg-subtle)', borderRadius: '6px' }}
-              onClick={() => addWebsite(preset)}
-              disabled={allowedWebsitesList.includes(preset)}
-            >
-              + {preset}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Weekly Spec Lock Configuration */}
-      <div className="settings-section">
-        <h3 className="settings-section-title">📅 Weekly Spec Lock Schedule</h3>
-        <p className="settings-section-desc">Configure weekly review and photo verification deadlines.</p>
-        
-        <div className="form-group" style={{display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px'}}>
-          <input 
-            type="checkbox" 
-            id="weeklyLockEnabled" 
-            name="weeklyLockEnabled" 
-            checked={config.weeklyLockEnabled !== false} 
-            onChange={handleConfigChange}
-            style={{width: '18px', height: '18px', cursor: 'pointer'}}
-          />
-          <label htmlFor="weeklyLockEnabled" style={{fontWeight: 600, cursor: 'pointer', userSelect: 'none'}}>
-            Enable Weekly Spec Lock Enforcement
-          </label>
-        </div>
-
-        <div className="form-group" style={{display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px'}}>
-          <input 
-            type="checkbox" 
-            id="weeklyPhotosRequired" 
-            name="weeklyPhotosRequired" 
-            checked={config.weeklyPhotosRequired !== false} 
-            onChange={handleConfigChange}
-            style={{width: '18px', height: '18px', cursor: 'pointer'}}
-          />
-          <label htmlFor="weeklyPhotosRequired" style={{fontWeight: 600, cursor: 'pointer', userSelect: 'none'}}>
-            🔒 Require Weekly Progress Photos (Front, Back, Side) to clear Weekly Spec Lock
-          </label>
-        </div>
-
-        {config.weeklyLockEnabled !== false && (
-          <div className="form-grid">
-            <div className="form-group">
-              <label className="form-label">Lock Day of Week</label>
-              <select
-                className="form-input"
-                name="weeklyLockDay"
-                value={config.weeklyLockDay !== undefined ? config.weeklyLockDay : 0}
+              <NumField
+                name="gracePeriodSec"
+                label="Grace period (seconds)"
+                hint="Warning countdown before the device locks."
+                value={config.gracePeriodSec}
+                fallback={120}
                 onChange={handleConfigChange}
-              >
-                <option value={0}>Sunday</option>
-                <option value={1}>Monday</option>
-                <option value={2}>Tuesday</option>
-                <option value={3}>Wednesday</option>
-                <option value={4}>Thursday</option>
-                <option value={5}>Friday</option>
-                <option value={6}>Saturday</option>
-              </select>
-              <span className="sub-label">Day on which weekly body specs lock if incomplete.</span>
-            </div>
-
-            <div className="form-group">
-              <label className="form-label">Weekly Window (Hours)</label>
-              <div className="form-row">
-                <div>
-                  <span className="sub-label">Start Hour (0-23)</span>
-                  <input type="number" className="form-input" name="weeklyLockStartHour" value={config.weeklyLockStartHour !== undefined ? config.weeklyLockStartHour : 0} onChange={handleConfigChange} min="0" max="23" />
-                </div>
-                <div>
-                  <span className="sub-label">End Hour (0-24)</span>
-                  <input type="number" className="form-input" name="weeklyLockEndHour" value={config.weeklyLockEndHour !== undefined ? config.weeklyLockEndHour : 24} onChange={handleConfigChange} min="0" max="24" />
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Journal Sync Settings */}
-      <div className="settings-section">
-        <h3 className="settings-section-title">✍️ Daily Journal Sync Settings</h3>
-        <p className="settings-section-desc">Sync your morning/night journal entries automatically to a local Obsidian vault, a Google Doc, or both.</p>
-        
-        <div className="form-group" style={{maxWidth: '400px'}}>
-          <label className="form-label">Journal Storage Target</label>
-          <select 
-            className="form-input" 
-            name="journalStorage" 
-            value={config.journalStorage || 'none'} 
-            onChange={handleConfigChange}
-          >
-            <option value="none">Disabled (No Sync)</option>
-            <option value="obsidian">Local Obsidian Vault</option>
-            <option value="gdoc">Google Doc</option>
-            <option value="both">Both (Obsidian & Google Doc)</option>
-          </select>
-        </div>
-
-        {(config.journalStorage === 'obsidian' || config.journalStorage === 'both') && (
-          <div className="form-grid">
-            <div className="form-group">
-              <label className="form-label">Obsidian Vault Path</label>
-              <input 
-                type="text" 
-                className="form-input" 
-                name="obsidianVaultPath" 
-                value={config.obsidianVaultPath || ''} 
-                onChange={handleConfigChange} 
-                placeholder="e.g. /Users/username/Documents/Obsidian"
-                required
+                min="10"
+                max="600"
               />
-              <span className="sub-label">Absolute local system path to your Obsidian vault root folder.</span>
-            </div>
-            <div className="form-group">
-              <label className="form-label">Obsidian Journal Subfolder</label>
-              <input 
-                type="text" 
-                className="form-input" 
-                name="obsidianJournalFolder" 
-                value={config.obsidianJournalFolder || ''} 
-                onChange={handleConfigChange} 
-                placeholder="e.g. Journal"
-              />
-              <span className="sub-label">Optional subfolder inside vault (e.g., 'Journal' or leave empty for root).</span>
-            </div>
-          </div>
-        )}
+            </CardContent>
+          </Card>
 
-      </div>
-
-
-
-      {/* Gym Lock Configuration */}
-      <div className="settings-section">
-        <h3 className="settings-section-title">💪 Gym Lock Configuration</h3>
-        <p className="settings-section-desc">Configure the lock schedule and requirements for daily gym workout logs via Hevy API.</p>
-        
-        <div className="form-group" style={{display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '20px'}}>
-          <input 
-            type="checkbox" 
-            id="gymLockEnabled" 
-            name="gymLockEnabled" 
-            checked={config.gymLockEnabled} 
-            onChange={handleConfigChange}
-            style={{width: '18px', height: '18px', cursor: 'pointer'}}
-          />
-          <label htmlFor="gymLockEnabled" style={{fontWeight: 600, cursor: 'pointer', userSelect: 'none'}}>
-            Enable Gym Lock Enforcement
-          </label>
-        </div>
-
-        {config.gymLockEnabled && (
-          <>
-            <div className="form-grid" style={{ marginBottom: '16px' }}>
-              <div className="form-group">
-                <label className="form-label">Lock Start Hour (0-23)</label>
-                <input 
-                  type="number" 
-                  className="form-input" 
-                  name="gymLockStartHour" 
-                  value={config.gymLockStartHour} 
-                  onChange={handleConfigChange} 
-                  min="0" 
-                  max="23"
-                />
-                <span className="sub-label">The hour (e.g. 21 for 9:00 PM) at which the lock activates if activity target is not met.</span>
-              </div>
-              
-              <div className="form-group">
-                <label className="form-label">Minimum Workout Duration (Minutes)</label>
-                <input 
-                  type="number" 
-                  className="form-input" 
-                  name="gymMinDurationMinutes" 
-                  value={config.gymMinDurationMinutes} 
-                  onChange={handleConfigChange} 
-                  min="1"
-                />
-                <span className="sub-label">Workouts shorter than this duration will fail verification.</span>
-              </div>
-            </div>
-
-            <div className="form-grid" style={{ marginBottom: '16px' }}>
-              <div className="form-group">
-                <label className="form-label">Weekly Active Days Goal</label>
-                <input 
-                  type="number" 
-                  className="form-input" 
-                  name="gymWeeklyGoal" 
-                  value={config.gymWeeklyGoal !== undefined ? config.gymWeeklyGoal : 5} 
-                  onChange={handleConfigChange} 
-                  min="1"
-                  max="7"
-                />
-                <span className="sub-label">Target active days per week (default: 5). Once reached, remaining days of the week are unlocked.</span>
-              </div>
-
-              <div className="form-group">
-                <label className="form-label">Min Steps for Active Day</label>
-                <input 
-                  type="number" 
-                  className="form-input" 
-                  name="gymMinSteps" 
-                  value={config.gymMinSteps !== undefined ? config.gymMinSteps : 13000} 
-                  onChange={handleConfigChange} 
-                  min="1000"
-                  step="500"
-                />
-                <span className="sub-label">Daily steps threshold to satisfy active day criteria if no gym/cardio logged (default: 13,000).</span>
-              </div>
-            </div>
-
-            <div className="form-group" style={{display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px'}}>
-              <input 
-                type="checkbox" 
-                id="gymRequireNoConsecutiveRestDays" 
-                name="gymRequireNoConsecutiveRestDays" 
-                checked={config.gymRequireNoConsecutiveRestDays !== false} 
+          <Card>
+            <CardHeader>
+              <CardTitle>Weekly check-in lock</CardTitle>
+              <CardDescription>When the weekly review and progress photos fall due.</CardDescription>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-4">
+              <SwitchRow
+                name="weeklyLockEnabled"
+                label="Enforce the weekly spec lock"
+                checked={config.weeklyLockEnabled !== false}
                 onChange={handleConfigChange}
-                style={{width: '18px', height: '18px', cursor: 'pointer'}}
               />
-              <label htmlFor="gymRequireNoConsecutiveRestDays" style={{fontWeight: 600, cursor: 'pointer', userSelect: 'none'}}>
-                🚫 Prevent 2 Consecutive Rest Days (Hard Forcing Function)
-              </label>
-            </div>
-          </>
-        )}
-      </div>
-
-      {/* Anki Flashcard Requirement Configuration */}
-      <div className="settings-section">
-        <h3 className="settings-section-title">🗂️ Anki Flashcard Requirement</h3>
-        <p className="settings-section-desc">Automated daily Anki deck completion check via AnkiConnect. Mac enforces a lock if any active deck has pending reviews at the cutoff hour.</p>
-
-        <div className="form-group" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '20px' }}>
-          <input
-            type="checkbox"
-            id="ankiLockEnabled"
-            name="ankiLockEnabled"
-            checked={config.ankiLockEnabled !== false}
-            onChange={handleConfigChange}
-            style={{ width: '18px', height: '18px', cursor: 'pointer', accentColor: 'var(--primary)' }}
-          />
-          <label htmlFor="ankiLockEnabled" style={{ fontWeight: 600, cursor: 'pointer', userSelect: 'none' }}>
-            Enable Anki Daily Deck Clearance Lock Enforcement
-          </label>
-        </div>
-
-        {config.ankiLockEnabled !== false && (
-          <>
-            <div className="form-grid" style={{ marginBottom: '16px' }}>
-              <div className="form-group">
-                <label className="form-label">Lock Cutoff Hour (0-23)</label>
-                <input
-                  type="number"
-                  className="form-input"
-                  name="ankiLockStartHour"
-                  value={config.ankiLockStartHour !== undefined ? config.ankiLockStartHour : 21}
-                  onChange={handleConfigChange}
-                  min="0"
-                  max="23"
-                />
-                <span className="sub-label">Hour (e.g. 21 for 9:00 PM) when pending Anki decks lock your Mac.</span>
-              </div>
-
-              <div className="form-group">
-                <label className="form-label">AnkiConnect Endpoint URL</label>
-                <input
-                  type="text"
-                  className="form-input"
-                  name="ankiConnectUrl"
-                  value={config.ankiConnectUrl || 'http://localhost:8765'}
-                  onChange={handleConfigChange}
-                  placeholder="http://localhost:8765"
-                />
-                <span className="sub-label">Local JSON-RPC endpoint for Anki desktop app (default: http://localhost:8765).</span>
-              </div>
-            </div>
-
-            <h4 style={{ color: 'var(--text-primary)', marginBottom: '8px', fontSize: '0.95rem' }}>
-              Excluded / Ignored Decks ({ignoredDecksList.length})
-            </h4>
-            <p className="settings-section-desc" style={{ marginBottom: '12px' }}>
-              Decks in this list will be excluded from the zero-due-card requirement (e.g. archived or suspended decks).
-            </p>
-
-            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '16px' }}>
-              {ignoredDecksList.length === 0 ? (
-                <span style={{ fontSize: '0.85rem', color: '#94a3b8', fontStyle: 'italic' }}>
-                  No decks ignored (all decks in Anki are required).
-                </span>
-              ) : (
-                ignoredDecksList.map((deck) => (
-                  <span
-                    key={deck}
-                    style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '8px',
-                      padding: '6px 12px',
-                      background: 'var(--bg-subtle)',
-                      border: '1px solid var(--border-color)',
-                      borderRadius: '20px',
-                      fontSize: '0.85rem',
-                      fontWeight: 500
-                    }}
-                  >
-                    🚫 {deck}
-                    <button
-                      type="button"
-                      onClick={() => removeIgnoredDeck(deck)}
-                      style={{
-                        background: 'none',
-                        border: 'none',
-                        color: '#f87171',
-                        cursor: 'pointer',
-                        fontSize: '0.9rem',
-                        padding: '0 2px',
-                        lineHeight: 1
-                      }}
-                      title={`Remove ${deck}`}
+              <SwitchRow
+                name="weeklyPhotosRequired"
+                label="Require progress photos"
+                description="Front, back and both sides must be attached to clear the lock."
+                checked={config.weeklyPhotosRequired !== false}
+                onChange={handleConfigChange}
+              />
+              {config.weeklyLockEnabled !== false && (
+                <div className="grid gap-4 sm:grid-cols-3">
+                  <Field id="weeklyLockDay" label="Lock day" hint="Day the specs are due.">
+                    <Select
+                      value={String(config.weeklyLockDay ?? 0)}
+                      onValueChange={(v) => setList('weeklyLockDay', parseInt(v, 10))}
                     >
-                      ✕
-                    </button>
-                  </span>
-                ))
+                      <SelectTrigger id="weeklyLockDay" className="w-full">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {WEEKDAYS.map((day, i) => (
+                          <SelectItem key={day} value={String(i)}>
+                            {day}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </Field>
+                  <HourField
+                    name="weeklyLockStartHour"
+                    label="Start hour"
+                    value={config.weeklyLockStartHour}
+                    fallback={0}
+                    onChange={handleConfigChange}
+                  />
+                  <HourField
+                    name="weeklyLockEndHour"
+                    label="End hour"
+                    value={config.weeklyLockEndHour}
+                    fallback={24}
+                    onChange={handleConfigChange}
+                    includeMidnightEnd
+                  />
+                </div>
               )}
-            </div>
+            </CardContent>
+          </Card>
 
-            <form onSubmit={addIgnoredDeck} style={{ display: 'flex', gap: '10px', maxWidth: '420px', marginBottom: '16px' }}>
-              <input
-                type="text"
-                className="form-input"
-                placeholder="Deck name to ignore (e.g. Archive)"
-                value={newDeckInput}
-                onChange={(e) => setNewDeckInput(e.target.value)}
-              />
-              <button type="submit" className="btn btn-secondary" style={{ whiteSpace: 'nowrap' }}>
-                + Ignore Deck
-              </button>
-            </form>
-          </>
-        )}
-      </div>
-
-      {/* Consistent Practice Lock Configuration */}
-      <div className="settings-section">
-        <h3 className="settings-section-title">🧠 Consistent Practice & Active Recall Lock</h3>
-        <p className="settings-section-desc">
-          Enforce daily deliberate practice on machine learning derivations, alignment proofs, and key papers.
-        </p>
-
-        <div className="form-group" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '20px' }}>
-          <input
-            type="checkbox"
-            id="practiceLockEnabled"
-            name="practiceLockEnabled"
-            checked={config.practiceLockEnabled !== false}
-            onChange={handleConfigChange}
-            style={{ width: '18px', height: '18px', cursor: 'pointer', accentColor: 'var(--primary)' }}
-          />
-          <label htmlFor="practiceLockEnabled" style={{ fontWeight: 600, cursor: 'pointer', userSelect: 'none' }}>
-            Enable Consistent Practice Lock Enforcement
-          </label>
-        </div>
-
-        {config.practiceLockEnabled !== false && (
-          <div className="form-grid" style={{ marginBottom: '16px' }}>
-            <div className="form-group">
-              <label className="form-label">Lock Cutoff Hour (0-23)</label>
-              <input
-                type="number"
-                className="form-input"
-                name="practiceLockStartHour"
-                value={config.practiceLockStartHour !== undefined ? config.practiceLockStartHour : 21}
+          <Card>
+            <CardHeader>
+              <CardTitle>Gym lock</CardTitle>
+              <CardDescription>Verified against Hevy workouts and step count.</CardDescription>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-4">
+              <SwitchRow
+                name="gymLockEnabled"
+                label="Enforce the gym lock"
+                checked={Boolean(config.gymLockEnabled)}
                 onChange={handleConfigChange}
-                min="0"
-                max="23"
               />
-              <span className="sub-label">Hour (e.g. 21 for 9:00 PM) when pending practice due items lock your device.</span>
-            </div>
+              {config.gymLockEnabled && (
+                <>
+                  <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                    <HourField
+                    name="gymLockStartHour"
+                    label="Lock start hour"
+                    hint="Locks at this hour if the day is still inactive."
+                    value={config.gymLockStartHour}
+                    fallback={21}
+                    onChange={handleConfigChange}
+                  />
+                    <NumField
+                      name="gymMinDurationMinutes"
+                      label="Min workout minutes"
+                      hint="Shorter workouts fail verification."
+                      value={config.gymMinDurationMinutes}
+                      fallback={30}
+                      onChange={handleConfigChange}
+                      min="1"
+                    />
+                    <Field
+                      id="gymWeeklyGoal"
+                      label="Weekly active days"
+                      hint="Once hit, the rest of the week is unlocked."
+                    >
+                      <ToggleGroup
+                        type="single"
+                        variant="outline"
+                        value={String(config.gymWeeklyGoal ?? 5)}
+                        onValueChange={(v) => v && setList('gymWeeklyGoal', Number(v))}
+                        className="justify-start"
+                      >
+                        {[1, 2, 3, 4, 5, 6, 7].map((d) => (
+                          <ToggleGroupItem key={d} value={String(d)} className="px-3">
+                            {d}
+                          </ToggleGroupItem>
+                        ))}
+                      </ToggleGroup>
+                    </Field>
+                    <NumField
+                      name="gymMinSteps"
+                      label="Min steps for an active day"
+                      hint="Counts when no gym or cardio was logged."
+                      value={config.gymMinSteps}
+                      fallback={13000}
+                      onChange={handleConfigChange}
+                      min="1000"
+                      step="500"
+                    />
+                  </div>
+                  <SwitchRow
+                    name="gymRequireNoConsecutiveRestDays"
+                    label="Block two rest days in a row"
+                    description="A rest day after a rest day locks the device regardless of the weekly goal."
+                    checked={config.gymRequireNoConsecutiveRestDays !== false}
+                    onChange={handleConfigChange}
+                  />
+                </>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
 
-            <div className="form-group">
-              <label className="form-label">Min Daily Proofs to Unlock</label>
-              <input
-                type="number"
-                className="form-input"
-                name="practiceMinDueToUnlock"
-                value={config.practiceMinDueToUnlock !== undefined ? config.practiceMinDueToUnlock : 1}
+        <TabsContent value="learning" className="flex flex-col gap-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Anki flashcards</CardTitle>
+              <CardDescription>
+                Checked over AnkiConnect. Any active deck with cards due at the cutoff locks the Mac.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-4">
+              <SwitchRow
+                name="ankiLockEnabled"
+                label="Enforce daily deck clearance"
+                checked={config.ankiLockEnabled !== false}
                 onChange={handleConfigChange}
-                min="0"
-                max="10"
               />
-              <span className="sub-label">Daily practice target (0 = clear all due queue; 1 = at least 1 session required).</span>
-            </div>
+              {config.ankiLockEnabled !== false && (
+                <>
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <HourField
+                    name="ankiLockStartHour"
+                    label="Cutoff hour"
+                    value={config.ankiLockStartHour}
+                    fallback={21}
+                    onChange={handleConfigChange}
+                  />
+                    <TextField
+                      name="ankiConnectUrl"
+                      type="url"
+                      label="AnkiConnect endpoint"
+                      hint="Local JSON-RPC endpoint of the Anki desktop app."
+                      value={config.ankiConnectUrl || 'http://localhost:8765'}
+                      onChange={handleConfigChange}
+                      placeholder="http://localhost:8765"
+                    />
+                  </div>
+                  <div className="grid gap-3">
+                    <Label>Ignored decks ({ignoredDecks.length})</Label>
+                    <ChipList
+                      items={ignoredDecks}
+                      onRemove={(d) => removeFrom('ankiIgnoredDecks', ignoredDecks, d)}
+                      empty="No decks ignored — every deck must be clear."
+                    />
+                    <AddForm
+                      value={newDeck}
+                      setValue={setNewDeck}
+                      placeholder="Deck name to ignore (e.g. Archive)"
+                      cta="Ignore deck"
+                      onSubmit={(v) => addTo('ankiIgnoredDecks', ignoredDecks, v)}
+                    />
+                  </div>
+                </>
+              )}
+            </CardContent>
+          </Card>
 
-            <div className="form-group">
-              <label className="form-label">New Topic Areas Per Day</label>
-              <input
-                type="number"
-                className="form-input"
-                name="practiceNewCardsPerDay"
-                value={config.practiceNewCardsPerDay !== undefined ? config.practiceNewCardsPerDay : 1}
+          <Card>
+            <CardHeader>
+              <CardTitle>Consistent practice</CardTitle>
+              <CardDescription>
+                Daily active recall on derivations, proofs and papers, scheduled by FSRS.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-4">
+              <SwitchRow
+                name="practiceLockEnabled"
+                label="Enforce the practice lock"
+                checked={config.practiceLockEnabled !== false}
                 onChange={handleConfigChange}
-                min="0"
-                max="10"
               />
-              <span className="sub-label">How many brand-new topic ladders get introduced per day, each shown as one grouped box.</span>
-            </div>
+              {config.practiceLockEnabled !== false && (
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                  <HourField
+                    name="practiceLockStartHour"
+                    label="Cutoff hour"
+                    value={config.practiceLockStartHour}
+                    fallback={21}
+                    onChange={handleConfigChange}
+                  />
+                  <NumField
+                    name="practiceMinDueToUnlock"
+                    label="Min proofs to unlock"
+                    hint="0 clears the whole due queue; 1 needs a single session."
+                    value={config.practiceMinDueToUnlock}
+                    fallback={1}
+                    onChange={handleConfigChange}
+                    min="0"
+                    max="10"
+                  />
+                  <NumField
+                    name="practiceNewCardsPerDay"
+                    label="New topics per day"
+                    hint="Brand-new ladders introduced daily."
+                    value={config.practiceNewCardsPerDay}
+                    fallback={1}
+                    onChange={handleConfigChange}
+                    min="0"
+                    max="10"
+                  />
+                  <NumField
+                    name="practiceReviewTopicsPerDay"
+                    label="Review topics per day"
+                    hint="Started topics resurfaced, most overdue first."
+                    value={config.practiceReviewTopicsPerDay}
+                    fallback={1}
+                    onChange={handleConfigChange}
+                    min="0"
+                    max="10"
+                  />
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
 
-            <div className="form-group">
-              <label className="form-label">Review Topic Areas Per Day</label>
-              <input
-                type="number"
-                className="form-input"
-                name="practiceReviewTopicsPerDay"
-                value={config.practiceReviewTopicsPerDay !== undefined ? config.practiceReviewTopicsPerDay : 1}
+        <TabsContent value="nutrition" className="flex flex-col gap-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Supplement stack</CardTitle>
+              <CardDescription>
+                With enforcement on, every item here must be ticked before the night log submits.
+              </CardDescription>
+              <CardAction>
+                <Badge variant="outline">{suppList.length} configured</Badge>
+              </CardAction>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-4">
+              <SwitchRow
+                name="enforceSupplementsBlocker"
+                label="Supplements block the night log"
+                description="All items must be checked to clear the evening lock."
+                checked={config.enforceSupplementsBlocker !== false}
                 onChange={handleConfigChange}
-                min="0"
-                max="10"
               />
-              <span className="sub-label">How many already-started topics (most overdue for recall first) get surfaced per day. Default is 1 new + 1 review = 2 topic boxes/day. Set higher if you want more than one review topic shown at once.</span>
-            </div>
-          </div>
-        )}
-      </div>
+              <SwitchRow
+                name="enforceProteinShakeBlocker"
+                label="Protein shake needs a proof photo"
+                description="The tick alone will not clear the lock."
+                checked={config.enforceProteinShakeBlocker !== false}
+                onChange={handleConfigChange}
+              />
+              <ChipList
+                items={suppList}
+                onRemove={(s) => removeFrom('supplementsList', suppList, s)}
+                empty="No supplements configured."
+              />
+              <AddForm
+                value={newSupp}
+                setValue={setNewSupp}
+                placeholder="Add a supplement (e.g. Magnesium)"
+                cta="Add"
+                onSubmit={(v) => addTo('supplementsList', suppList, v)}
+              />
+            </CardContent>
+          </Card>
+        </TabsContent>
 
-      {/* Supplement Stack Configuration */}
-      <div className="settings-section">
-        <h3 className="settings-section-title">💊 Daily Supplement Stack & Blocker</h3>
-        <p className="settings-section-desc">Manage individual items in your daily supplement stack. When blocker enforcement is active, 100% of these supplements must be checked to submit your Night Log and clear evening hardware lock.</p>
+        <TabsContent value="integrations" className="flex flex-col gap-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Allowed websites</CardTitle>
+              <CardDescription>
+                Sites that stay reachable while the lock is active — calorie logging, AI assistants,
+                papers.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-4">
+              <ChipList
+                items={allowedSites}
+                onRemove={(s) => removeFrom('allowedWebsites', allowedSites, s)}
+                empty="Nothing allowed — a lock blocks every site."
+              />
+              <AddForm
+                value={newSite}
+                setValue={setNewSite}
+                placeholder="Add a domain (e.g. myfitnesspal.com)"
+                cta="Add domain"
+                onSubmit={(v) => addTo('allowedWebsites', allowedSites, v, normaliseDomain)}
+              />
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-muted-foreground text-xs">Presets</span>
+                {SITE_PRESETS.map((preset) => (
+                  <Button
+                    key={preset}
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={allowedSites.includes(preset)}
+                    onClick={() => addTo('allowedWebsites', allowedSites, preset, normaliseDomain)}
+                  >
+                    <Plus className="size-3" />
+                    {preset}
+                  </Button>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
 
-        <div className="form-group" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '20px' }}>
-          <input
-            type="checkbox"
-            id="enforceSupplementsBlocker"
-            name="enforceSupplementsBlocker"
-            checked={config.enforceSupplementsBlocker !== false}
-            onChange={handleConfigChange}
-            style={{ width: '18px', height: '18px', cursor: 'pointer', accentColor: 'var(--primary)' }}
-          />
-          <label htmlFor="enforceSupplementsBlocker" style={{ fontWeight: 600, cursor: 'pointer', userSelect: 'none' }}>
-            🔒 Enforce Supplement Checklist as Night Lock Blocker (Require 100% completion to submit Night Log)
-          </label>
-        </div>
+          <Card>
+            <CardHeader>
+              <CardTitle>Journal sync</CardTitle>
+              <CardDescription>Mirror journal entries into Obsidian, a Google Doc, or both.</CardDescription>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-4">
+              <Field id="journalStorage" label="Storage target">
+                <Select
+                  value={config.journalStorage || 'none'}
+                  onValueChange={(v) => setList('journalStorage', v)}
+                >
+                  <SelectTrigger id="journalStorage" className="w-full max-w-sm">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Disabled</SelectItem>
+                    <SelectItem value="obsidian">Local Obsidian vault</SelectItem>
+                    <SelectItem value="gdoc">Google Doc</SelectItem>
+                    <SelectItem value="both">Both</SelectItem>
+                  </SelectContent>
+                </Select>
+              </Field>
 
-        <div className="form-group" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '20px' }}>
-          <input
-            type="checkbox"
-            id="enforceProteinShakeBlocker"
-            name="enforceProteinShakeBlocker"
-            checked={config.enforceProteinShakeBlocker !== false}
-            onChange={handleConfigChange}
-            style={{ width: '18px', height: '18px', cursor: 'pointer', accentColor: 'var(--primary)' }}
-          />
-          <label htmlFor="enforceProteinShakeBlocker" style={{ fontWeight: 600, cursor: 'pointer', userSelect: 'none' }}>
-            🥤 🔒 Enforce Daily Protein Shake & Proof Photo as Night Lock Blocker
-          </label>
-        </div>
+              {(config.journalStorage === 'obsidian' || config.journalStorage === 'both') && (
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <TextField
+                    name="obsidianVaultPath"
+                    label="Vault path"
+                    hint={
+                      vaultPathMissing
+                        ? 'Required while Obsidian sync is on — journals have nowhere to go.'
+                        : 'Absolute path to the vault root.'
+                    }
+                    value={config.obsidianVaultPath || ''}
+                    onChange={handleConfigChange}
+                    placeholder="/Users/you/Documents/Obsidian"
+                    aria-invalid={vaultPathMissing}
+                  />
+                  <TextField
+                    name="obsidianJournalFolder"
+                    label="Journal subfolder"
+                    hint="Leave empty to write to the vault root."
+                    value={config.obsidianJournalFolder || ''}
+                    onChange={handleConfigChange}
+                    placeholder="Journal"
+                  />
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
 
-        <h4 style={{ color: 'var(--text-primary)', marginBottom: '12px', fontSize: '0.95rem' }}>Configured Supplements ({suppList.length})</h4>
-        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '16px' }}>
-          {suppList.map((supp) => (
-            <span
-              key={supp}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '8px',
-                padding: '6px 12px',
-                background: 'var(--bg-subtle)',
-                border: '1px solid var(--border-color)',
-                borderRadius: '20px',
-                fontSize: '0.85rem',
-                fontWeight: 500
-              }}
-            >
-              💊 {supp}
-              <button
-                type="button"
-                onClick={() => removeSupplement(supp)}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  color: '#f87171',
-                  cursor: 'pointer',
-                  fontSize: '0.9rem',
-                  padding: '0 2px',
-                  lineHeight: 1
-                }}
-                title={`Remove ${supp}`}
-              >
-                ✕
-              </button>
-            </span>
-          ))}
-        </div>
+        <TabsContent value="targets">
+          <Card>
+            <CardHeader>
+              <CardTitle>Personal targets</CardTitle>
+              <CardDescription>Drawn as goal lines on the analytics charts.</CardDescription>
+            </CardHeader>
+            <CardContent className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <NumField
+                name="targetWeight"
+                label="Target weight (kg)"
+                value={config.targetWeight}
+                fallback={75}
+                onChange={handleConfigChange}
+                step="0.1"
+              />
+              <NumField
+                name="targetProtein"
+                label="Target protein (g)"
+                value={config.targetProtein}
+                fallback={150}
+                onChange={handleConfigChange}
+              />
+              <NumField
+                name="targetSteps"
+                label="Target steps"
+                value={config.targetSteps}
+                fallback={10000}
+                onChange={handleConfigChange}
+              />
+              <NumField
+                name="targetCalories"
+                label="Target calories (kcal)"
+                value={config.targetCalories}
+                fallback={2500}
+                onChange={handleConfigChange}
+              />
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
 
-        <form onSubmit={addSupplement} style={{ display: 'flex', gap: '10px', maxWidth: '420px' }}>
-          <input
-            type="text"
-            className="form-input"
-            placeholder="Add new supplement (e.g. Magnesium)"
-            value={newSuppInput}
-            onChange={(e) => setNewSuppInput(e.target.value)}
-          />
-          <button type="submit" className="btn btn-secondary" style={{ whiteSpace: 'nowrap' }}>
-            + Add
-          </button>
-        </form>
-      </div>
-
-      {/* Target Metric Configuration */}
-      <div className="settings-section">
-        <h3 className="settings-section-title">📊 Dashboard Targets & Goals</h3>
-        <p className="settings-section-desc">Set personal targets. These targets will be drawn as visual reference indicators and goal lines in the Bio-Analytics Dashboard charts.</p>
-        
-        <div className="form-grid-4">
-          <div className="form-group">
-            <label className="form-label">Target Weight (kg)</label>
-            <input 
-              type="number" 
-              step="0.1" 
-              className="form-input" 
-              name="targetWeight" 
-              value={config.targetWeight !== undefined ? config.targetWeight : 75.0} 
-              onChange={handleConfigChange} 
-              placeholder="e.g. 75.0"
-            />
-            <span className="sub-label">Used for weight tracking metrics.</span>
-          </div>
-
-          <div className="form-group">
-            <label className="form-label">Target Protein (g)</label>
-            <input 
-              type="number" 
-              className="form-input" 
-              name="targetProtein" 
-              value={config.targetProtein !== undefined ? config.targetProtein : 150} 
-              onChange={handleConfigChange} 
-              placeholder="e.g. 150"
-            />
-            <span className="sub-label">Daily macro target.</span>
-          </div>
-
-          <div className="form-group">
-            <label className="form-label">Target Daily Steps</label>
-            <input 
-              type="number" 
-              className="form-input" 
-              name="targetSteps" 
-              value={config.targetSteps !== undefined ? config.targetSteps : 10000} 
-              onChange={handleConfigChange} 
-              placeholder="e.g. 10000"
-            />
-            <span className="sub-label">Daily step threshold.</span>
-          </div>
-
-          <div className="form-group">
-            <label className="form-label">Target Daily Calories (kcal)</label>
-            <input 
-              type="number" 
-              className="form-input" 
-              name="targetCalories" 
-              value={config.targetCalories !== undefined ? config.targetCalories : 2500} 
-              onChange={handleConfigChange} 
-              placeholder="e.g. 2500"
-            />
-            <span className="sub-label">Daily calorie limit / allowance.</span>
-          </div>
-        </div>
-      </div>
-
-      <div className="form-actions" style={{marginTop: '12px'}}>
-        <button type="button" className="btn btn-primary btn-lg" onClick={saveConfig}>Save Configuration</button>
+      <div className="flex justify-end">
+        <Button size="lg" onClick={saveConfig}>
+          <Save className="size-4" />
+          Save configuration
+        </Button>
       </div>
     </div>
-  );
+  )
 }

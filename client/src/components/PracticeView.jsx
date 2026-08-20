@@ -1,4 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { Check, Lock, Plus, RefreshCw, TriangleAlert } from 'lucide-react';
+
+import { api } from '@/api/client';
+import { Alert, AlertDescription, AlertTitle } from '@/components/shadcn/alert';
+import { Badge } from '@/components/shadcn/badge';
+import { Button } from '@/components/shadcn/button';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/shadcn/tabs';
 import DueQueueSection from './practice/DueQueueSection';
 import ActiveRecallSession from './practice/ActiveRecallSession';
 import AllQuestionsSection from './practice/AllQuestionsSection';
@@ -11,7 +18,7 @@ import {
   AttemptHistoryModal
 } from './practice/PracticeModals';
 
-export default function PracticeView({ getBaseUrl }) {
+export default function PracticeView({ onRefreshStatus }) {
   // Navigation & Sub-tabs
   const [mainTab, setMainTab] = useState('due'); // 'due' | 'questions' | 'performance' | 'bank'
   const [bankFilter, setBankFilter] = useState('all'); // 'all' | 'topic' | 'paper'
@@ -86,25 +93,18 @@ export default function PracticeView({ getBaseUrl }) {
     setLoading(true);
     setError(null);
     try {
-      const baseUrl = getBaseUrl();
-
-      const [itemsRes, questionsRes, dueRes, statusRes, perfRes] = await Promise.all([
-        fetch(`${baseUrl}/api/practice/items`),
-        fetch(`${baseUrl}/api/practice/questions`),
-        fetch(`${baseUrl}/api/practice/due`),
-        fetch(`${baseUrl}/api/practice/status`),
-        fetch(`${baseUrl}/api/practice/performance`)
+      const [itemsData, questionsData, dueDataRes] = await Promise.all([
+        api.practice.items(),
+        api.practice.questions(),
+        api.practice.due()
       ]);
 
-      if (!itemsRes.ok || !questionsRes.ok || !dueRes.ok) {
-        throw new Error('Failed to fetch consistent practice datasets');
-      }
-
-      const itemsData = await itemsRes.json();
-      const questionsData = await questionsRes.json();
-      const dueDataRes = await dueRes.json();
-      const statusData = statusRes.ok ? await statusRes.json() : null;
-      const perfData = perfRes.ok ? await perfRes.json() : null;
+      // Status and performance are informational -- a failure there should not
+      // blank out the queue the lock actually depends on.
+      const [statusData, perfData] = await Promise.all([
+        api.practice.status().catch(() => null),
+        api.practice.performance().catch(() => null)
+      ]);
 
       setItems(itemsData.items || []);
       setAllQuestions(questionsData.questions || []);
@@ -118,7 +118,6 @@ export default function PracticeView({ getBaseUrl }) {
         setQuestionItemId(itemsData.items[0].id);
       }
     } catch (err) {
-      console.error('PracticeView fetch error:', err);
       setError(err.message);
     } finally {
       setLoading(false);
@@ -183,7 +182,6 @@ export default function PracticeView({ getBaseUrl }) {
     setSavingItem(true);
     setError(null);
     try {
-      const baseUrl = getBaseUrl();
       const payload = {
         title: itemFormTitle.trim(),
         type: itemFormType,
@@ -197,18 +195,11 @@ export default function PracticeView({ getBaseUrl }) {
         } : undefined
       };
 
-      const url = editingItemId
-        ? `${baseUrl}/api/practice/items/${editingItemId}`
-        : `${baseUrl}/api/practice/items`;
-      const method = editingItemId ? 'PUT' : 'POST';
-
-      const res = await fetch(url, {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.detail || data.error || 'Failed to save study item');
+      if (editingItemId) {
+        await api.practice.updateItem(editingItemId, payload);
+      } else {
+        await api.practice.createItem(payload);
+      }
 
       setSuccessMsg(`Successfully saved "${payload.title}"`);
       setShowItemModal(false);
@@ -250,9 +241,7 @@ export default function PracticeView({ getBaseUrl }) {
   const handleDeleteItem = async (itemId) => {
     if (!window.confirm('Are you sure you want to delete this topic and deactivate its questions?')) return;
     try {
-      const baseUrl = getBaseUrl();
-      const res = await fetch(`${baseUrl}/api/practice/items/${itemId}`, { method: 'DELETE' });
-      if (!res.ok) throw new Error('Failed to delete item');
+      await api.practice.deleteItem(itemId);
       setSuccessMsg('Item deleted');
       fetchPracticeData();
       setTimeout(() => setSuccessMsg(null), 3000);
@@ -268,19 +257,12 @@ export default function PracticeView({ getBaseUrl }) {
     setSavingQuestion(true);
     setError(null);
     try {
-      const baseUrl = getBaseUrl();
-      const res = await fetch(`${baseUrl}/api/practice/questions`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          itemId: questionItemId,
-          prompt: questionPrompt.trim(),
-          answerTemplate: questionTemplate,
-          difficulty: questionDifficulty
-        })
+      await api.practice.createQuestion({
+        itemId: questionItemId,
+        prompt: questionPrompt.trim(),
+        answerTemplate: questionTemplate,
+        difficulty: questionDifficulty
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.detail || data.error || 'Failed to create question');
 
       setSuccessMsg('Active recall question added to bank');
       setShowQuestionModal(false);
@@ -302,20 +284,14 @@ export default function PracticeView({ getBaseUrl }) {
     setIsTimerRunning(false);
     setError(null);
     try {
-      const baseUrl = getBaseUrl();
-      const res = await fetch(`${baseUrl}/api/practice/attempts`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          questionId: activeQuestion.id,
-          answerMarkdown: answerMarkdown.trim()
-        })
+      const data = await api.practice.submitAttempt({
+        questionId: activeQuestion.id,
+        answerMarkdown: answerMarkdown.trim()
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.detail || data.error || 'Failed to evaluate answer');
 
       setEvaluationResult(data.attempt);
       fetchPracticeData();
+      onRefreshStatus?.();
     } catch (err) {
       setError(err.message);
       setIsTimerRunning(true);
@@ -334,18 +310,11 @@ export default function PracticeView({ getBaseUrl }) {
       const reader = new FileReader();
       reader.onload = async () => {
         try {
-          const dataUrl = reader.result;
-          const baseUrl = getBaseUrl();
-          const res = await fetch(`${baseUrl}/api/practice/upload-image`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              dataUrl,
-              questionId: activeQuestion?.id || 'practice_image'
-            })
+          const data = await api.practice.uploadImage({
+            dataUrl: reader.result,
+            questionId: activeQuestion?.id || 'practice_image'
           });
-          const data = await res.json();
-          if (!res.ok || !data.url) throw new Error(data.detail || 'Image upload failed');
+          if (!data.url) throw new Error('Image upload returned no URL');
 
           const imageMarkdown = `\n\n![Proof Sketch / Diagram](${data.url})\n\n`;
           setAnswerMarkdown(prev => prev + imageMarkdown);
@@ -367,13 +336,7 @@ export default function PracticeView({ getBaseUrl }) {
     setLoadingModelSolution(true);
     setError(null);
     try {
-      const baseUrl = getBaseUrl();
-      const res = await fetch(`${baseUrl}/api/practice/questions/${activeQuestion.id}/model-solution`, {
-        method: 'POST'
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.detail || 'Failed to fetch master model solution');
-      setActiveModelSolution(data);
+      setActiveModelSolution(await api.practice.modelSolution(activeQuestion.id));
     } catch (err) {
       setError(err.message);
     } finally {
@@ -386,18 +349,12 @@ export default function PracticeView({ getBaseUrl }) {
     setSubmittingOverride(true);
     setError(null);
     try {
-      const baseUrl = getBaseUrl();
-      const res = await fetch(`${baseUrl}/api/practice/override`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ reason: overrideReason })
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.detail || data.error || 'Failed to apply practice override');
+      await api.practice.override(overrideReason);
 
       setSuccessMsg('Manual practice override applied for today.');
       setShowOverrideModal(false);
       fetchPracticeData();
+      onRefreshStatus?.();
       setTimeout(() => setSuccessMsg(null), 4000);
     } catch (err) {
       setError(err.message);
@@ -409,12 +366,10 @@ export default function PracticeView({ getBaseUrl }) {
   const handleResetOverride = async () => {
     if (!window.confirm('Reset today’s manual practice override and re-lock requirements?')) return;
     try {
-      const baseUrl = getBaseUrl();
-      const res = await fetch(`${baseUrl}/api/practice/reset-override`, { method: 'POST' });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.detail || 'Failed to reset override');
+      await api.practice.resetOverride();
       setSuccessMsg('Practice override reset.');
       fetchPracticeData();
+      onRefreshStatus?.();
       setTimeout(() => setSuccessMsg(null), 3000);
     } catch (err) {
       setError(err.message);
@@ -425,114 +380,68 @@ export default function PracticeView({ getBaseUrl }) {
     setHistoryItem(item);
     setLoadingHistory(true);
     try {
-      const baseUrl = getBaseUrl();
-      const res = await fetch(`${baseUrl}/api/practice/attempts?itemId=${item.id}`);
-      const data = await res.json();
+      const data = await api.practice.attempts({ itemId: item.id });
       setHistoryAttempts(data.attempts || []);
     } catch (err) {
-      console.error('History fetch error:', err);
+      setError(err.message);
     } finally {
       setLoadingHistory(false);
     }
   };
 
   return (
-    <div className="practice-view-container">
-      {/* Header & Status Bar */}
-      <div className="practice-header glass-card">
-        <div className="practice-title-section">
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <span className="pillar-icon">🧠</span>
-            <div>
-              <h1 className="pillar-title">Consistent Practice (FSRS-5 Spaced Repetition)</h1>
-              <p className="pillar-subtitle">
-                Mathematical active recall for ML theory, RL mechanics, and landmark papers.
-              </p>
-            </div>
-          </div>
-
-          <div className="practice-gate-status">
-            {practiceStatus && (
-              <div className="gate-badge-wrapper">
-                {practiceStatus.isCompleted ? (
-                  <span className="badge badge-success">
-                    {practiceStatus.isManualOverride ? '⚡ OVERRIDE UNLOCKED' : '🔓 GATE UNLOCKED'}
-                  </span>
-                ) : (
-                  <span className="badge badge-locked">
-                    🔒 LOCK ACTIVE ({practiceStatus.completedTodayCount}/{practiceStatus.minRequired} required)
-                  </span>
-                )}
-                {practiceStatus.isManualOverride ? (
-                  <button className="btn-link" onClick={handleResetOverride} style={{ fontSize: '0.75rem', color: '#ef4444' }}>
-                    Reset Override
-                  </button>
-                ) : (
-                  <button className="btn-link" onClick={() => setShowOverrideModal(true)} style={{ fontSize: '0.75rem' }}>
-                    Manual Override
-                  </button>
-                )}
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Navigation Tabs */}
-        <div className="practice-tab-nav">
-          <button
-            className={`practice-tab-btn ${mainTab === 'due' ? 'active' : ''}`}
-            onClick={() => setMainTab('due')}
-          >
-            🎯 Due Today & Queue ({dueQuestions.length})
-          </button>
-          <button
-            className={`practice-tab-btn ${mainTab === 'bank' ? 'active' : ''}`}
-            onClick={() => setMainTab('bank')}
-          >
-            📚 Study Bank ({items.length} Topics)
-          </button>
-          <button
-            className={`practice-tab-btn ${mainTab === 'questions' ? 'active' : ''}`}
-            onClick={() => setMainTab('questions')}
-          >
-            ⚡ All Questions ({allQuestions.length})
-          </button>
-          <button
-            className={`practice-tab-btn ${mainTab === 'performance' ? 'active' : ''}`}
-            onClick={() => setMainTab('performance')}
-          >
-            📊 Mastery & Analytics
-          </button>
-        </div>
-
-        {/* Top Actions */}
-        <div className="practice-top-actions">
-          <button
-            className="btn btn-secondary"
+    <div className="flex flex-col gap-6">
+      <div className="flex flex-wrap justify-end gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {practiceStatus && (
+            <>
+              <Badge variant={practiceStatus.isCompleted ? 'default' : 'destructive'} className="gap-1.5">
+                {practiceStatus.isCompleted ? <Check className="size-3" /> : <Lock className="size-3" />}
+                {practiceStatus.isCompleted
+                  ? practiceStatus.isManualOverride
+                    ? 'Override'
+                    : 'Unlocked'
+                  : `${practiceStatus.completedTodayCount}/${practiceStatus.minRequired} done`}
+              </Badge>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={practiceStatus.isManualOverride ? handleResetOverride : () => setShowOverrideModal(true)}
+              >
+                {practiceStatus.isManualOverride ? 'Reset override' : 'Manual override'}
+              </Button>
+            </>
+          )}
+          <Button
+            variant="outline"
             onClick={() => {
               resetItemForm();
               setItemFormType('topic');
               setShowItemModal(true);
             }}
           >
-            ➕ Add Topic / Paper
-          </button>
-          <button className="btn btn-secondary" onClick={fetchPracticeData} disabled={loading}>
-            🔄 Refresh
-          </button>
+            <Plus className="size-4" />
+            Add topic
+          </Button>
+          <Button variant="outline" size="icon" onClick={fetchPracticeData} disabled={loading} aria-label="Refresh">
+            <RefreshCw className={loading ? 'size-4 animate-spin' : 'size-4'} />
+          </Button>
         </div>
       </div>
 
       {successMsg && (
-        <div className="banner banner-success" style={{ marginBottom: '16px' }}>
-          {successMsg}
-        </div>
+        <Alert>
+          <Check />
+          <AlertTitle>{successMsg}</AlertTitle>
+        </Alert>
       )}
 
       {error && (
-        <div className="banner banner-error" style={{ marginBottom: '16px' }}>
-          {error}
-        </div>
+        <Alert variant="destructive">
+          <TriangleAlert />
+          <AlertTitle>Practice request failed</AlertTitle>
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
       )}
 
       {/* Active Recall Practice Session Workspace Overlay */}
@@ -555,65 +464,70 @@ export default function PracticeView({ getBaseUrl }) {
         />
       )}
 
-      {/* Main Tab 1: Due Queue */}
-      {mainTab === 'due' && (
-        <DueQueueSection
-          dueGroups={dueGroups}
-          dueQuestions={dueQuestions}
-          dueData={dueData}
-          loading={loading}
-          expandedDueGroups={expandedDueGroups}
-          toggleDueGroupExpand={toggleDueGroupExpand}
-          onStartPractice={startPracticeSession}
-        />
-      )}
+      <Tabs value={mainTab} onValueChange={setMainTab} className="gap-6">
+        <TabsList>
+          <TabsTrigger value="due">Due today ({dueQuestions.length})</TabsTrigger>
+          <TabsTrigger value="bank">Study bank ({items.length})</TabsTrigger>
+          <TabsTrigger value="questions">All questions ({allQuestions.length})</TabsTrigger>
+          <TabsTrigger value="performance">Mastery</TabsTrigger>
+        </TabsList>
 
-      {/* Main Tab 2: Study Bank Topics & Papers */}
-      {mainTab === 'bank' && (
-        <TopicBankSection
-          items={items}
-          allQuestions={allQuestions}
-          loading={loading}
-          bankFilter={bankFilter}
-          setBankFilter={setBankFilter}
-          searchQuery={searchQuery}
-          setSearchQuery={setSearchQuery}
-          expandedItems={expandedItems}
-          toggleItemExpand={toggleItemExpand}
-          onAddQuestion={(item) => {
-            setQuestionItemId(item.id);
-            setQuestionTemplate(item.type === 'paper' ? 'paper' : 'topic');
-            setShowQuestionModal(true);
-          }}
-          onViewHistory={handleViewHistory}
-          onEditItem={handleEditItem}
-          onDeleteItem={handleDeleteItem}
-          onStartPractice={startPracticeSession}
-        />
-      )}
+        <TabsContent value="due">
+          <DueQueueSection
+            dueGroups={dueGroups}
+            dueQuestions={dueQuestions}
+            dueData={dueData}
+            loading={loading}
+            expandedDueGroups={expandedDueGroups}
+            toggleDueGroupExpand={toggleDueGroupExpand}
+            onStartPractice={startPracticeSession}
+          />
+        </TabsContent>
 
-      {/* Main Tab 3: All Questions / Free Recall */}
-      {mainTab === 'questions' && (
-        <AllQuestionsSection
-          allQuestions={allQuestions}
-          loading={loading}
-          questionFilter={questionFilter}
-          setQuestionFilter={setQuestionFilter}
-          searchQuery={searchQuery}
-          setSearchQuery={setSearchQuery}
-          onStartPractice={startPracticeSession}
-        />
-      )}
+        <TabsContent value="bank">
+          <TopicBankSection
+            items={items}
+            allQuestions={allQuestions}
+            loading={loading}
+            bankFilter={bankFilter}
+            setBankFilter={setBankFilter}
+            searchQuery={searchQuery}
+            setSearchQuery={setSearchQuery}
+            expandedItems={expandedItems}
+            toggleItemExpand={toggleItemExpand}
+            onAddQuestion={(item) => {
+              setQuestionItemId(item.id);
+              setQuestionTemplate(item.type === 'paper' ? 'paper' : 'topic');
+              setShowQuestionModal(true);
+            }}
+            onViewHistory={handleViewHistory}
+            onEditItem={handleEditItem}
+            onDeleteItem={handleDeleteItem}
+            onStartPractice={startPracticeSession}
+          />
+        </TabsContent>
 
-      {/* Main Tab 4: Performance & Analytics */}
-      {mainTab === 'performance' && (
-        <PerformanceSection
-          performanceData={performanceData}
-          loading={loading}
-          allQuestions={allQuestions}
-          onStartPractice={startPracticeSession}
-        />
-      )}
+        <TabsContent value="questions">
+          <AllQuestionsSection
+            allQuestions={allQuestions}
+            loading={loading}
+            questionFilter={questionFilter}
+            setQuestionFilter={setQuestionFilter}
+            searchQuery={searchQuery}
+            setSearchQuery={setSearchQuery}
+            onStartPractice={startPracticeSession}
+          />
+        </TabsContent>
+
+        <TabsContent value="performance">
+          <PerformanceSection
+            performanceData={performanceData}
+            loading={loading}
+            allQuestions={allQuestions}
+            onStartPractice={startPracticeSession}
+          />
+        </TabsContent>
+      </Tabs>
 
       {/* Modals */}
       <ItemModal

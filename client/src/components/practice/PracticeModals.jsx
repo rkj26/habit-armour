@@ -1,5 +1,38 @@
-import React from 'react';
-import { renderMarkdown } from '../../utils/renderMarkdown';
+import React from 'react'
+import { Lightbulb, Target } from 'lucide-react'
+
+import { Badge } from '@/components/shadcn/badge'
+import { Button } from '@/components/shadcn/button'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/shadcn/dialog'
+import { Input } from '@/components/shadcn/input'
+import { Label } from '@/components/shadcn/label'
+import { RadioGroup, RadioGroupItem } from '@/components/shadcn/radio-group'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/shadcn/select'
+import { Separator } from '@/components/shadcn/separator'
+import { Textarea } from '@/components/shadcn/textarea'
+import { Prompt } from './bits'
+
+function Field({ id, label, children }) {
+  return (
+    <div className="grid gap-2">
+      <Label htmlFor={id}>{label}</Label>
+      {children}
+    </div>
+  )
+}
 
 export function ItemModal({
   show,
@@ -20,121 +53,112 @@ export function ItemModal({
   setPaperAuthors,
   paperYear,
   setPaperYear,
-  savingItem
+  savingItem,
 }) {
-  if (!show) return null;
-
   return (
-    <div className="modal-backdrop">
-      <div className="modal-content glass-card">
-        <h3>{isEditing ? 'Edit Topic / Paper' : 'Add New Study Topic / Paper'}</h3>
-        <form onSubmit={onSubmit}>
-          <div className="form-group">
-            <label>Item Type</label>
-            <div className="radio-group">
-              <label className="radio-label">
-                <input
-                  type="radio"
-                  name="itemType"
-                  value="topic"
-                  checked={itemFormType === 'topic'}
-                  onChange={() => setItemFormType('topic')}
-                />
-                🧠 Theory / Architecture Topic
-              </label>
-              <label className="radio-label">
-                <input
-                  type="radio"
-                  name="itemType"
-                  value="paper"
-                  checked={itemFormType === 'paper'}
-                  onChange={() => setItemFormType('paper')}
-                />
-                📄 Landmark Paper
-              </label>
-            </div>
+    <Dialog open={show} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="sm:max-w-lg">
+        <form onSubmit={onSubmit} className="flex flex-col gap-4">
+          <DialogHeader>
+            <DialogTitle>{isEditing ? 'Edit item' : 'Add topic or paper'}</DialogTitle>
+            <DialogDescription>
+              Questions attach to an item. FSRS schedules each question on its own.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="grid gap-2">
+            <Label>Type</Label>
+            <RadioGroup
+              value={itemFormType}
+              onValueChange={setItemFormType}
+              className="flex flex-wrap gap-4"
+            >
+              <Label className="font-normal">
+                <RadioGroupItem value="topic" />
+                Theory topic
+              </Label>
+              <Label className="font-normal">
+                <RadioGroupItem value="paper" />
+                Landmark paper
+              </Label>
+            </RadioGroup>
           </div>
 
-          <div className="form-group">
-            <label>Title</label>
-            <input
-              type="text"
-              className="input-field"
+          <Field id="item-title" label="Title">
+            <Input
+              id="item-title"
               required
-              placeholder="e.g. Proximal Policy Optimization (PPO)"
+              placeholder="e.g. Proximal Policy Optimization"
               value={itemFormTitle}
               onChange={(e) => setItemFormTitle(e.target.value)}
             />
-          </div>
+          </Field>
 
-          <div className="form-group">
-            <label>Tags (comma separated)</label>
-            <input
-              type="text"
-              className="input-field"
+          <Field id="item-tags" label="Tags (comma separated)">
+            <Input
+              id="item-tags"
               placeholder="RL, Policy Gradients, Actor-Critic"
               value={itemFormTags}
               onChange={(e) => setItemFormTags(e.target.value)}
             />
-          </div>
+          </Field>
 
-          <div className="form-group">
-            <label>Core Focus / Theoretical Notes</label>
-            <textarea
-              className="input-field"
+          <Field id="item-notes" label="Core focus">
+            <Textarea
+              id="item-notes"
               rows={3}
-              placeholder="Key mechanisms, equations, or theorems to master..."
+              placeholder="Key mechanisms, equations or theorems to master…"
               value={itemFormNotes}
               onChange={(e) => setItemFormNotes(e.target.value)}
             />
-          </div>
+          </Field>
 
           {itemFormType === 'paper' && (
-            <div className="paper-form-section">
-              <div className="form-group">
-                <label>arXiv ID</label>
-                <input
-                  type="text"
-                  className="input-field"
-                  placeholder="e.g. 1707.06347"
+            <>
+              <Separator />
+              <Field id="paper-arxiv" label="arXiv ID">
+                <Input
+                  id="paper-arxiv"
+                  placeholder="1707.06347"
                   value={paperArxivId}
                   onChange={(e) => setPaperArxivId(e.target.value)}
                 />
-              </div>
-              <div className="form-group">
-                <label>Authors / Year</label>
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  <input
-                    type="text"
-                    className="input-field"
+              </Field>
+              <div className="grid grid-cols-[1fr_100px] gap-3">
+                <Field id="paper-authors" label="Authors">
+                  <Input
+                    id="paper-authors"
                     placeholder="Schulman et al."
                     value={paperAuthors}
                     onChange={(e) => setPaperAuthors(e.target.value)}
                   />
-                  <input
+                </Field>
+                <Field id="paper-year" label="Year">
+                  <Input
+                    id="paper-year"
                     type="number"
-                    className="input-field"
-                    style={{ width: '100px' }}
+                    min="1900"
+                    max="2100"
                     value={paperYear}
                     onChange={(e) => setPaperYear(e.target.value)}
                   />
-                </div>
+                </Field>
               </div>
-            </div>
+            </>
           )}
 
-          <div className="modal-actions">
-            <button type="button" className="btn btn-secondary" onClick={onClose}>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={onClose}>
               Cancel
-            </button>
-            <button type="submit" className="btn btn-primary" disabled={savingItem}>
-              {savingItem ? 'Saving...' : 'Save Item'}
-            </button>
-          </div>
+            </Button>
+            <Button type="submit" disabled={savingItem}>
+              {savingItem ? 'Saving…' : 'Save item'}
+            </Button>
+          </DialogFooter>
         </form>
-      </div>
-    </div>
-  );
+      </DialogContent>
+    </Dialog>
+  )
 }
 
 export function QuestionModal({
@@ -150,80 +174,83 @@ export function QuestionModal({
   setQuestionTemplate,
   questionDifficulty,
   setQuestionDifficulty,
-  savingQuestion
+  savingQuestion,
 }) {
-  if (!show) return null;
-
   return (
-    <div className="modal-backdrop">
-      <div className="modal-content glass-card">
-        <h3>Add Active Recall Question</h3>
-        <form onSubmit={onSubmit}>
-          <div className="form-group">
-            <label>Target Topic / Paper</label>
-            <select
-              className="input-field"
-              value={questionItemId}
-              onChange={(e) => setQuestionItemId(e.target.value)}
-            >
-              {items.map(item => (
-                <option key={item.id} value={item.id}>
-                  {item.title} ({item.type.toUpperCase()})
-                </option>
-              ))}
-            </select>
-          </div>
+    <Dialog open={show} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="sm:max-w-lg">
+        <form onSubmit={onSubmit} className="flex flex-col gap-4">
+          <DialogHeader>
+            <DialogTitle>Add recall question</DialogTitle>
+            <DialogDescription>
+              A single prompt you can answer in one to two minutes.
+            </DialogDescription>
+          </DialogHeader>
 
-          <div className="form-group">
-            <label>Question Prompt (1–2 min atomic prompt recommended)</label>
-            <textarea
-              className="input-field"
+          <Field id="question-item" label="Topic or paper">
+            <Select value={questionItemId} onValueChange={setQuestionItemId}>
+              <SelectTrigger id="question-item" className="w-full">
+                <SelectValue placeholder="Choose an item" />
+              </SelectTrigger>
+              <SelectContent>
+                {items.map((item) => (
+                  <SelectItem key={item.id} value={item.id}>
+                    {item.title}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Field>
+
+          <Field id="question-prompt" label="Prompt">
+            <Textarea
+              id="question-prompt"
               rows={4}
               required
-              placeholder="State the exact single-concept derivation, tensor trace, or mechanism to recall in 1-2 mins..."
+              placeholder="State the single derivation, tensor trace or mechanism to recall…"
               value={questionPrompt}
               onChange={(e) => setQuestionPrompt(e.target.value)}
             />
+          </Field>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field id="question-template" label="Answer template">
+              <Select value={questionTemplate} onValueChange={setQuestionTemplate}>
+                <SelectTrigger id="question-template" className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="topic">Proof + intuition + ELI5</SelectItem>
+                  <SelectItem value="paper">Claims + method + results + limits</SelectItem>
+                </SelectContent>
+              </Select>
+            </Field>
+            <Field id="question-difficulty" label="Difficulty">
+              <Select value={questionDifficulty} onValueChange={setQuestionDifficulty}>
+                <SelectTrigger id="question-difficulty" className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Easy">Easy</SelectItem>
+                  <SelectItem value="Medium">Medium</SelectItem>
+                  <SelectItem value="Hard">Hard</SelectItem>
+                </SelectContent>
+              </Select>
+            </Field>
           </div>
 
-          <div className="form-row">
-            <div className="form-group">
-              <label>Answer Template</label>
-              <select
-                className="input-field"
-                value={questionTemplate}
-                onChange={(e) => setQuestionTemplate(e.target.value)}
-              >
-                <option value="topic">Topic: Proof + Intuition + ELI5</option>
-                <option value="paper">Paper: Claims + Method + Results + Limits + ELI5</option>
-              </select>
-            </div>
-            <div className="form-group">
-              <label>Difficulty</label>
-              <select
-                className="input-field"
-                value={questionDifficulty}
-                onChange={(e) => setQuestionDifficulty(e.target.value)}
-              >
-                <option value="Easy">Easy</option>
-                <option value="Medium">Medium</option>
-                <option value="Hard">Hard</option>
-              </select>
-            </div>
-          </div>
-
-          <div className="modal-actions">
-            <button type="button" className="btn btn-secondary" onClick={onClose}>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={onClose}>
               Cancel
-            </button>
-            <button type="submit" className="btn btn-primary" disabled={savingQuestion}>
-              {savingQuestion ? 'Creating...' : 'Create Question'}
-            </button>
-          </div>
+            </Button>
+            <Button type="submit" disabled={savingQuestion}>
+              {savingQuestion ? 'Creating…' : 'Create question'}
+            </Button>
+          </DialogFooter>
         </form>
-      </div>
-    </div>
-  );
+      </DialogContent>
+    </Dialog>
+  )
 }
 
 export function ManualOverrideModal({
@@ -232,123 +259,120 @@ export function ManualOverrideModal({
   onSubmit,
   overrideReason,
   setOverrideReason,
-  submittingOverride
+  submittingOverride,
 }) {
-  if (!show) return null;
-
   return (
-    <div className="modal-backdrop">
-      <div className="modal-content glass-card">
-        <h3>Manual Practice Override</h3>
-        <p className="modal-desc">
-          Mark today's consistent practice requirement as completed without submitting an in-app proof.
-        </p>
-        <form onSubmit={onSubmit}>
-          <div className="form-group">
-            <label>Override Reason</label>
-            <input
-              type="text"
-              className="input-field"
+    <Dialog open={show} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent>
+        <form onSubmit={onSubmit} className="flex flex-col gap-4">
+          <DialogHeader>
+            <DialogTitle>Manual practice override</DialogTitle>
+            <DialogDescription>
+              Clears today&apos;s practice requirement without an in-app proof.
+            </DialogDescription>
+          </DialogHeader>
+
+          <Field id="practice-override-reason" label="Reason">
+            <Input
+              id="practice-override-reason"
               required
               value={overrideReason}
               onChange={(e) => setOverrideReason(e.target.value)}
             />
-          </div>
-          <div className="modal-actions">
-            <button type="button" className="btn btn-secondary" onClick={onClose}>
+          </Field>
+
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={onClose}>
               Cancel
-            </button>
-            <button type="submit" className="btn btn-primary" disabled={submittingOverride}>
-              {submittingOverride ? 'Submitting...' : 'Confirm Override'}
-            </button>
-          </div>
+            </Button>
+            <Button type="submit" disabled={submittingOverride}>
+              {submittingOverride ? 'Submitting…' : 'Confirm override'}
+            </Button>
+          </DialogFooter>
         </form>
-      </div>
-    </div>
-  );
+      </DialogContent>
+    </Dialog>
+  )
 }
 
-export function AttemptHistoryModal({
-  historyItem,
-  onClose,
-  loadingHistory,
-  historyAttempts
-}) {
-  if (!historyItem) return null;
+const GRADE_LABELS = { 4: 'Easy', 3: 'Good', 2: 'Hard', 1: 'Again' }
 
+export function AttemptHistoryModal({ historyItem, onClose, loadingHistory, historyAttempts }) {
   return (
-    <div className="modal-backdrop">
-      <div className="modal-content glass-card modal-lg" style={{ maxHeight: '85vh', overflowY: 'auto' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-          <h3 style={{ margin: 0 }}>📜 Attempt History: {historyItem.title}</h3>
-          <button className="btn-icon" onClick={onClose}>✕</button>
-        </div>
+    <Dialog open={Boolean(historyItem)} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-3xl">
+        <DialogHeader>
+          <DialogTitle>Attempt history</DialogTitle>
+          <DialogDescription>{historyItem?.title}</DialogDescription>
+        </DialogHeader>
+
         {loadingHistory ? (
-          <p>Loading historical evaluations...</p>
+          <p className="text-muted-foreground py-8 text-center text-sm">Loading evaluations…</p>
         ) : historyAttempts.length === 0 ? (
-          <p className="empty-subtext">No practice attempts recorded yet for this item.</p>
+          <p className="text-muted-foreground py-8 text-center text-sm">
+            No attempts recorded for this item yet.
+          </p>
         ) : (
-          <div className="history-attempts-list" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-            {historyAttempts.map(att => (
-              <div key={att.id} className="history-attempt-card glass-card" style={{ padding: '18px', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-lg)' }}>
-                <div className="history-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                  <span className="history-date" style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                    📅 {new Date(att.submittedAt).toLocaleDateString()} {new Date(att.submittedAt).toLocaleTimeString()}
+          <div className="flex flex-col gap-4">
+            {historyAttempts.map((att) => (
+              <div key={att.id} className="flex flex-col gap-3 rounded-lg border p-4">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="text-muted-foreground text-xs">
+                    {new Date(att.submittedAt).toLocaleString()}
                   </span>
-                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                  <div className="flex items-center gap-2">
                     {att.evaluation?.grade && (
-                      <span className="badge badge-topic" style={{ fontSize: '0.72rem' }}>
-                        Grade {att.evaluation.grade}: {att.evaluation.grade === 4 ? 'Easy' : att.evaluation.grade === 3 ? 'Good' : att.evaluation.grade === 2 ? 'Hard' : 'Again'}
-                      </span>
+                      <Badge variant="outline">
+                        Grade {att.evaluation.grade} · {GRADE_LABELS[att.evaluation.grade]}
+                      </Badge>
                     )}
-                    <span className={`badge ${att.evaluation?.score >= 8.5 ? 'badge-verified' : att.evaluation?.score >= 7.0 ? 'badge-topic' : att.evaluation?.score >= 5.0 ? 'badge-difficulty' : 'badge-danger'}`}>
-                      Score: {att.evaluation?.score ?? 'N/A'} / 10
-                    </span>
+                    <Badge variant={att.evaluation?.score >= 7 ? 'default' : 'secondary'}>
+                      {att.evaluation?.score ?? 'N/A'} / 10
+                    </Badge>
                   </div>
                 </div>
 
-                {att.evaluation?.keyImprovements && att.evaluation.keyImprovements.length > 0 && (
-                  <div className="improvements-card" style={{ margin: '10px 0', padding: '12px' }}>
-                    <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#1e3a8a', marginBottom: '6px' }}>
-                      💡 KEY IMPROVEMENTS FLAGGED:
-                    </div>
-                    <ul style={{ margin: 0, paddingLeft: '18px', fontSize: '0.825rem', color: '#1e40af' }}>
+                {att.evaluation?.keyImprovements?.length > 0 && (
+                  <div className="bg-muted/50 flex flex-col gap-1.5 rounded-md p-3">
+                    <span className="flex items-center gap-1.5 text-xs font-semibold">
+                      <Lightbulb className="size-3.5" />
+                      Key improvements
+                    </span>
+                    <ul className="list-disc space-y-0.5 pl-5 text-sm">
                       {att.evaluation.keyImprovements.map((imp, idx) => (
-                        <li key={idx} style={{ marginBottom: '3px' }}>{imp}</li>
+                        <li key={idx}>{imp}</li>
                       ))}
                     </ul>
                   </div>
                 )}
 
                 {att.evaluation?.idealAnswer && (
-                  <div className="model-solution-card" style={{ margin: '10px 0', padding: '14px' }}>
-                    <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#4f46e5', marginBottom: '6px' }}>
-                      🎯 EXEMPLARY MODEL ANSWER & PROOF:
-                    </div>
-                    <div className="markdown-rendered" style={{ fontSize: '0.85rem' }}>
-                      {renderMarkdown(att.evaluation.idealAnswer)}
-                    </div>
+                  <div className="bg-muted/50 flex flex-col gap-1.5 rounded-md p-3">
+                    <span className="flex items-center gap-1.5 text-xs font-semibold">
+                      <Target className="size-3.5" />
+                      Model answer
+                    </span>
+                    <Prompt>{att.evaluation.idealAnswer}</Prompt>
                   </div>
                 )}
 
-                <div style={{ marginTop: '10px', paddingTop: '10px', borderTop: '1px solid var(--border-color)' }}>
-                  <span style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
-                    Reviewer Critique:
+                <Separator />
+
+                <div className="flex flex-col gap-1.5">
+                  <span className="text-muted-foreground text-xs font-semibold uppercase">
+                    Reviewer critique
                   </span>
-                  <div className="history-critique markdown-rendered" style={{ marginTop: '4px', fontSize: '0.88rem' }}>
-                    {renderMarkdown(att.evaluation?.critique)}
-                  </div>
+                  <Prompt>{att.evaluation?.critique}</Prompt>
                 </div>
               </div>
             ))}
           </div>
         )}
-        <div className="modal-actions" style={{ marginTop: '16px' }}>
-          <button type="button" className="btn btn-primary" onClick={onClose}>
-            Close History
-          </button>
-        </div>
-      </div>
-    </div>
-  );
+
+        <DialogFooter>
+          <Button onClick={onClose}>Close</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
 }

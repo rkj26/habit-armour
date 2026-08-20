@@ -1,5 +1,37 @@
-import React from 'react';
-import { renderMarkdown } from '../../utils/renderMarkdown';
+import React from 'react'
+import {
+  ChevronDown,
+  ChevronRight,
+  ExternalLink,
+  FolderOpen,
+  History,
+  Pencil,
+  Plus,
+  Trash2,
+  Zap,
+} from 'lucide-react'
+
+import { Badge } from '@/components/shadcn/badge'
+import { Button } from '@/components/shadcn/button'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/shadcn/card'
+import { Input } from '@/components/shadcn/input'
+import { Separator } from '@/components/shadcn/separator'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/shadcn/tooltip'
+import { ToggleGroup, ToggleGroupItem } from '@/components/shadcn/toggle-group'
+import { DifficultyBadge, EmptyState, LoadingState, Prompt, TypeBadge } from './bits'
+
+function IconAction({ label, icon: Icon, onClick }) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button variant="ghost" size="icon" onClick={onClick} aria-label={label}>
+          <Icon className="size-4" />
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent>{label}</TooltipContent>
+    </Tooltip>
+  )
+}
 
 export default function TopicBankSection({
   items,
@@ -15,183 +47,189 @@ export default function TopicBankSection({
   onViewHistory,
   onEditItem,
   onDeleteItem,
-  onStartPractice
+  onStartPractice,
 }) {
-  const filteredItems = items.filter(item => {
-    if (bankFilter !== 'all' && item.type !== bankFilter) return false;
+  const filteredItems = items.filter((item) => {
+    if (bankFilter !== 'all' && item.type !== bankFilter) return false
     if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
-      const titleMatch = item.title.toLowerCase().includes(q);
-      const notesMatch = (item.notes || '').toLowerCase().includes(q);
-      const tagsMatch = (item.tags || []).some(t => t.toLowerCase().includes(q));
-      const arxivMatch = item.paper?.arxivId?.toLowerCase().includes(q);
-      if (!titleMatch && !notesMatch && !tagsMatch && !arxivMatch) return false;
+      const q = searchQuery.toLowerCase()
+      return (
+        item.title.toLowerCase().includes(q) ||
+        (item.notes || '').toLowerCase().includes(q) ||
+        (item.tags || []).some((t) => t.toLowerCase().includes(q)) ||
+        Boolean(item.paper?.arxivId?.toLowerCase().includes(q))
+      )
     }
-    return true;
-  });
+    return true
+  })
 
   return (
-    <div className="practice-bank-view">
-      {/* Filter Bar */}
-      <div className="bank-filter-bar">
-        <div className="filter-buttons">
-          <button
-            className={`btn-filter ${bankFilter === 'all' ? 'active' : ''}`}
-            onClick={() => setBankFilter('all')}
-          >
-            All Topics ({items.length})
-          </button>
-          <button
-            className={`btn-filter ${bankFilter === 'topic' ? 'active' : ''}`}
-            onClick={() => setBankFilter('topic')}
-          >
-            🧠 Theory Topics ({items.filter(i => i.type === 'topic').length})
-          </button>
-          <button
-            className={`btn-filter ${bankFilter === 'paper' ? 'active' : ''}`}
-            onClick={() => setBankFilter('paper')}
-          >
-            📄 Landmark Papers ({items.filter(i => i.type === 'paper').length})
-          </button>
-        </div>
-        <div className="search-box">
-          <input
-            type="text"
-            className="input-field"
-            placeholder="Search topics, tags, algorithms..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-          />
-        </div>
+    <div className="flex flex-col gap-6">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <ToggleGroup
+          type="single"
+          variant="outline"
+          value={bankFilter}
+          onValueChange={(v) => v && setBankFilter(v)}
+        >
+          <ToggleGroupItem value="all" className="px-4">
+            All ({items.length})
+          </ToggleGroupItem>
+          <ToggleGroupItem value="topic" className="px-4">
+            Topics ({items.filter((i) => i.type === 'topic').length})
+          </ToggleGroupItem>
+          <ToggleGroupItem value="paper" className="px-4">
+            Papers ({items.filter((i) => i.type === 'paper').length})
+          </ToggleGroupItem>
+        </ToggleGroup>
+
+        <Input
+          className="max-w-xs"
+          type="search"
+          placeholder="Search topics, tags, algorithms…"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+        />
       </div>
 
-      {/* Items Grid */}
-      <div className="bank-items-grid">
-        {loading ? (
-          <div className="loading-state">Loading Study Bank...</div>
-        ) : filteredItems.length === 0 ? (
-          <div className="empty-state glass-card">
-            <div className="empty-icon">📂</div>
-            <h3>No Topics Found</h3>
-            <p>No study topics or papers match your search criteria.</p>
-          </div>
-        ) : (
-          filteredItems.map(item => {
-            const itemQuestions = allQuestions.filter(q => q.itemId === item.id).sort((a, b) => (a.order || 0) - (b.order || 0));
-            const isExpanded = !!expandedItems[item.id];
+      {loading ? (
+        <LoadingState>Loading study bank…</LoadingState>
+      ) : filteredItems.length === 0 ? (
+        <EmptyState icon={FolderOpen} title="No topics found">
+          Nothing matches the current filter or search.
+        </EmptyState>
+      ) : (
+        <div className="grid gap-4 xl:grid-cols-2">
+          {filteredItems.map((item) => {
+            const itemQuestions = allQuestions
+              .filter((q) => q.itemId === item.id)
+              .sort((a, b) => (a.order || 0) - (b.order || 0))
+            const isExpanded = Boolean(expandedItems[item.id])
 
             return (
-              <div key={item.id} className="bank-item-card glass-card">
-                <div className="bank-item-header">
-                  <span className={`badge ${item.type === 'paper' ? 'badge-paper' : 'badge-topic'}`}>
-                    {item.type === 'paper' ? '📄 PAPER' : '🧠 THEORY TOPIC'}
-                  </span>
-                  <div className="bank-item-menu">
-                    <button
-                      className="btn-icon"
-                      title="Add Manual Question"
-                      onClick={() => onAddQuestion(item)}
-                    >
-                      ➕
-                    </button>
-                    <button
-                      className="btn-icon"
-                      title="View Attempt History"
-                      onClick={() => onViewHistory(item)}
-                    >
-                      📜
-                    </button>
-                    <button
-                      className="btn-icon"
-                      title="Edit Item"
-                      onClick={() => onEditItem(item)}
-                    >
-                      ✏️
-                    </button>
-                    <button
-                      className="btn-icon"
-                      title="Delete Item"
-                      onClick={() => onDeleteItem(item.id)}
-                    >
-                      🗑️
-                    </button>
+              <Card key={item.id}>
+                <CardHeader>
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex flex-col gap-2">
+                      <TypeBadge type={item.type} />
+                      <CardTitle>{item.title}</CardTitle>
+                    </div>
+                    <div className="flex shrink-0">
+                      <IconAction label="Add question" icon={Plus} onClick={() => onAddQuestion(item)} />
+                      <IconAction
+                        label="Attempt history"
+                        icon={History}
+                        onClick={() => onViewHistory(item)}
+                      />
+                      <IconAction label="Edit" icon={Pencil} onClick={() => onEditItem(item)} />
+                      <IconAction label="Delete" icon={Trash2} onClick={() => onDeleteItem(item.id)} />
+                    </div>
                   </div>
-                </div>
+                </CardHeader>
 
-                <h3 className="bank-item-title">{item.title}</h3>
-                {item.notes && <p className="bank-item-notes">{item.notes}</p>}
+                <CardContent className="flex flex-col gap-3">
+                  {item.notes && <p className="text-muted-foreground text-sm">{item.notes}</p>}
 
-                {item.paper && (
-                  <div className="paper-meta-card">
-                    {item.paper.arxivId && <div>arXiv: <strong>{item.paper.arxivId}</strong></div>}
-                    {item.paper.authors && <div>Authors: <strong>{item.paper.authors.join(', ')}</strong> ({item.paper.year})</div>}
-                    {item.paper.url && (
-                      <a href={item.paper.url} target="_blank" rel="noreferrer" className="paper-link">
-                        🔗 Open Paper URL
-                      </a>
-                    )}
-                  </div>
-                )}
+                  {item.paper && (
+                    <div className="text-muted-foreground flex flex-col gap-1 rounded-lg border p-3 text-xs">
+                      {item.paper.arxivId && (
+                        <span>
+                          arXiv <strong className="text-foreground">{item.paper.arxivId}</strong>
+                        </span>
+                      )}
+                      {item.paper.authors?.length > 0 && (
+                        <span>
+                          {item.paper.authors.join(', ')} ({item.paper.year})
+                        </span>
+                      )}
+                      {item.paper.url && (
+                        <a
+                          href={item.paper.url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-foreground inline-flex items-center gap-1 underline underline-offset-2"
+                        >
+                          <ExternalLink className="size-3" />
+                          Open paper
+                        </a>
+                      )}
+                    </div>
+                  )}
 
-                <div className="bank-item-tags">
-                  {item.tags && item.tags.map((t, idx) => (
-                    <span key={idx} className="badge badge-tag">{t}</span>
-                  ))}
-                </div>
+                  {item.tags?.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5">
+                      {item.tags.map((t) => (
+                        <Badge key={t} variant="secondary" className="font-normal">
+                          {t}
+                        </Badge>
+                      ))}
+                    </div>
+                  )}
 
-                {/* Attached Questions Accordion */}
-                <div style={{ marginTop: '10px', paddingTop: '10px', borderTop: '1px solid var(--border-color)' }}>
-                  <button
-                    type="button"
-                    className="btn-link"
-                    style={{ fontSize: '0.825rem', display: 'flex', alignItems: 'center', gap: '6px' }}
+                  <Separator />
+
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="justify-start px-0 hover:bg-transparent"
                     onClick={() => toggleItemExpand(item.id)}
                   >
-                    <span>{isExpanded ? '▼' : '▶'}</span>
-                    <span>Attached Active Recall Questions ({itemQuestions.length})</span>
-                  </button>
+                    {isExpanded ? (
+                      <ChevronDown className="size-4" />
+                    ) : (
+                      <ChevronRight className="size-4" />
+                    )}
+                    Questions ({itemQuestions.length})
+                  </Button>
 
                   {isExpanded && (
-                    <div style={{ marginTop: '10px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    <div className="flex flex-col gap-2">
                       {itemQuestions.length === 0 ? (
-                        <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>
-                          No questions added yet. Click ➕ to add active recall questions.
-                        </div>
+                        <p className="text-muted-foreground text-xs italic">
+                          No questions yet — use the + button above.
+                        </p>
                       ) : (
                         itemQuestions.map((q, qIdx) => (
-                          <div key={q.id} style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-md)', padding: '10px 12px' }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-                              <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-                                <span className="badge" style={{ fontSize: '0.7rem', background: 'rgba(99, 102, 241, 0.15)', color: '#6366f1', fontWeight: 700 }}>#{qIdx + 1}</span>
-                                <span className="badge badge-difficulty" style={{ fontSize: '0.7rem' }}>{q.difficulty}</span>
-                                <span className="badge badge-time" style={{ fontSize: '0.68rem' }}>⏱️ ~1-2m</span>
-                                {q.hasModelSolution && <span className="badge badge-cached" style={{ fontSize: '0.68rem' }}>⚡ Key Saved</span>}
+                          <div key={q.id} className="flex flex-col gap-2 rounded-lg border p-3">
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <div className="flex flex-wrap items-center gap-1.5">
+                                <Badge variant="outline" className="tabular-nums">
+                                  #{qIdx + 1}
+                                </Badge>
+                                <DifficultyBadge difficulty={q.difficulty} />
+                                {q.hasModelSolution && (
+                                  <Badge variant="outline" className="font-normal">
+                                    Key saved
+                                  </Badge>
+                                )}
                               </div>
-                              <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Due: {q.fsrs?.dueDate || q.sm2?.dueDate || 'Today'}</span>
+                              <span className="text-muted-foreground text-xs">
+                                Due {q.fsrs?.dueDate || q.sm2?.dueDate || 'today'}
+                              </span>
                             </div>
-                            <div className="markdown-rendered" style={{ fontSize: '0.825rem', lineHeight: '1.5', margin: '6px 0' }}>
-                              {renderMarkdown(q.prompt)}
-                            </div>
-                            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '6px' }}>
-                              <button
-                                className="btn btn-primary"
-                                style={{ padding: '3px 10px', fontSize: '0.75rem' }}
-                                onClick={() => onStartPractice(q)}
-                              >
-                                ⚡ Practice Now
-                              </button>
-                            </div>
+
+                            <Prompt className="text-xs">{q.prompt}</Prompt>
+
+                            <Button
+                              size="sm"
+                              variant="secondary"
+                              className="self-end"
+                              onClick={() => onStartPractice(q)}
+                            >
+                              <Zap className="size-3" />
+                              Practise
+                            </Button>
                           </div>
                         ))
                       )}
                     </div>
                   )}
-                </div>
-              </div>
-            );
-          })
-        )}
-      </div>
+                </CardContent>
+              </Card>
+            )
+          })}
+        </div>
+      )}
     </div>
-  );
+  )
 }

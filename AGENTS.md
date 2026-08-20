@@ -107,24 +107,38 @@ The most complex pillar. Read `app/models/study.py`, `app/pillars/practice.py` a
 
 ## Frontend
 
-**Use the primitives in `client/src/components/ui/`** — `Button`, `Card`, `Field`, `Alert`, `Badge`,
-`Stack`, `Spinner`, `EmptyState`, `Counter`. Run `npm --prefix client run dev` and open the
-**UI Gallery** tab (dev builds only) to see every variant. Adding a twelfth bespoke button style is
-the failure mode this exists to prevent; no linter can catch it, so it is your job.
+**Tailwind v4 + shadcn/ui. Use the vendored components in `client/src/components/shadcn/`** —
+`Button`, `Card`, `Input`, `Select`, `Switch`, `Tabs`, `Table`, `Dialog`, `Badge`, `Alert`,
+`Sidebar` and the rest. Add more with `npx shadcn add <name>`, never by hand. Adding a bespoke
+button style is the failure mode to avoid; no linter catches it, so it is your job.
 
-**Use the design tokens, never raw values.** `client/src/index.css` has three layers: palette →
-semantic (`--color-danger`, `--space-4`, `--text-lg`) → component classes. Components reference the
-semantic layer only. `make tokens` fails the build on an undefined `var()`, which is how 78 dead
-references were found — including `--accent-red` used 26 times and defined nowhere, so every error
-message rendered in the default body colour.
+**The theme is stock shadcn `new-york` / slate and is not to be customised.** `client/src/index.css`
+holds those values verbatim. An earlier version overrode them with a bespoke palette and the result
+was shadcn components wearing someone else's theme — the reason nothing looked like shadcn. If you
+want a different look, pick a different shadcn base colour; do not hand-edit values. The only
+addition is `--success`, because shadcn ships `--destructive` with no positive counterpart.
+
+`make tokens` fails the build on an undefined `var()`. That check is how 78 dead references were
+found — `--accent-red` was used 26 times and defined nowhere, so every error message rendered in the
+default body colour.
+
+**Chart colour is computed, not chosen.** Series use `--chart-1..5`. Before changing any of them,
+load the `dataviz` skill and run its palette validator; picking by eye is how a 1.68:1 amber line
+ended up invisible on a white card.
+
+**Layout.** `App.jsx` is the shell: `SidebarProvider` → `AppSidebar` + `SidebarInset`. Sidebar
+destinations live in `client/src/nav.js`; anything finer-grained is an in-page `Tabs`, not a new
+sidebar entry. The sticky header owns the page title, so views must not repeat it in an `<h2>`.
 
 **All API calls go through `client/src/api/client.js`.** It resolves the base URL once and throws
 `ApiError` on non-2xx, with `.isOffline` for network failures. `fetch` does not throw on 4xx/5xx,
 which is how rejected submissions used to look identical to successful ones.
 
-Styling is inline `style={{...}}` plus classes in `App.css` — no Tailwind, no CSS-in-JS. Keep it
-that way. `DashboardView.jsx` (~1550 lines) and `App.css` (~1280) are large; prefer surgical edits,
-and treat splitting them as a deliberate reviewed project, not a drive-by.
+**Form drafts use `useDraft`**, which stamps localStorage with the logical day and drops the draft
+on rollover. Plain `localStorage.setItem` brings yesterday's half-written log back this morning.
+
+`DashboardView.jsx` (~1500 lines) is large and its six charts are hand-rolled SVG. Prefer surgical
+edits; treat splitting it as a deliberate reviewed project, not a drive-by.
 
 ## Testing
 

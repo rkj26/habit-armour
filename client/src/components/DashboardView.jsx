@@ -1,4 +1,35 @@
 import React, { useState, useMemo } from 'react';
+import {
+  Download,
+  Flame,
+  Footprints,
+  Moon,
+  Ruler,
+  Scale,
+  Target,
+  TrendingDown,
+  TrendingUp,
+} from 'lucide-react';
+
+import { Badge } from '@/components/shadcn/badge';
+import { Button } from '@/components/shadcn/button';
+import {
+  Card,
+  CardAction,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/shadcn/card';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/shadcn/table';
+import { ToggleGroup, ToggleGroupItem } from '@/components/shadcn/toggle-group';
 
 // Reusable Bezier Curve Path Generator
 const getBezierPath = (points, keyY) => {
@@ -44,16 +75,45 @@ const getSmartTooltipStyle = (hoveredPoint, containerWidth = 500) => {
     position: 'absolute',
     left: `${leftPos}px`,
     top: `${topPos}px`,
-    background: 'rgba(15, 23, 42, 0.92)',
-    border: '1px solid var(--border-color)',
-    borderRadius: 'var(--radius-sm)',
-    padding: '8px 12px',
-    boxShadow: 'var(--shadow-sm)',
     zIndex: 50,
     pointerEvents: 'none',
     minWidth: '135px'
   };
 };
+
+const TOOLTIP_CLASS = 'bg-popover text-popover-foreground rounded-md border px-3 py-2 shadow-md';
+
+/** One tile in the metric strip. Six near-identical cards used to be six copies. */
+function MetricCard({ label, value, unit, icon: Icon, delta, deltaGood, hint }) {
+  return (
+    <Card className="gap-2 py-4">
+      <CardHeader className="px-4">
+        <CardDescription>{label}</CardDescription>
+        <CardTitle className="text-2xl font-semibold tabular-nums">
+          {value}
+          {unit && <span className="text-muted-foreground ml-1 text-sm font-normal">{unit}</span>}
+        </CardTitle>
+        <CardAction>
+          <Icon className="text-muted-foreground size-4" />
+        </CardAction>
+      </CardHeader>
+      <CardContent className="px-4">
+        {delta ? (
+          <Badge variant="outline" className="gap-1 font-normal">
+            {deltaGood ? (
+              <TrendingUp className="size-3 text-emerald-600" />
+            ) : (
+              <TrendingDown className="text-destructive size-3" />
+            )}
+            {delta}
+          </Badge>
+        ) : (
+          <span className="text-muted-foreground text-xs">{hint}</span>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
 
 export default function DashboardView({ stats, history, config }) {
   const [hoveredPoint, setHoveredPoint] = useState(null);
@@ -229,327 +289,148 @@ export default function DashboardView({ stats, history, config }) {
   };
 
   return (
-    <div className="dashboard-container" style={{ padding: '4px' }}>
-      <div className="section-title" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px' }}>
-        <div>
-          <h2>Bio-Analytics Dashboard</h2>
-          <p>Real-time aggregated health statistics and visual trend lines.</p>
-        </div>
-
-        {/* Global Dashboard Control Bar */}
-        <div className="dashboard-controls-bar" style={{ margin: 0 }}>
-          <div className="time-range-group">
-            <span style={{ fontSize: '0.7rem', textTransform: 'uppercase', color: 'var(--text-muted)', padding: '0 6px', fontWeight: 700 }}>Range:</span>
-            {['7D', '14D', '30D', '90D', 'ALL'].map(range => (
-              <button
-                key={range}
-                className={`btn-time-range ${timeRange === range ? 'active' : ''}`}
-                onClick={() => setTimeRange(range)}
-              >
+    <div className="flex flex-col gap-6">
+      <div className="flex flex-wrap justify-end gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <ToggleGroup
+            type="single"
+            variant="outline"
+            value={timeRange}
+            onValueChange={(v) => v && setTimeRange(v)}
+          >
+            {['7D', '14D', '30D', '90D', 'ALL'].map((range) => (
+              <ToggleGroupItem key={range} value={range} className="px-3">
                 {range}
-              </button>
+              </ToggleGroupItem>
             ))}
-          </div>
+          </ToggleGroup>
 
-          <div style={{ display: 'flex', gap: '8px' }}>
-            <button className="btn-export" onClick={exportToCSV} title="Export history to CSV spreadsheet">
-              📥 Export CSV
-            </button>
-            <button className="btn-export" onClick={exportToJSON} title="Backup full log history to JSON">
-              💾 Export JSON
-            </button>
-          </div>
+          <Button variant="outline" size="sm" onClick={exportToCSV}>
+            <Download className="size-4" />
+            CSV
+          </Button>
+          <Button variant="outline" size="sm" onClick={exportToJSON}>
+            <Download className="size-4" />
+            JSON
+          </Button>
         </div>
       </div>
 
-      {/* Grid of Glassmorphic Metric Cards (5 Cards) */}
-      <div className="dashboard-stats" style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))',
-        gap: '16px',
-        margin: '20px 0 32px 0'
-      }}>
-        {/* Compliance Card */}
-        <div className="metric-card" style={{
-          position: 'relative',
-          background: 'var(--bg-surface)',
-          border: '1px solid var(--border-color)',
-          borderLeft: '4px solid var(--color-success)',
-          padding: '20px 18px',
-          borderRadius: 'var(--radius-md)',
-          boxShadow: 'var(--shadow-sm)',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center'
-        }}>
-          <div>
-            <span style={{ fontSize: '0.78rem', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: 600, display: 'block', marginBottom: '4px' }}>Compliance Rate</span>
-            <div style={{ fontSize: '1.8rem', fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'var(--font-heading)' }}>{stats.complianceRate}%</div>
-            <div className="trend-badge trend-badge-up">
-              <span>🔥 {streakInfo.current}d streak</span>
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+        <MetricCard
+          label="Compliance"
+          value={`${stats.complianceRate}%`}
+          icon={Target}
+          hint={`${streakInfo.current}d streak`}
+        />
+        <MetricCard
+          label="Active streak"
+          value={streakInfo.current}
+          unit="days"
+          icon={Flame}
+          hint={`Best ${streakInfo.max} days`}
+        />
+        <MetricCard
+          label="Avg waking weight"
+          value={stats.avgWeight !== '-' ? stats.avgWeight : '-'}
+          unit={stats.avgWeight !== '-' ? 'kg' : ''}
+          icon={Scale}
+          delta={trends.weightDelta !== null ? `${trends.weightDelta > 0 ? '+' : ''}${trends.weightDelta} kg` : null}
+          deltaGood={parseFloat(trends.weightDelta) <= 0}
+          hint="7-day average"
+        />
+        <MetricCard
+          label="Avg sleep"
+          value={stats.avgSleep}
+          unit="hrs"
+          icon={Moon}
+          delta={trends.sleepDelta !== null ? `${trends.sleepDelta > 0 ? '+' : ''}${trends.sleepDelta}h` : null}
+          deltaGood={parseFloat(trends.sleepDelta) >= 0}
+          hint={`${timeRange} average`}
+        />
+        <MetricCard
+          label="Avg steps"
+          value={stats.avgSteps}
+          icon={Footprints}
+          delta={trends.stepsDelta !== null ? `${trends.stepsDelta > 0 ? '+' : ''}${trends.stepsDelta.toLocaleString()}` : null}
+          deltaGood={trends.stepsDelta >= 0}
+          hint={`${timeRange} average`}
+        />
+        <MetricCard
+          label="Avg calories"
+          value={stats.avgCalories}
+          unit="kcal"
+          icon={Flame}
+          delta={trends.caloriesDelta !== null ? `${trends.caloriesDelta > 0 ? '+' : ''}${trends.caloriesDelta} kcal` : null}
+          deltaGood={trends.caloriesDelta <= 0}
+          hint={`${timeRange} average`}
+        />
+      </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Energy split</CardTitle>
+          <CardDescription>
+            Last 14 logs — {macroRatio.avgP}g protein, {macroRatio.avgC}g carbs, {macroRatio.avgF}g fats
+            per day.
+          </CardDescription>
+          <CardAction>
+            <div className="text-muted-foreground flex flex-wrap gap-3 text-xs">
+              <span>Protein {macroRatio.proteinPct}%</span>
+              <span>Carbs {macroRatio.carbsPct}%</span>
+              <span>Fats {macroRatio.fatsPct}%</span>
             </div>
+          </CardAction>
+        </CardHeader>
+        <CardContent>
+          <div className="bg-muted flex h-2.5 overflow-hidden rounded-full">
+            <div
+              className="bg-chart-1"
+              style={{ width: `${macroRatio.proteinPct}%` }}
+              title={`Protein: ${macroRatio.proteinPct}%`}
+            />
+            <div
+              className="bg-chart-2"
+              style={{ width: `${macroRatio.carbsPct}%` }}
+              title={`Carbs: ${macroRatio.carbsPct}%`}
+            />
+            <div
+              className="bg-chart-3"
+              style={{ width: `${macroRatio.fatsPct}%` }}
+              title={`Fats: ${macroRatio.fatsPct}%`}
+            />
           </div>
-          <div style={{
-            background: 'rgba(16, 185, 129, 0.1)',
-            color: 'var(--color-success)',
-            padding: '12px',
-            borderRadius: '50%',
-            fontSize: '1.4rem',
-            lineHeight: 1,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            boxShadow: '0 0 15px rgba(16, 185, 129, 0.15)'
-          }}>🎯</div>
-        </div>
-
-        {/* Active Streak Card */}
-        <div className="metric-card" style={{
-          position: 'relative',
-          background: 'var(--bg-surface)',
-          border: '1px solid var(--border-color)',
-          borderLeft: '4px solid var(--color-danger)',
-          padding: '20px 18px',
-          borderRadius: 'var(--radius-md)',
-          boxShadow: 'var(--shadow-sm)',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center'
-        }}>
-          <div>
-            <span style={{ fontSize: '0.78rem', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: 600, display: 'block', marginBottom: '4px' }}>Active Streak</span>
-            <div style={{ fontSize: '1.8rem', fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'var(--font-heading)' }}>{streakInfo.current} Days</div>
-            <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>Best record: {streakInfo.max} days</span>
-          </div>
-          <div style={{
-            background: 'rgba(239, 68, 68, 0.1)',
-            color: 'var(--color-danger)',
-            padding: '12px',
-            borderRadius: '50%',
-            fontSize: '1.4rem',
-            lineHeight: 1,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            boxShadow: '0 0 15px rgba(239, 68, 68, 0.15)'
-          }}>🔥</div>
-        </div>
-
-        {/* Avg Waking Weight Card */}
-        <div className="metric-card" style={{
-          position: 'relative',
-          background: 'var(--bg-surface)',
-          border: '1px solid var(--border-color)',
-          borderLeft: '4px solid var(--color-accent)',
-          padding: '20px 18px',
-          borderRadius: 'var(--radius-md)',
-          boxShadow: 'var(--shadow-sm)',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center'
-        }}>
-          <div>
-            <span style={{ fontSize: '0.78rem', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: 600, display: 'block', marginBottom: '4px' }}>Avg Waking Weight</span>
-            <div style={{ fontSize: '1.8rem', fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'var(--font-heading)' }}>
-              {stats.avgWeight !== '-' ? `${stats.avgWeight} kg` : '-'}
-            </div>
-            {trends.weightDelta !== null ? (
-              <div className={`trend-badge ${parseFloat(trends.weightDelta) <= 0 ? 'trend-badge-up' : 'trend-badge-down'}`}>
-                {parseFloat(trends.weightDelta) >= 0 ? `↑ +${trends.weightDelta} kg` : `↓ ${trends.weightDelta} kg`} vs prev
-              </div>
-            ) : <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>7-day average</span>}
-          </div>
-          <div style={{
-            background: 'rgba(168, 85, 247, 0.1)',
-            color: 'var(--color-accent)',
-            padding: '12px',
-            borderRadius: '50%',
-            fontSize: '1.4rem',
-            lineHeight: 1,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            boxShadow: '0 0 15px rgba(168, 85, 247, 0.15)'
-          }}>⚖️</div>
-        </div>
-
-        {/* Sleep Card */}
-        <div className="metric-card" style={{
-          position: 'relative',
-          background: 'var(--bg-surface)',
-          border: '1px solid var(--border-color)',
-          borderLeft: '4px solid var(--accent-cyan, #06b6d4)',
-          padding: '20px 18px',
-          borderRadius: 'var(--radius-md)',
-          boxShadow: 'var(--shadow-sm)',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center'
-        }}>
-          <div>
-            <span style={{ fontSize: '0.78rem', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: 600, display: 'block', marginBottom: '4px' }}>Avg Sleep Duration</span>
-            <div style={{ fontSize: '1.8rem', fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'var(--font-heading)' }}>{stats.avgSleep} hrs</div>
-            {trends.sleepDelta !== null ? (
-              <div className={`trend-badge ${parseFloat(trends.sleepDelta) >= 0 ? 'trend-badge-up' : 'trend-badge-down'}`}>
-                {parseFloat(trends.sleepDelta) >= 0 ? `↑ +${trends.sleepDelta}h` : `↓ ${trends.sleepDelta}h`} vs prev
-              </div>
-            ) : <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>{timeRange} average</span>}
-          </div>
-          <div style={{
-            background: 'rgba(6, 182, 212, 0.1)',
-            color: 'var(--accent-cyan, #06b6d4)',
-            padding: '12px',
-            borderRadius: '50%',
-            fontSize: '1.4rem',
-            lineHeight: 1,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            boxShadow: '0 0 15px rgba(6, 182, 212, 0.15)'
-          }}>😴</div>
-        </div>
-
-        {/* Steps Card */}
-        <div className="metric-card" style={{
-          position: 'relative',
-          background: 'var(--bg-surface)',
-          border: '1px solid var(--border-color)',
-          borderLeft: '4px solid var(--color-accent)',
-          padding: '20px 18px',
-          borderRadius: 'var(--radius-md)',
-          boxShadow: 'var(--shadow-sm)',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center'
-        }}>
-          <div>
-            <span style={{ fontSize: '0.78rem', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: 600, display: 'block', marginBottom: '4px' }}>Avg Daily Steps</span>
-            <div style={{ fontSize: '1.8rem', fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'var(--font-heading)' }}>{stats.avgSteps}</div>
-            {trends.stepsDelta !== null ? (
-              <div className={`trend-badge ${trends.stepsDelta >= 0 ? 'trend-badge-up' : 'trend-badge-down'}`}>
-                {trends.stepsDelta >= 0 ? `↑ +${trends.stepsDelta.toLocaleString()}` : `↓ ${trends.stepsDelta.toLocaleString()}`} vs prev
-              </div>
-            ) : <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>{timeRange} average</span>}
-          </div>
-          <div style={{
-            background: 'rgba(168, 85, 247, 0.1)',
-            color: 'var(--color-accent)',
-            padding: '12px',
-            borderRadius: '50%',
-            fontSize: '1.4rem',
-            lineHeight: 1,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            boxShadow: '0 0 15px rgba(168, 85, 247, 0.15)'
-          }}>👟</div>
-        </div>
-
-        {/* Calories Card */}
-        <div className="metric-card" style={{
-          position: 'relative',
-          background: 'var(--bg-surface)',
-          border: '1px solid var(--border-color)',
-          borderLeft: '4px solid #f59e0b',
-          padding: '20px 18px',
-          borderRadius: 'var(--radius-md)',
-          boxShadow: 'var(--shadow-sm)',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center'
-        }}>
-          <div>
-            <span style={{ fontSize: '0.78rem', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: 600, display: 'block', marginBottom: '4px' }}>Avg Calories Intake</span>
-            <div style={{ fontSize: '1.8rem', fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'var(--font-heading)' }}>{stats.avgCalories} <span style={{ fontSize: '1rem', fontWeight: 600 }}>kcal</span></div>
-            {trends.caloriesDelta !== null ? (
-              <div className={`trend-badge ${trends.caloriesDelta <= 0 ? 'trend-badge-up' : 'trend-badge-neutral'}`}>
-                {trends.caloriesDelta >= 0 ? `↑ +${trends.caloriesDelta} kcal` : `↓ ${trends.caloriesDelta} kcal`} vs prev
-              </div>
-            ) : <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>{timeRange} average</span>}
-          </div>
-          <div style={{
-            background: 'rgba(245, 158, 11, 0.1)',
-            color: '#f59e0b',
-            padding: '12px',
-            borderRadius: '50%',
-            fontSize: '1.4rem',
-            lineHeight: 1,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            boxShadow: '0 0 15px rgba(245, 158, 11, 0.15)'
-          }}>🔥</div>
-        </div>
-      </div>
-
-      {/* Macronutrient Split Ratio Banner */}
-      <div className="glass-card" style={{
-        background: 'var(--bg-surface)',
-        border: '1px solid var(--border-color)',
-        padding: '18px 24px',
-        borderRadius: 'var(--radius-md)',
-        marginBottom: '24px',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '8px'
-      }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
-          <div>
-            <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-              🥑 Macronutrient Energy Split Ratio (Last 14 Logs)
-            </h4>
-            <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-              Avg Daily Intake: <strong>{macroRatio.avgP}g Protein</strong> | <strong>{macroRatio.avgC}g Carbs</strong> | <strong>{macroRatio.avgF}g Fats</strong>
-            </span>
-          </div>
-          <div style={{ display: 'flex', gap: '16px', fontSize: '0.8rem', fontWeight: 600 }}>
-            <span style={{ color: 'var(--color-accent)' }}>● Protein {macroRatio.proteinPct}%</span>
-            <span style={{ color: 'var(--accent-cyan)' }}>● Carbs {macroRatio.carbsPct}%</span>
-            <span style={{ color: '#f59e0b' }}>● Fats {macroRatio.fatsPct}%</span>
-          </div>
-        </div>
-
-        <div className="macro-ratio-bar">
-          <div className="macro-ratio-segment" style={{ width: `${macroRatio.proteinPct}%`, background: 'var(--color-accent)' }} title={`Protein: ${macroRatio.proteinPct}%`} />
-          <div className="macro-ratio-segment" style={{ width: `${macroRatio.carbsPct}%`, background: 'var(--accent-cyan)' }} title={`Carbs: ${macroRatio.carbsPct}%`} />
-          <div className="macro-ratio-segment" style={{ width: `${macroRatio.fatsPct}%`, background: '#f59e0b' }} title={`Fats: ${macroRatio.fatsPct}%`} />
-        </div>
-      </div>
+        </CardContent>
+      </Card>
 
       {filteredHistory.length < 2 ? (
-        <div className="glass-card no-history" style={{ padding: '40px', textAlign: 'center', borderRadius: 'var(--radius-md)' }}>
-          <p className="text-muted" style={{ margin: 0, fontSize: '1rem' }}>Insufficient history logs to generate graphs. Submit at least 2 logs to see charts.</p>
-        </div>
+        <Card>
+          <CardContent className="text-muted-foreground py-14 text-center text-sm">
+            Not enough history to draw charts. Submit at least two logs.
+          </CardContent>
+        </Card>
       ) : (
-        <div className="charts-grid" style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(450px, 1fr))',
-          gap: '24px'
-        }}>
+        <div className="grid gap-6 2xl:grid-cols-2">
           {/* Weight and Sleep Line Chart */}
-          <div className="chart-card glass-card" style={{
-            background: 'var(--bg-surface)',
-            border: '1px solid var(--border-color)',
-            padding: '24px',
-            borderRadius: 'var(--radius-md)',
-            boxShadow: 'var(--shadow-sm)',
-            position: 'relative'
-          }}>
-            <div className="chart-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-              <h3 className="chart-title" style={{ margin: 0, fontSize: '1.05rem', fontWeight: 700, fontFamily: 'var(--font-heading)' }}>Weight & Sleep Trend ({timeRange})</h3>
-              <div className="chart-legend" style={{ display: 'flex', gap: '14px', fontSize: '0.8rem' }}>
-                <span className="legend-item" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <span className="legend-color" style={{ background: 'var(--color-accent)', width: '8px', height: '8px', borderRadius: '50%' }}></span>Weight (kg)
+          <Card className="relative">
+            <CardHeader>
+              <CardTitle>Weight &amp; sleep</CardTitle>
+              <CardDescription>Waking weight against sleep duration, with your targets.</CardDescription>
+              <CardAction>
+                <div className="text-muted-foreground flex flex-wrap items-center gap-3 text-xs">
+                <span className="flex items-center gap-1.5">
+                  <span className="size-2 rounded-full" style={{ background: 'var(--chart-1)' }} />Weight (kg)
                 </span>
-                <span className="legend-item" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <span className="legend-color" style={{ background: 'var(--accent-cyan)', width: '8px', height: '8px', borderRadius: '50%' }}></span>Sleep (hrs)
+                <span className="flex items-center gap-1.5">
+                  <span className="size-2 rounded-full" style={{ background: 'var(--chart-2)' }} />Sleep (hrs)
                 </span>
-              </div>
-            </div>
-            <div className="svg-chart-container" style={{ position: 'relative' }}>
+                </div>
+              </CardAction>
+            </CardHeader>
+            <CardContent className="relative">
               {(() => {
                 const pts = filteredHistory.filter(h => h.morningData);
-                if (pts.length < 2) return <p className="text-muted text-center py-10" style={{ padding: '60px 0' }}>Need more waking morning logs...</p>;
+                if (pts.length < 2) return <p className="text-muted-foreground py-14 text-center text-sm">Need more waking morning logs...</p>;
                 
                 const weights = pts.map(p => parseFloat(p.morningData.wakingWeight) || 0);
                 const sleeps = pts.map(p => parseFloat(p.morningData.sleepHours) || 0);
@@ -592,12 +473,12 @@ export default function DashboardView({ stats, history, config }) {
                   <svg viewBox={`0 0 ${w} ${h}`} style={{ overflow: 'visible' }}>
                     <defs>
                       <linearGradient id="purpleGlow" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="var(--color-accent)" stopOpacity="0.25"/>
-                        <stop offset="100%" stopColor="var(--color-accent)" stopOpacity="0.0"/>
+                        <stop offset="0%" stopColor="var(--chart-1)" stopOpacity="0.25"/>
+                        <stop offset="100%" stopColor="var(--chart-1)" stopOpacity="0.0"/>
                       </linearGradient>
                       <linearGradient id="cyanGlow" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="var(--accent-cyan)" stopOpacity="0.25"/>
-                        <stop offset="100%" stopColor="var(--accent-cyan)" stopOpacity="0.0"/>
+                        <stop offset="0%" stopColor="var(--chart-2)" stopOpacity="0.25"/>
+                        <stop offset="100%" stopColor="var(--chart-2)" stopOpacity="0.0"/>
                       </linearGradient>
                     </defs>
 
@@ -607,12 +488,12 @@ export default function DashboardView({ stats, history, config }) {
                       y1={yTargetWeight} 
                       x2={w - padR} 
                       y2={yTargetWeight} 
-                      stroke="var(--color-accent)" 
+                      stroke="var(--chart-1)" 
                       strokeWidth="1.5" 
                       strokeDasharray="2 3" 
                       opacity="0.3"
                     />
-                    <text x={padL + 10} y={yTargetWeight - 4} fill="var(--color-accent)" opacity="0.5" fontSize="7" fontWeight="600" style={{ letterSpacing: '0.5px' }}>TARGET WEIGHT ({targetWeight}KG)</text>
+                    <text x={padL + 10} y={yTargetWeight - 4} fill="var(--chart-1)" opacity="0.5" fontSize="7" fontWeight="600" style={{ letterSpacing: '0.5px' }}>Target {targetWeight} kg</text>
 
                     {/* Shaded Optimal Sleep Zone */}
                     {sMin <= 9 && sMax >= 7 && (
@@ -626,14 +507,14 @@ export default function DashboardView({ stats, history, config }) {
                         />
                         <line x1={padL} y1={ySleep7} x2={w - padR} y2={ySleep7} stroke="rgba(6, 182, 212, 0.15)" strokeDasharray="2 3" />
                         <line x1={padL} y1={ySleep9} x2={w - padR} y2={ySleep9} stroke="rgba(6, 182, 212, 0.15)" strokeDasharray="2 3" />
-                        <text x={padL + 10} y={Math.min(ySleep7, ySleep9) + 12} fill="rgba(6, 182, 212, 0.35)" fontSize="7" fontWeight="600" style={{ letterSpacing: '0.5px' }}>OPTIMAL SLEEP ZONE (7-9H)</text>
+                        <text x={padL + 10} y={Math.min(ySleep7, ySleep9) + 12} fill="rgba(6, 182, 212, 0.35)" fontSize="7" fontWeight="600" style={{ letterSpacing: '0.5px' }}>Optimal sleep 7–9h</text>
                       </>
                     )}
 
                     {/* Grid lines */}
                     {[0, 1, 2, 3, 4].map(idx => {
                       const y = padT + (idx / 4) * gH;
-                      return <line key={idx} x1={padL} y1={y} x2={w - padR} y2={y} stroke="var(--border-subtle)" strokeWidth="1" />;
+                      return <line key={idx} x1={padL} y1={y} x2={w - padR} y2={y} stroke="var(--border)" strokeWidth="1" />;
                     })}
 
                     {/* Shaded Area Fades */}
@@ -645,26 +526,26 @@ export default function DashboardView({ stats, history, config }) {
                     )}
 
                     {/* Path Lines */}
-                    <path d={pathW} fill="none" stroke="var(--color-accent)" strokeWidth="2.5" style={{ filter: 'drop-shadow(0px 3px 6px rgba(168, 85, 247, 0.35))' }} />
-                    <path d={pathS} fill="none" stroke="var(--accent-cyan)" strokeWidth="2.5" style={{ filter: 'drop-shadow(0px 3px 6px rgba(6, 182, 212, 0.35))' }} />
+                    <path d={pathW} fill="none" stroke="var(--chart-1)" strokeWidth="2.5" style={{ filter: 'drop-shadow(0px 3px 6px rgba(168, 85, 247, 0.35))' }} />
+                    <path d={pathS} fill="none" stroke="var(--chart-2)" strokeWidth="2.5" style={{ filter: 'drop-shadow(0px 3px 6px rgba(6, 182, 212, 0.35))' }} />
 
                     {/* Interactive dots */}
                     {coords.map((c, i) => {
                       const showLabel = coords.length <= 10 || i % Math.ceil(coords.length / 8) === 0;
                       return (
                         <g key={i}>
-                          <circle cx={c.x} cy={c.yW} r="3.5" fill="var(--bg-surface)" stroke="var(--color-accent)" strokeWidth="2" />
-                          <circle cx={c.x} cy={c.yS} r="3.5" fill="var(--bg-surface)" stroke="var(--accent-cyan)" strokeWidth="2" />
-                          {showLabel && <text x={c.x} y={h - 10} textAnchor="middle" fill="var(--text-secondary)" fontSize="8" fontWeight="500">{c.date}</text>}
+                          <circle cx={c.x} cy={c.yW} r="3.5" fill="var(--card)" stroke="var(--chart-1)" strokeWidth="2" />
+                          <circle cx={c.x} cy={c.yS} r="3.5" fill="var(--card)" stroke="var(--chart-2)" strokeWidth="2" />
+                          {showLabel && <text x={c.x} y={h - 10} textAnchor="middle" fill="var(--muted-foreground)" fontSize="8" fontWeight="500">{c.date}</text>}
                         </g>
                       );
                     })}
 
                     {/* Y-labels Weight (left) & Sleep (right) */}
-                    <text x={10} y={padT + 5} fill="var(--text-muted)" fontSize="8" fontWeight="600">{wMax.toFixed(1)}</text>
-                    <text x={10} y={padT + gH + 5} fill="var(--text-muted)" fontSize="8" fontWeight="600">{wMin.toFixed(1)}</text>
-                    <text x={w - 32} y={padT + 5} fill="var(--text-muted)" fontSize="8" fontWeight="600">{sMax.toFixed(1)}h</text>
-                    <text x={w - 32} y={padT + gH + 5} fill="var(--text-muted)" fontSize="8" fontWeight="600">{sMin.toFixed(1)}h</text>
+                    <text x={10} y={padT + 5} fill="var(--muted-foreground)" fontSize="8" fontWeight="600">{wMax.toFixed(1)}</text>
+                    <text x={10} y={padT + gH + 5} fill="var(--muted-foreground)" fontSize="8" fontWeight="600">{wMin.toFixed(1)}</text>
+                    <text x={w - 32} y={padT + 5} fill="var(--muted-foreground)" fontSize="8" fontWeight="600">{sMax.toFixed(1)}h</text>
+                    <text x={w - 32} y={padT + gH + 5} fill="var(--muted-foreground)" fontSize="8" fontWeight="600">{sMin.toFixed(1)}h</text>
 
                     {/* Hover sensor rects */}
                     {coords.map((c, i) => (
@@ -683,8 +564,8 @@ export default function DashboardView({ stats, history, config }) {
                             y: Math.min(c.yW, c.yS),
                             date: pts[i].date,
                             lines: [
-                              { label: 'Weight', val: `${c.wVal} kg`, color: 'var(--color-accent)' },
-                              { label: 'Sleep', val: `${c.sVal} hrs`, color: 'var(--accent-cyan)' }
+                              { label: 'Weight', val: `${c.wVal} kg`, color: 'var(--chart-1)' },
+                              { label: 'Sleep', val: `${c.sVal} hrs`, color: 'var(--chart-2)' }
                             ]
                           });
                         }}
@@ -696,43 +577,39 @@ export default function DashboardView({ stats, history, config }) {
               })()}
               
               {hoveredPoint && hoveredPoint.chartId === 'weight-sleep' && (
-                <div style={getSmartTooltipStyle(hoveredPoint)}>
-                  <div className="tooltip-date" style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 600, borderBottom: '1px solid var(--border-color)', paddingBottom: '4px', marginBottom: '4px' }}>{hoveredPoint.date}</div>
+                <div className={TOOLTIP_CLASS} style={getSmartTooltipStyle(hoveredPoint)}>
+                  <div className="text-muted-foreground mb-1 border-b pb-1 text-xs font-medium">{hoveredPoint.date}</div>
                   {hoveredPoint.lines.map((l, i) => (
-                    <div key={i} style={{ display: 'flex', gap: '8px', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.75rem', margin: '2px 0' }}>
-                      <span style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--text-secondary)' }}>
-                        <span className="legend-color" style={{ background: l.color, width: '6px', height: '6px', borderRadius: '50%' }}></span>
+                    <div key={i} className="flex items-center justify-between gap-2 py-0.5 text-xs">
+                      <span className="text-muted-foreground flex items-center gap-1.5">
+                        <span className="size-1.5 rounded-full" style={{ background: l.color }} />
                         {l.label}:
                       </span>
-                      <strong style={{ color: 'var(--text-primary)' }}>{l.val}</strong>
+                      <strong className="text-foreground">{l.val}</strong>
                     </div>
                   ))}
                 </div>
               )}
-            </div>
-          </div>
+            </CardContent>
+          </Card>
 
           {/* Calories Intake Bar Chart */}
-          <div className="chart-card glass-card" style={{
-            background: 'var(--bg-surface)',
-            border: '1px solid var(--border-color)',
-            padding: '24px',
-            borderRadius: 'var(--radius-md)',
-            boxShadow: 'var(--shadow-sm)',
-            position: 'relative'
-          }}>
-            <div className="chart-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-              <h3 className="chart-title" style={{ margin: 0, fontSize: '1.05rem', fontWeight: 700, fontFamily: 'var(--font-heading)' }}>Calories Intake ({timeRange})</h3>
-              <div className="chart-legend" style={{ display: 'flex', gap: '14px', fontSize: '0.8rem' }}>
-                <span className="legend-item" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <span className="legend-color" style={{ background: 'var(--accent-cyan)', width: '8px', height: '8px', borderRadius: '50%' }}></span>Calories (kcal)
+          <Card className="relative">
+            <CardHeader>
+              <CardTitle>Calories</CardTitle>
+              <CardDescription>Daily intake against your calorie target.</CardDescription>
+              <CardAction>
+                <div className="text-muted-foreground flex flex-wrap items-center gap-3 text-xs">
+                <span className="flex items-center gap-1.5">
+                  <span className="size-2 rounded-full" style={{ background: 'var(--chart-2)' }} />Calories (kcal)
                 </span>
-              </div>
-            </div>
-            <div className="svg-chart-container" style={{ position: 'relative' }}>
+                </div>
+              </CardAction>
+            </CardHeader>
+            <CardContent className="relative">
               {(() => {
                 const pts = filteredHistory.filter(h => h.nightData);
-                if (pts.length < 2) return <p className="text-muted text-center py-10" style={{ padding: '60px 0' }}>Need more evening nutrition logs...</p>;
+                if (pts.length < 2) return <p className="text-muted-foreground py-14 text-center text-sm">Need more evening nutrition logs...</p>;
                 
                 const targetCalories = config && config.targetCalories !== undefined ? parseInt(config.targetCalories, 10) : 2500;
                 const calories = pts.map(p => parseFloat(p.nightData.calories) || 0);
@@ -765,18 +642,18 @@ export default function DashboardView({ stats, history, config }) {
                   <svg viewBox={`0 0 ${w} ${h}`} style={{ overflow: 'visible' }}>
                     <defs>
                       <linearGradient id="barCyanGlow" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="var(--accent-cyan)" stopOpacity="0.8"/>
-                        <stop offset="100%" stopColor="var(--accent-cyan)" stopOpacity="0.15"/>
+                        <stop offset="0%" stopColor="var(--chart-2)" stopOpacity="0.8"/>
+                        <stop offset="100%" stopColor="var(--chart-2)" stopOpacity="0.15"/>
                       </linearGradient>
                     </defs>
 
                     {[0, 1, 2, 3, 4].map(idx => {
                       const y = padT + (idx / 4) * gH;
-                      return <line key={idx} x1={padL} y1={y} x2={w - padR} y2={y} stroke="var(--border-subtle)" strokeWidth="1" />;
+                      return <line key={idx} x1={padL} y1={y} x2={w - padR} y2={y} stroke="var(--border)" strokeWidth="1" />;
                     })}
 
                     <line x1={padL} y1={yTarget} x2={w - padR} y2={yTarget} stroke="rgba(6, 182, 212, 0.25)" strokeWidth="1.5" strokeDasharray="3 3" />
-                    <text x={w - padR - 120} y={yTarget - 4} fill="rgba(6, 182, 212, 0.45)" fontSize="7" fontWeight="600" style={{ letterSpacing: '0.5px' }}>TARGET CALORIES ({targetCalories} KCAL)</text>
+                    <text x={w - padR - 120} y={yTarget - 4} fill="rgba(6, 182, 212, 0.45)" fontSize="7" fontWeight="600" style={{ letterSpacing: '0.5px' }}>Target {targetCalories} kcal</text>
 
                     {coords.map((c, i) => (
                       <rect
@@ -795,11 +672,11 @@ export default function DashboardView({ stats, history, config }) {
 
                     {coords.map((c, i) => {
                       const showLabel = coords.length <= 10 || i % Math.ceil(coords.length / 8) === 0;
-                      return showLabel ? <text key={i} x={c.x} y={h - 10} textAnchor="middle" fill="var(--text-secondary)" fontSize="8" fontWeight="500">{c.date}</text> : null;
+                      return showLabel ? <text key={i} x={c.x} y={h - 10} textAnchor="middle" fill="var(--muted-foreground)" fontSize="8" fontWeight="500">{c.date}</text> : null;
                     })}
 
-                    <text x={10} y={padT + 5} fill="var(--text-muted)" fontSize="8" fontWeight="600">{Math.round(maxCal)}</text>
-                    <text x={10} y={padT + gH + 5} fill="var(--text-muted)" fontSize="8" fontWeight="600">0</text>
+                    <text x={10} y={padT + 5} fill="var(--muted-foreground)" fontSize="8" fontWeight="600">{Math.round(maxCal)}</text>
+                    <text x={10} y={padT + gH + 5} fill="var(--muted-foreground)" fontSize="8" fontWeight="600">0</text>
 
                     {coords.map((c, i) => (
                       <rect
@@ -816,7 +693,7 @@ export default function DashboardView({ stats, history, config }) {
                             x: c.x,
                             y: c.yBar,
                             date: pts[i].date,
-                            lines: [{ label: 'Calories', val: `${c.cVal} kcal`, color: 'var(--accent-cyan)' }]
+                            lines: [{ label: 'Calories', val: `${c.cVal} kcal`, color: 'var(--chart-2)' }]
                           });
                         }}
                         onMouseLeave={() => setHoveredPoint(null)}
@@ -827,49 +704,45 @@ export default function DashboardView({ stats, history, config }) {
               })()}
 
               {hoveredPoint && hoveredPoint.chartId === 'calories-only' && (
-                <div style={getSmartTooltipStyle(hoveredPoint)}>
-                  <div className="tooltip-date" style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 600, borderBottom: '1px solid var(--border-color)', paddingBottom: '4px', marginBottom: '4px' }}>{hoveredPoint.date}</div>
+                <div className={TOOLTIP_CLASS} style={getSmartTooltipStyle(hoveredPoint)}>
+                  <div className="text-muted-foreground mb-1 border-b pb-1 text-xs font-medium">{hoveredPoint.date}</div>
                   {hoveredPoint.lines.map((l, i) => (
-                    <div key={i} style={{ display: 'flex', gap: '8px', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.75rem', margin: '2px 0' }}>
-                      <span style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--text-secondary)' }}>
-                        <span className="legend-color" style={{ background: l.color, width: '6px', height: '6px', borderRadius: '50%' }}></span>
+                    <div key={i} className="flex items-center justify-between gap-2 py-0.5 text-xs">
+                      <span className="text-muted-foreground flex items-center gap-1.5">
+                        <span className="size-1.5 rounded-full" style={{ background: l.color }} />
                         {l.label}:
                       </span>
-                      <strong style={{ color: 'var(--text-primary)' }}>{l.val}</strong>
+                      <strong className="text-foreground">{l.val}</strong>
                     </div>
                   ))}
                 </div>
               )}
-            </div>
-          </div>
+            </CardContent>
+          </Card>
 
           {/* Macronutrient Breakdown Line Chart */}
-          <div className="chart-card glass-card" style={{
-            background: 'var(--bg-surface)',
-            border: '1px solid var(--border-color)',
-            padding: '24px',
-            borderRadius: 'var(--radius-md)',
-            boxShadow: 'var(--shadow-sm)',
-            position: 'relative'
-          }}>
-            <div className="chart-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-              <h3 className="chart-title" style={{ margin: 0, fontSize: '1.05rem', fontWeight: 700, fontFamily: 'var(--font-heading)' }}>Macronutrient Breakdown</h3>
-              <div className="chart-legend" style={{ display: 'flex', gap: '12px', fontSize: '0.8rem' }}>
-                <span className="legend-item" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                  <span className="legend-color" style={{background: 'var(--color-accent)', width: '8px', height: '8px', borderRadius: '50%'}}></span>Protein
+          <Card className="relative">
+            <CardHeader>
+              <CardTitle>Macronutrients</CardTitle>
+              <CardDescription>Protein, carbs and fats logged per day.</CardDescription>
+              <CardAction>
+                <div className="text-muted-foreground flex flex-wrap items-center gap-3 text-xs">
+                <span className="flex items-center gap-1.5">
+                  <span className="bg-chart-1 size-2 rounded-full" />Protein
                 </span>
-                <span className="legend-item" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                  <span className="legend-color" style={{background: 'var(--accent-cyan)', width: '8px', height: '8px', borderRadius: '50%'}}></span>Carbs
+                <span className="flex items-center gap-1.5">
+                  <span className="bg-chart-2 size-2 rounded-full" />Carbs
                 </span>
-                <span className="legend-item" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                  <span className="legend-color" style={{background: '#f59e0b', width: '8px', height: '8px', borderRadius: '50%'}}></span>Fats
+                <span className="flex items-center gap-1.5">
+                  <span className="bg-chart-3 size-2 rounded-full" />Fats
                 </span>
-              </div>
-            </div>
-            <div className="svg-chart-container" style={{ position: 'relative' }}>
+                </div>
+              </CardAction>
+            </CardHeader>
+            <CardContent className="relative">
               {(() => {
                 const pts = filteredHistory.filter(h => h.nightData);
-                if (pts.length < 2) return <p className="text-muted text-center py-10" style={{ padding: '60px 0' }}>Need more evening nutrition logs...</p>;
+                if (pts.length < 2) return <p className="text-muted-foreground py-14 text-center text-sm">Need more evening nutrition logs...</p>;
                 
                 const targetProtein = config && config.targetProtein !== undefined ? parseInt(config.targetProtein, 10) : 150;
                 const proteins = pts.map(p => parseFloat(p.nightData.protein) || 0);
@@ -909,30 +782,30 @@ export default function DashboardView({ stats, history, config }) {
                   <svg viewBox={`0 0 ${w} ${h}`} style={{ overflow: 'visible' }}>
                     {[0, 1, 2, 3, 4].map(idx => {
                       const y = padT + (idx / 4) * gH;
-                      return <line key={idx} x1={padL} y1={y} x2={w - padR} y2={y} stroke="var(--border-subtle)" strokeWidth="1" />;
+                      return <line key={idx} x1={padL} y1={y} x2={w - padR} y2={y} stroke="var(--border)" strokeWidth="1" />;
                     })}
 
-                    <line x1={padL} y1={yTargetProtein} x2={w - padR} y2={yTargetProtein} stroke="var(--color-accent)" strokeWidth="1.5" strokeDasharray="2 3" opacity="0.3" />
-                    <text x={padL + 10} y={yTargetProtein - 4} fill="var(--color-accent)" opacity="0.5" fontSize="7" fontWeight="600" style={{ letterSpacing: '0.5px' }}>TARGET PROTEIN ({targetProtein}G)</text>
+                    <line x1={padL} y1={yTargetProtein} x2={w - padR} y2={yTargetProtein} stroke="var(--chart-1)" strokeWidth="1.5" strokeDasharray="2 3" opacity="0.3" />
+                    <text x={padL + 10} y={yTargetProtein - 4} fill="var(--chart-1)" opacity="0.5" fontSize="7" fontWeight="600" style={{ letterSpacing: '0.5px' }}>Target {targetProtein}g protein</text>
 
-                    <path d={pathP} fill="none" stroke="var(--color-accent)" strokeWidth="2" style={{ filter: 'drop-shadow(0px 2px 4px rgba(168, 85, 247, 0.3))' }} />
-                    <path d={pathC} fill="none" stroke="var(--accent-cyan)" strokeWidth="2" style={{ filter: 'drop-shadow(0px 2px 4px rgba(6, 182, 212, 0.3))' }} />
-                    <path d={pathF} fill="none" stroke="var(--color-warning)" strokeWidth="2" style={{ filter: 'drop-shadow(0px 2px 4px rgba(245, 158, 11, 0.3))' }} />
+                    <path d={pathP} fill="none" stroke="var(--chart-1)" strokeWidth="2" style={{ filter: 'drop-shadow(0px 2px 4px rgba(168, 85, 247, 0.3))' }} />
+                    <path d={pathC} fill="none" stroke="var(--chart-2)" strokeWidth="2" style={{ filter: 'drop-shadow(0px 2px 4px rgba(6, 182, 212, 0.3))' }} />
+                    <path d={pathF} fill="none" stroke="var(--chart-3)" strokeWidth="2" style={{ filter: 'drop-shadow(0px 2px 4px rgba(245, 158, 11, 0.3))' }} />
 
                     {coords.map((c, i) => {
                       const showLabel = coords.length <= 10 || i % Math.ceil(coords.length / 8) === 0;
                       return (
                         <g key={i}>
-                          <circle cx={c.x} cy={c.yProt} r="3" fill="var(--bg-surface)" stroke="var(--color-accent)" strokeWidth="1.5" />
-                          <circle cx={c.x} cy={c.yCarb} r="3" fill="var(--bg-surface)" stroke="var(--accent-cyan)" strokeWidth="1.5" />
-                          <circle cx={c.x} cy={c.yFat} r="3" fill="var(--bg-surface)" stroke="var(--color-warning)" strokeWidth="1.5" />
-                          {showLabel && <text x={c.x} y={h - 10} textAnchor="middle" fill="var(--text-secondary)" fontSize="8" fontWeight="500">{c.date}</text>}
+                          <circle cx={c.x} cy={c.yProt} r="3" fill="var(--card)" stroke="var(--chart-1)" strokeWidth="1.5" />
+                          <circle cx={c.x} cy={c.yCarb} r="3" fill="var(--card)" stroke="var(--chart-2)" strokeWidth="1.5" />
+                          <circle cx={c.x} cy={c.yFat} r="3" fill="var(--card)" stroke="var(--chart-3)" strokeWidth="1.5" />
+                          {showLabel && <text x={c.x} y={h - 10} textAnchor="middle" fill="var(--muted-foreground)" fontSize="8" fontWeight="500">{c.date}</text>}
                         </g>
                       );
                     })}
 
-                    <text x={10} y={padT + 5} fill="var(--text-muted)" fontSize="8" fontWeight="600">{Math.round(maxMacro)}g</text>
-                    <text x={10} y={padT + gH + 5} fill="var(--text-muted)" fontSize="8" fontWeight="600">0g</text>
+                    <text x={10} y={padT + 5} fill="var(--muted-foreground)" fontSize="8" fontWeight="600">{Math.round(maxMacro)}g</text>
+                    <text x={10} y={padT + gH + 5} fill="var(--muted-foreground)" fontSize="8" fontWeight="600">0g</text>
 
                     {coords.map((c, i) => (
                       <rect
@@ -950,8 +823,8 @@ export default function DashboardView({ stats, history, config }) {
                             y: Math.min(c.yProt, c.yCarb, c.yFat),
                             date: pts[i].date,
                             lines: [
-                              { label: 'Protein', val: `${c.pVal} g`, color: 'var(--color-accent)' },
-                              { label: 'Carbs', val: `${c.cVal} g`, color: 'var(--accent-cyan)' },
+                              { label: 'Protein', val: `${c.pVal} g`, color: 'var(--chart-1)' },
+                              { label: 'Carbs', val: `${c.cVal} g`, color: 'var(--chart-2)' },
                               { label: 'Fats', val: `${c.fVal} g`, color: '#f59e0b' }
                             ]
                           });
@@ -964,46 +837,42 @@ export default function DashboardView({ stats, history, config }) {
               })()}
 
               {hoveredPoint && hoveredPoint.chartId === 'macros' && (
-                <div style={getSmartTooltipStyle(hoveredPoint)}>
-                  <div className="tooltip-date" style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 600, borderBottom: '1px solid var(--border-color)', paddingBottom: '4px', marginBottom: '4px' }}>{hoveredPoint.date}</div>
+                <div className={TOOLTIP_CLASS} style={getSmartTooltipStyle(hoveredPoint)}>
+                  <div className="text-muted-foreground mb-1 border-b pb-1 text-xs font-medium">{hoveredPoint.date}</div>
                   {hoveredPoint.lines.map((l, i) => (
-                    <div key={i} style={{ display: 'flex', gap: '8px', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.75rem', margin: '2px 0' }}>
-                      <span style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--text-secondary)' }}>
-                        <span className="legend-color" style={{ background: l.color, width: '6px', height: '6px', borderRadius: '50%' }}></span>
+                    <div key={i} className="flex items-center justify-between gap-2 py-0.5 text-xs">
+                      <span className="text-muted-foreground flex items-center gap-1.5">
+                        <span className="size-1.5 rounded-full" style={{ background: l.color }} />
                         {l.label}:
                       </span>
-                      <strong style={{ color: 'var(--text-primary)' }}>{l.val}</strong>
+                      <strong className="text-foreground">{l.val}</strong>
                     </div>
                   ))}
                 </div>
               )}
-            </div>
-          </div>
+            </CardContent>
+          </Card>
 
           {/* Daily Steps Bar Chart */}
-          <div className="chart-card glass-card" style={{
-            background: 'var(--bg-surface)',
-            border: '1px solid var(--border-color)',
-            padding: '24px',
-            borderRadius: 'var(--radius-md)',
-            boxShadow: 'var(--shadow-sm)',
-            position: 'relative'
-          }}>
-            <div className="chart-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-              <h3 className="chart-title" style={{ margin: 0, fontSize: '1.05rem', fontWeight: 700, fontFamily: 'var(--font-heading)' }}>Daily Steps ({timeRange})</h3>
-              <div className="chart-legend" style={{ display: 'flex', gap: '14px', fontSize: '0.8rem' }}>
-                <span className="legend-item" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <span className="legend-color" style={{ background: 'var(--accent-cyan)', width: '8px', height: '8px', borderRadius: '50%' }}></span>Steps
+          <Card className="relative">
+            <CardHeader>
+              <CardTitle>Steps</CardTitle>
+              <CardDescription>Daily step count against your goal.</CardDescription>
+              <CardAction>
+                <div className="text-muted-foreground flex flex-wrap items-center gap-3 text-xs">
+                <span className="flex items-center gap-1.5">
+                  <span className="size-2 rounded-full" style={{ background: 'var(--chart-2)' }} />Steps
                 </span>
-                <span className="legend-item" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <span className="legend-color" style={{ background: 'var(--color-danger)', width: '8px', height: '8px', borderRadius: '50%' }}></span>Goal
+                <span className="flex items-center gap-1.5">
+                  <span className="size-2 rounded-full" style={{ background: 'var(--destructive)' }} />Goal
                 </span>
-              </div>
-            </div>
-            <div className="svg-chart-container" style={{ position: 'relative' }}>
+                </div>
+              </CardAction>
+            </CardHeader>
+            <CardContent className="relative">
               {(() => {
                 const pts = filteredHistory.filter(h => h.nightData);
-                if (pts.length < 2) return <p className="text-muted text-center py-10" style={{ padding: '60px 0' }}>Need more evening activity logs...</p>;
+                if (pts.length < 2) return <p className="text-muted-foreground py-14 text-center text-sm">Need more evening activity logs...</p>;
                 const targetSteps = config && config.targetSteps !== undefined ? parseInt(config.targetSteps, 10) : 10000;
                 const steps = pts.map(p => parseInt(p.nightData.steps) || 0);
                 const maxSteps = Math.max(...steps, targetSteps + 2000);
@@ -1034,22 +903,22 @@ export default function DashboardView({ stats, history, config }) {
                   <svg viewBox={`0 0 ${w} ${h}`} style={{ overflow: 'visible' }}>
                     <defs>
                       <linearGradient id="barRedGlow" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="var(--color-danger)" stopOpacity="0.6"/>
-                        <stop offset="100%" stopColor="var(--color-danger)" stopOpacity="0.1"/>
+                        <stop offset="0%" stopColor="var(--destructive)" stopOpacity="0.6"/>
+                        <stop offset="100%" stopColor="var(--destructive)" stopOpacity="0.1"/>
                       </linearGradient>
                       <linearGradient id="barCyanGlow" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="var(--accent-cyan)" stopOpacity="0.6"/>
-                        <stop offset="100%" stopColor="var(--accent-cyan)" stopOpacity="0.1"/>
+                        <stop offset="0%" stopColor="var(--chart-2)" stopOpacity="0.6"/>
+                        <stop offset="100%" stopColor="var(--chart-2)" stopOpacity="0.1"/>
                       </linearGradient>
                     </defs>
 
                     {[0, 1, 2, 3, 4].map(idx => {
                       const y = padT + (idx / 4) * gH;
-                      return <line key={idx} x1={padL} y1={y} x2={w - padR} y2={y} stroke="var(--border-subtle)" strokeWidth="1" />;
+                      return <line key={idx} x1={padL} y1={y} x2={w - padR} y2={y} stroke="var(--border)" strokeWidth="1" />;
                     })}
 
-                    <line x1={padL} y1={yGoal} x2={w - padR} y2={yGoal} stroke="var(--color-danger)" strokeWidth="1.5" strokeDasharray="3 3" style={{ filter: 'drop-shadow(0 0 2px var(--color-danger))' }} />
-                    <text x={w - padR - 110} y={yGoal - 4} fill="var(--color-danger)" opacity="0.6" fontSize="7" fontWeight="600" style={{ letterSpacing: '0.5px' }}>DAILY STEP GOAL ({targetSteps.toLocaleString()})</text>
+                    <line x1={padL} y1={yGoal} x2={w - padR} y2={yGoal} stroke="var(--destructive)" strokeWidth="1.5" strokeDasharray="3 3" style={{ filter: 'drop-shadow(0 0 2px var(--destructive))' }} />
+                    <text x={w - padR - 110} y={yGoal - 4} fill="var(--destructive)" opacity="0.6" fontSize="7" fontWeight="600" style={{ letterSpacing: '0.5px' }}>Goal {targetSteps.toLocaleString()} steps</text>
 
                     {coords.map((c, i) => (
                       <rect
@@ -1068,12 +937,12 @@ export default function DashboardView({ stats, history, config }) {
 
                     {coords.map((c, i) => {
                       const showLabel = coords.length <= 10 || i % Math.ceil(coords.length / 8) === 0;
-                      return showLabel ? <text key={i} x={c.x} y={h - 10} textAnchor="middle" fill="var(--text-secondary)" fontSize="8" fontWeight="500">{c.date}</text> : null;
+                      return showLabel ? <text key={i} x={c.x} y={h - 10} textAnchor="middle" fill="var(--muted-foreground)" fontSize="8" fontWeight="500">{c.date}</text> : null;
                     })}
 
-                    <text x={5} y={padT + 5} fill="var(--text-muted)" fontSize="8" fontWeight="600">{Math.round(maxSteps).toLocaleString()}</text>
-                    <text x={5} y={yGoal + 3} fill="var(--color-danger)" opacity="0.75" fontSize="8" fontWeight="600">{(targetSteps / 1000).toFixed(0)}k</text>
-                    <text x={5} y={padT + gH + 5} fill="var(--text-muted)" fontSize="8" fontWeight="600">0</text>
+                    <text x={5} y={padT + 5} fill="var(--muted-foreground)" fontSize="8" fontWeight="600">{Math.round(maxSteps).toLocaleString()}</text>
+                    <text x={5} y={yGoal + 3} fill="var(--destructive)" opacity="0.75" fontSize="8" fontWeight="600">{(targetSteps / 1000).toFixed(0)}k</text>
+                    <text x={5} y={padT + gH + 5} fill="var(--muted-foreground)" fontSize="8" fontWeight="600">0</text>
 
                     {coords.map((c, i) => (
                       <rect
@@ -1091,7 +960,7 @@ export default function DashboardView({ stats, history, config }) {
                             y: c.yBar,
                             date: pts[i].date,
                             lines: [
-                              { label: 'Steps', val: c.sVal.toLocaleString(), color: c.sVal >= targetSteps ? 'var(--accent-cyan)' : 'var(--color-danger)' }
+                              { label: 'Steps', val: c.sVal.toLocaleString(), color: c.sVal >= targetSteps ? 'var(--chart-2)' : 'var(--destructive)' }
                             ]
                           });
                         }}
@@ -1103,43 +972,39 @@ export default function DashboardView({ stats, history, config }) {
               })()}
 
               {hoveredPoint && hoveredPoint.chartId === 'steps' && (
-                <div style={getSmartTooltipStyle(hoveredPoint)}>
-                  <div className="tooltip-date" style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 600, borderBottom: '1px solid var(--border-color)', paddingBottom: '4px', marginBottom: '4px' }}>{hoveredPoint.date}</div>
+                <div className={TOOLTIP_CLASS} style={getSmartTooltipStyle(hoveredPoint)}>
+                  <div className="text-muted-foreground mb-1 border-b pb-1 text-xs font-medium">{hoveredPoint.date}</div>
                   {hoveredPoint.lines.map((l, i) => (
-                    <div key={i} style={{ display: 'flex', gap: '8px', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.75rem', margin: '2px 0' }}>
-                      <span style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--text-secondary)' }}>
-                        <span className="legend-color" style={{ background: l.color, width: '6px', height: '6px', borderRadius: '50%' }}></span>
+                    <div key={i} className="flex items-center justify-between gap-2 py-0.5 text-xs">
+                      <span className="text-muted-foreground flex items-center gap-1.5">
+                        <span className="size-1.5 rounded-full" style={{ background: l.color }} />
                         {l.label}:
                       </span>
-                      <strong style={{ color: 'var(--text-primary)' }}>{l.val}</strong>
+                      <strong className="text-foreground">{l.val}</strong>
                     </div>
                   ))}
                 </div>
               )}
-            </div>
-          </div>
+            </CardContent>
+          </Card>
 
           {/* Compliance History Bar Chart */}
-          <div className="chart-card glass-card" style={{
-            background: 'var(--bg-surface)',
-            border: '1px solid var(--border-color)',
-            padding: '24px',
-            borderRadius: 'var(--radius-md)',
-            boxShadow: 'var(--shadow-sm)',
-            position: 'relative'
-          }}>
-            <div className="chart-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-              <h3 className="chart-title" style={{ margin: 0, fontSize: '1.05rem', fontWeight: 700, fontFamily: 'var(--font-heading)' }}>Habit Compliance History</h3>
-              <div className="chart-legend" style={{ display: 'flex', gap: '14px', fontSize: '0.8rem' }}>
-                <span className="legend-item" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <span className="legend-color" style={{ background: 'var(--color-success)', width: '8px', height: '8px', borderRadius: '50%' }}></span>Completed Habits
+          <Card className="relative">
+            <CardHeader>
+              <CardTitle>Compliance</CardTitle>
+              <CardDescription>Habits completed each day.</CardDescription>
+              <CardAction>
+                <div className="text-muted-foreground flex flex-wrap items-center gap-3 text-xs">
+                <span className="flex items-center gap-1.5">
+                  <span className="size-2 rounded-full" style={{ background: 'var(--color-success)' }} />Completed Habits
                 </span>
-              </div>
-            </div>
-            <div className="svg-chart-container" style={{ position: 'relative' }}>
+                </div>
+              </CardAction>
+            </CardHeader>
+            <CardContent className="relative">
               {(() => {
                 const pts = filteredHistory;
-                if (pts.length < 2) return <p className="text-muted text-center py-10" style={{ padding: '60px 0' }}>Need more logs to generate compliance graph...</p>;
+                if (pts.length < 2) return <p className="text-muted-foreground py-14 text-center text-sm">Need more logs to generate compliance graph...</p>;
                 
                 const w = 500;
                 const h = 200;
@@ -1190,14 +1055,14 @@ export default function DashboardView({ stats, history, config }) {
                         <stop offset="100%" stopColor="var(--color-success)" stopOpacity="0.15"/>
                       </linearGradient>
                       <linearGradient id="barPurpleGlow" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="var(--color-accent)" stopOpacity="0.8"/>
-                        <stop offset="100%" stopColor="var(--color-accent)" stopOpacity="0.15"/>
+                        <stop offset="0%" stopColor="var(--chart-1)" stopOpacity="0.8"/>
+                        <stop offset="100%" stopColor="var(--chart-1)" stopOpacity="0.15"/>
                       </linearGradient>
                     </defs>
 
                     {[0, 1, 2, 3, 4].map(idx => {
                       const y = padT + (idx / 4) * gH;
-                      return <line key={idx} x1={padL} y1={y} x2={w - padR} y2={y} stroke="var(--border-subtle)" strokeWidth="1" />;
+                      return <line key={idx} x1={padL} y1={y} x2={w - padR} y2={y} stroke="var(--border)" strokeWidth="1" />;
                     })}
 
                     {coords.map((c, i) => {
@@ -1229,12 +1094,12 @@ export default function DashboardView({ stats, history, config }) {
 
                     {coords.map((c, i) => {
                       const showLabel = coords.length <= 10 || i % Math.ceil(coords.length / 8) === 0;
-                      return showLabel ? <text key={i} x={c.x} y={h - 10} textAnchor="middle" fill="var(--text-secondary)" fontSize="8" fontWeight="500">{c.date}</text> : null;
+                      return showLabel ? <text key={i} x={c.x} y={h - 10} textAnchor="middle" fill="var(--muted-foreground)" fontSize="8" fontWeight="500">{c.date}</text> : null;
                     })}
 
-                    <text x={10} y={padT + 5} fill="var(--text-muted)" fontSize="8" fontWeight="600">100%</text>
-                    <text x={10} y={padT + gH / 2 + 5} fill="var(--text-muted)" fontSize="8" fontWeight="600">50%</text>
-                    <text x={10} y={padT + gH + 5} fill="var(--text-muted)" fontSize="8" fontWeight="600">0%</text>
+                    <text x={10} y={padT + 5} fill="var(--muted-foreground)" fontSize="8" fontWeight="600">100%</text>
+                    <text x={10} y={padT + gH / 2 + 5} fill="var(--muted-foreground)" fontSize="8" fontWeight="600">50%</text>
+                    <text x={10} y={padT + gH + 5} fill="var(--muted-foreground)" fontSize="8" fontWeight="600">0%</text>
 
                     {coords.map((c, i) => (
                       <rect
@@ -1248,20 +1113,20 @@ export default function DashboardView({ stats, history, config }) {
                         onMouseEnter={() => {
                           const isAnkiDone = c.p.ankiCompleted || c.p.ankiManualOverride;
                           const lines = [
-                            { label: 'Morning Log', val: c.p.morningCompleted ? '✅ Done' : '❌ Missed', color: c.p.morningCompleted ? 'var(--color-success)' : 'var(--color-danger)' },
-                            { label: 'Morning Journal', val: c.p.morningJournalCompleted ? '✅ Done' : '❌ Missed', color: c.p.morningJournalCompleted ? 'var(--color-success)' : 'var(--color-danger)' },
-                            { label: 'Evening Log', val: c.p.nightCompleted ? '✅ Done' : '❌ Missed', color: c.p.nightCompleted ? 'var(--color-success)' : 'var(--color-danger)' },
-                            { label: 'Evening Journal', val: c.p.nightJournalCompleted ? '✅ Done' : '❌ Missed', color: c.p.nightJournalCompleted ? 'var(--color-success)' : 'var(--color-danger)' }
+                            { label: 'Morning Log', val: c.p.morningCompleted ? '✅ Done' : '❌ Missed', color: c.p.morningCompleted ? 'var(--color-success)' : 'var(--destructive)' },
+                            { label: 'Morning Journal', val: c.p.morningJournalCompleted ? '✅ Done' : '❌ Missed', color: c.p.morningJournalCompleted ? 'var(--color-success)' : 'var(--destructive)' },
+                            { label: 'Evening Log', val: c.p.nightCompleted ? '✅ Done' : '❌ Missed', color: c.p.nightCompleted ? 'var(--color-success)' : 'var(--destructive)' },
+                            { label: 'Evening Journal', val: c.p.nightJournalCompleted ? '✅ Done' : '❌ Missed', color: c.p.nightJournalCompleted ? 'var(--color-success)' : 'var(--destructive)' }
                           ];
                           if (config.gymLockEnabled) {
-                            lines.push({ label: 'Gym Workout', val: c.p.gymCompleted ? '✅ Done' : '❌ Missed', color: c.p.gymCompleted ? 'var(--color-success)' : 'var(--color-danger)' });
+                            lines.push({ label: 'Gym Workout', val: c.p.gymCompleted ? '✅ Done' : '❌ Missed', color: c.p.gymCompleted ? 'var(--color-success)' : 'var(--destructive)' });
                           }
                           if (config.ankiLockEnabled) {
-                            lines.push({ label: 'Anki Reviews', val: isAnkiDone ? '✅ Done' : '❌ Missed', color: isAnkiDone ? 'var(--color-success)' : 'var(--color-danger)' });
+                            lines.push({ label: 'Anki Reviews', val: isAnkiDone ? '✅ Done' : '❌ Missed', color: isAnkiDone ? 'var(--color-success)' : 'var(--destructive)' });
                           }
                           const isPracticeDone = c.p.practiceCompleted || c.p.practiceManualOverride;
                           if (config.practiceLockEnabled) {
-                            lines.push({ label: 'Consistent Practice', val: isPracticeDone ? '✅ Done' : '❌ Missed', color: isPracticeDone ? 'var(--color-success)' : 'var(--color-danger)' });
+                            lines.push({ label: 'Consistent Practice', val: isPracticeDone ? '✅ Done' : '❌ Missed', color: isPracticeDone ? 'var(--color-success)' : 'var(--destructive)' });
                           }
                           setHoveredPoint({
                             chartId: 'compliance',
@@ -1279,11 +1144,11 @@ export default function DashboardView({ stats, history, config }) {
               })()}
 
               {hoveredPoint && hoveredPoint.chartId === 'compliance' && (
-                <div style={getSmartTooltipStyle(hoveredPoint)}>
-                  <div className="tooltip-date" style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 600, borderBottom: '1px solid var(--border-color)', paddingBottom: '4px', marginBottom: '4px' }}>{hoveredPoint.date}</div>
+                <div className={TOOLTIP_CLASS} style={getSmartTooltipStyle(hoveredPoint)}>
+                  <div className="text-muted-foreground mb-1 border-b pb-1 text-xs font-medium">{hoveredPoint.date}</div>
                   {hoveredPoint.lines.map((l, i) => (
-                    <div key={i} style={{ display: 'flex', gap: '8px', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.7rem', margin: '2px 0' }}>
-                      <span style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--text-secondary)' }}>
+                    <div key={i} className="flex items-center justify-between gap-2 py-0.5 text-xs">
+                      <span className="text-muted-foreground flex items-center gap-1.5">
                         {l.label}:
                       </span>
                       <strong style={{ color: l.color }}>{l.val}</strong>
@@ -1291,8 +1156,8 @@ export default function DashboardView({ stats, history, config }) {
                   ))}
                 </div>
               )}
-            </div>
-          </div>
+            </CardContent>
+          </Card>
         </div>
       )}
 
@@ -1314,55 +1179,49 @@ export default function DashboardView({ stats, history, config }) {
         };
 
         return (
-          <div style={{ marginTop: '36px' }}>
-            <div className="section-title" style={{ marginBottom: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+          <div className="flex flex-col gap-6">
+            <div className="flex flex-wrap items-end justify-between gap-4">
               <div>
-                <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 700, fontFamily: 'var(--font-heading)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  📐 Weekly Body Specs & Circumference Trends
+                <h3 className="flex items-center gap-2 text-lg font-semibold">
+                  <Ruler className="text-primary size-5" />
+                  Weekly body specs
                 </h3>
-                <p style={{ margin: '4px 0 0 0', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-                  Track weekly body composition, circumference changes, and trainer response notes.
+                <p className="text-muted-foreground mt-1 text-sm">
+                  Composition, circumference changes and response notes.
                 </p>
               </div>
 
-              {/* Spec Metric Toggle Buttons */}
-              <div className="time-range-group">
-                {Object.keys(specLabels).map(key => (
-                  <button
-                    key={key}
-                    className={`btn-time-range ${activeSpecKey === key ? 'active' : ''}`}
-                    onClick={() => setActiveSpecKey(key)}
-                  >
+              <ToggleGroup
+                type="single"
+                variant="outline"
+                value={activeSpecKey}
+                onValueChange={(v) => v && setActiveSpecKey(v)}
+              >
+                {Object.keys(specLabels).map((key) => (
+                  <ToggleGroupItem key={key} value={key} className="px-3">
                     {specLabels[key]}
-                  </button>
+                  </ToggleGroupItem>
                 ))}
-              </div>
+              </ToggleGroup>
             </div>
 
             {/* Weekly Spec Line Chart */}
             {weeklyLogs.length >= 2 && (
-              <div className="chart-card glass-card" style={{
-                background: 'var(--bg-surface)',
-                border: '1px solid var(--border-color)',
-                padding: '20px 24px',
-                borderRadius: 'var(--radius-md)',
-                boxShadow: 'var(--shadow-sm)',
-                marginBottom: '24px',
-                position: 'relative'
-              }}>
-                <div className="chart-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                  <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 700, fontFamily: 'var(--font-heading)' }}>
-                    📊 {specLabels[activeSpecKey]} Progression Over Weeks
-                  </h4>
-                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                    {weeklyLogs.length} historical check-ins
-                  </span>
-                </div>
-
-                <div className="svg-chart-container" style={{ position: 'relative' }}>
+              <Card className="relative">
+                <CardHeader>
+                  <CardTitle>
+                    {specLabels[activeSpecKey]} over time
+                  </CardTitle>
+                  <CardAction>
+                    <span className="text-muted-foreground text-xs">
+                      {weeklyLogs.length} check-ins
+                    </span>
+                  </CardAction>
+                </CardHeader>
+                <CardContent className="relative">
                   {(() => {
                     const validPts = weeklyLogs.filter(w => w.weeklyData && w.weeklyData[activeSpecKey]);
-                    if (validPts.length < 2) return <p className="text-muted text-center" style={{ padding: '30px 0' }}>Log at least 2 weekly check-ins with {specLabels[activeSpecKey]} data to render trend line...</p>;
+                    if (validPts.length < 2) return <p className="text-muted-foreground py-8 text-center text-sm">Log at least 2 weekly check-ins with {specLabels[activeSpecKey]} data to render trend line...</p>;
 
                     const vals = validPts.map(w => parseFloat(w.weeklyData[activeSpecKey]) || 0);
                     const vMin = Math.min(...vals) - 1;
@@ -1391,143 +1250,174 @@ export default function DashboardView({ stats, history, config }) {
                       <svg viewBox={`0 0 ${w} ${h}`} style={{ overflow: 'visible' }}>
                         <defs>
                           <linearGradient id="purpleSpecGlow" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="0%" stopColor="var(--color-accent)" stopOpacity="0.3"/>
-                            <stop offset="100%" stopColor="var(--color-accent)" stopOpacity="0.0"/>
+                            <stop offset="0%" stopColor="var(--chart-1)" stopOpacity="0.3"/>
+                            <stop offset="100%" stopColor="var(--chart-1)" stopOpacity="0.0"/>
                           </linearGradient>
                         </defs>
 
                         {[0, 1, 2, 3].map(idx => {
                           const y = padT + (idx / 3) * gH;
-                          return <line key={idx} x1={padL} y1={y} x2={w - padR} y2={y} stroke="var(--border-subtle)" strokeWidth="1" />;
+                          return <line key={idx} x1={padL} y1={y} x2={w - padR} y2={y} stroke="var(--border)" strokeWidth="1" />;
                         })}
 
                         <path d={area} fill="url(#purpleSpecGlow)" style={{ pointerEvents: 'none' }} />
-                        <path d={path} fill="none" stroke="var(--color-accent)" strokeWidth="2.5" style={{ filter: 'drop-shadow(0px 3px 6px rgba(168, 85, 247, 0.35))' }} />
+                        <path d={path} fill="none" stroke="var(--chart-1)" strokeWidth="2.5" style={{ filter: 'drop-shadow(0px 3px 6px rgba(168, 85, 247, 0.35))' }} />
 
                         {coords.map((c, i) => (
                           <g key={i}>
-                            <circle cx={c.x} cy={c.y} r="4" fill="var(--bg-surface)" stroke="var(--color-accent)" strokeWidth="2" />
-                            <text x={c.x} y={h - 10} textAnchor="middle" fill="var(--text-secondary)" fontSize="8" fontWeight="500">{c.date.substring(5)}</text>
-                            <text x={c.x} y={c.y - 8} textAnchor="middle" fill="var(--text-primary)" fontSize="8" fontWeight="700">{c.val}</text>
+                            <circle cx={c.x} cy={c.y} r="4" fill="var(--card)" stroke="var(--chart-1)" strokeWidth="2" />
+                            <text x={c.x} y={h - 10} textAnchor="middle" fill="var(--muted-foreground)" fontSize="8" fontWeight="500">{c.date.substring(5)}</text>
+                            <text x={c.x} y={c.y - 8} textAnchor="middle" fill="var(--foreground)" fontSize="8" fontWeight="700">{c.val}</text>
                           </g>
                         ))}
 
-                        <text x={10} y={padT + 5} fill="var(--text-muted)" fontSize="8" fontWeight="600">{vMax.toFixed(1)}</text>
-                        <text x={10} y={padT + gH + 5} fill="var(--text-muted)" fontSize="8" fontWeight="600">{vMin.toFixed(1)}</text>
+                        <text x={10} y={padT + 5} fill="var(--muted-foreground)" fontSize="8" fontWeight="600">{vMax.toFixed(1)}</text>
+                        <text x={10} y={padT + gH + 5} fill="var(--muted-foreground)" fontSize="8" fontWeight="600">{vMin.toFixed(1)}</text>
                       </svg>
                     );
                   })()}
-                </div>
-              </div>
+                </CardContent>
+              </Card>
             )}
 
-            {/* Quick Metrics Grid for Latest Weekly Check-in */}
             {latestWeekly && (
-              <div style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
-                gap: '14px',
-                marginBottom: '24px'
-              }}>
-                <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-color)', borderLeft: '4px solid #a855f7', padding: '16px', borderRadius: 'var(--radius-sm)' }}>
-                  <span style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: 600, display: 'block' }}>Start Weight</span>
-                  <div style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--text-primary)', marginTop: '4px' }}>{latestWeekly.startWeight ? `${latestWeekly.startWeight} kg` : '-'}</div>
-                  <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>w/c {latestWeekly.weekCommencing || 'latest'}</span>
-                </div>
-
-                <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-color)', borderLeft: '4px solid #3b82f6', padding: '16px', borderRadius: 'var(--radius-sm)' }}>
-                  <span style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: 600, display: 'block' }}>Waist (Umbilical)</span>
-                  <div style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--text-primary)', marginTop: '4px' }}>{latestWeekly.umbilical ? `${latestWeekly.umbilical} cm` : '-'}</div>
-                </div>
-
-                <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-color)', borderLeft: '4px solid #10b981', padding: '16px', borderRadius: 'var(--radius-sm)' }}>
-                  <span style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: 600, display: 'block' }}>Biceps (L / R)</span>
-                  <div style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--text-primary)', marginTop: '4px' }}>
-                    {latestWeekly.bicepL || latestWeekly.bicepR ? `${latestWeekly.bicepL || '-'}/${latestWeekly.bicepR || '-'} cm` : '-'}
-                  </div>
-                </div>
-
-                <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-color)', borderLeft: '4px solid #f59e0b', padding: '16px', borderRadius: 'var(--radius-sm)' }}>
-                  <span style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: 600, display: 'block' }}>Quads (L / R)</span>
-                  <div style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--text-primary)', marginTop: '4px' }}>
-                    {latestWeekly.quadL || latestWeekly.quadR ? `${latestWeekly.quadL || '-'}/${latestWeekly.quadR || '-'} cm` : '-'}
-                  </div>
-                </div>
-
-                <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-color)', borderLeft: '4px solid #ec4899', padding: '16px', borderRadius: 'var(--radius-sm)' }}>
-                  <span style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: 600, display: 'block' }}>Glutes & Chest</span>
-                  <div style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--text-primary)', marginTop: '4px' }}>
-                    G: {latestWeekly.glutes || '-'} | C: {latestWeekly.chest || '-'} cm
-                  </div>
-                </div>
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+                <MetricCard
+                  label="Start weight"
+                  value={latestWeekly.startWeight || '-'}
+                  unit={latestWeekly.startWeight ? 'kg' : ''}
+                  icon={Scale}
+                  hint={`w/c ${latestWeekly.weekCommencing || 'latest'}`}
+                />
+                <MetricCard
+                  label="Waist"
+                  value={latestWeekly.umbilical || '-'}
+                  unit={latestWeekly.umbilical ? 'cm' : ''}
+                  icon={Ruler}
+                  hint="Umbilical"
+                />
+                <MetricCard
+                  label="Biceps L / R"
+                  value={
+                    latestWeekly.bicepL || latestWeekly.bicepR
+                      ? `${latestWeekly.bicepL || '-'}/${latestWeekly.bicepR || '-'}`
+                      : '-'
+                  }
+                  unit={latestWeekly.bicepL || latestWeekly.bicepR ? 'cm' : ''}
+                  icon={Ruler}
+                  hint="Latest check-in"
+                />
+                <MetricCard
+                  label="Quads L / R"
+                  value={
+                    latestWeekly.quadL || latestWeekly.quadR
+                      ? `${latestWeekly.quadL || '-'}/${latestWeekly.quadR || '-'}`
+                      : '-'
+                  }
+                  unit={latestWeekly.quadL || latestWeekly.quadR ? 'cm' : ''}
+                  icon={Ruler}
+                  hint="Latest check-in"
+                />
+                <MetricCard
+                  label="Glutes / chest"
+                  value={`${latestWeekly.glutes || '-'} / ${latestWeekly.chest || '-'}`}
+                  unit="cm"
+                  icon={Ruler}
+                  hint="Latest check-in"
+                />
               </div>
             )}
 
-            {/* Weekly Log Table */}
-            <div className="chart-card glass-card" style={{
-              background: 'var(--bg-surface)',
-              border: '1px solid var(--border-color)',
-              padding: '24px',
-              borderRadius: 'var(--radius-md)',
-              boxShadow: 'var(--shadow-sm)',
-              marginBottom: '24px'
-            }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '10px' }}>
-                <h4 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 700, fontFamily: 'var(--font-heading)' }}>Weekly Check-in History ({weeklyLogs.length})</h4>
-              </div>
-
-              {weeklyLogs.length < 1 ? (
-                <p className="text-muted text-center py-10" style={{ padding: '30px 0', margin: 0 }}>
-                  No weekly specs recorded yet. Submit your weekly check-in via the <strong>Weekly Specs</strong> tab.
-                </p>
-              ) : (
-                <div style={{ overflowX: 'auto' }}>
-                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
-                    <thead>
-                      <tr style={{ borderBottom: '1px solid var(--border-color)', color: 'var(--text-muted)', textAlign: 'left' }}>
-                        <th style={{ padding: '10px' }}>Week Commencing</th>
-                        <th style={{ padding: '10px' }}>Start Weight</th>
-                        <th style={{ padding: '10px' }}>Umbilical (Waist)</th>
-                        <th style={{ padding: '10px' }}>Biceps (L / R)</th>
-                        <th style={{ padding: '10px' }}>Quads (L / R)</th>
-                        <th style={{ padding: '10px' }}>Glutes</th>
-                        <th style={{ padding: '10px' }}>Chest</th>
-                        <th style={{ padding: '10px' }}>Progress Photos</th>
-                        <th style={{ padding: '10px' }}>Response Notes</th>
-                      </tr>
-                    </thead>
-                    <tbody>
+            <Card>
+              <CardHeader>
+                <CardTitle>Check-in history</CardTitle>
+                <CardAction>
+                  <Badge variant="outline">{weeklyLogs.length}</Badge>
+                </CardAction>
+              </CardHeader>
+              <CardContent>
+                {weeklyLogs.length < 1 ? (
+                  <p className="text-muted-foreground py-10 text-center text-sm">
+                    No weekly specs recorded yet. Submit one from the weekly check-in tab.
+                  </p>
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Week</TableHead>
+                        <TableHead>Weight</TableHead>
+                        <TableHead>Waist</TableHead>
+                        <TableHead>Biceps</TableHead>
+                        <TableHead>Quads</TableHead>
+                        <TableHead>Glutes</TableHead>
+                        <TableHead>Chest</TableHead>
+                        <TableHead>Photos</TableHead>
+                        <TableHead>Notes</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
                       {[...weeklyLogs].reverse().map((wLog, i) => {
                         const w = wLog.weeklyData;
+                        const poses = ['front', 'back', 'sideLeft', 'sideRight', 'side'].filter(
+                          (pose) => w.photos?.[pose]
+                        );
                         return (
-                          <tr key={i} style={{ borderBottom: '1px solid var(--border-color)', color: 'var(--text-primary)' }}>
-                            <td style={{ padding: '10px', fontWeight: 600 }}>{w.weekCommencing || wLog.date}</td>
-                            <td style={{ padding: '10px' }}>{w.startWeight ? `${w.startWeight} kg` : '-'}</td>
-                            <td style={{ padding: '10px' }}>{w.umbilical ? `${w.umbilical} cm` : '-'}</td>
-                            <td style={{ padding: '10px' }}>{w.bicepL || w.bicepR ? `${w.bicepL || '-'}/${w.bicepR || '-'} cm` : '-'}</td>
-                            <td style={{ padding: '10px' }}>{w.quadL || w.quadR ? `${w.quadL || '-'}/${w.quadR || '-'} cm` : '-'}</td>
-                            <td style={{ padding: '10px' }}>{w.glutes ? `${w.glutes} cm` : '-'}</td>
-                            <td style={{ padding: '10px' }}>{w.chest ? `${w.chest} cm` : '-'}</td>
-                            <td style={{ padding: '10px' }}>
-                              {w.photos && (w.photos.front || w.photos.back || w.photos.sideLeft || w.photos.sideRight || w.photos.side) ? (
-                                <div style={{ display: 'flex', gap: '6px' }}>
-                                  {['front', 'back', 'sideLeft', 'sideRight', 'side'].map(p => w.photos[p] ? (
-                                    <a key={p} href={w.photos[p]} target="_blank" rel="noreferrer" title={`${p} pose`}>
-                                      <img src={w.photos[p]} alt={p} style={{ width: '36px', height: '36px', objectFit: 'cover', borderRadius: '4px', border: '1px solid var(--border-color)' }} />
+                          <TableRow key={i}>
+                            <TableCell className="font-medium">
+                              {w.weekCommencing || wLog.date}
+                            </TableCell>
+                            <TableCell className="tabular-nums">
+                              {w.startWeight ? `${w.startWeight} kg` : '-'}
+                            </TableCell>
+                            <TableCell className="tabular-nums">
+                              {w.umbilical ? `${w.umbilical} cm` : '-'}
+                            </TableCell>
+                            <TableCell className="tabular-nums">
+                              {w.bicepL || w.bicepR ? `${w.bicepL || '-'}/${w.bicepR || '-'}` : '-'}
+                            </TableCell>
+                            <TableCell className="tabular-nums">
+                              {w.quadL || w.quadR ? `${w.quadL || '-'}/${w.quadR || '-'}` : '-'}
+                            </TableCell>
+                            <TableCell className="tabular-nums">
+                              {w.glutes ? `${w.glutes} cm` : '-'}
+                            </TableCell>
+                            <TableCell className="tabular-nums">
+                              {w.chest ? `${w.chest} cm` : '-'}
+                            </TableCell>
+                            <TableCell>
+                              {poses.length > 0 ? (
+                                <div className="flex gap-1.5">
+                                  {poses.map((pose) => (
+                                    <a
+                                      key={pose}
+                                      href={w.photos[pose]}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      title={`${pose} pose`}
+                                    >
+                                      <img
+                                        src={w.photos[pose]}
+                                        alt={pose}
+                                        className="size-9 rounded border object-cover"
+                                      />
                                     </a>
-                                  ) : null)}
+                                  ))}
                                 </div>
-                              ) : <span style={{ color: 'var(--text-muted)', fontSize: '0.78rem' }}>None</span>}
-                            </td>
-                            <td style={{ padding: '10px', color: 'var(--text-secondary)', fontStyle: 'italic', maxWidth: '180px' }}>{w.responseAction || '-'}</td>
-                          </tr>
+                              ) : (
+                                <span className="text-muted-foreground text-xs">None</span>
+                              )}
+                            </TableCell>
+                            <TableCell className="text-muted-foreground max-w-45 italic">
+                              {w.responseAction || '-'}
+                            </TableCell>
+                          </TableRow>
                         );
                       })}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
+                    </TableBody>
+                  </Table>
+                )}
+              </CardContent>
+            </Card>
           </div>
         );
       })()}

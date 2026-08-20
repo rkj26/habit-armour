@@ -1,369 +1,245 @@
-import React, { useState } from 'react';
+import React, { useState } from 'react'
+import { ChevronRight, Pencil } from 'lucide-react'
+import { Badge } from '@/components/shadcn/badge'
+import { Button } from '@/components/shadcn/button'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/shadcn/card'
+import { Input } from '@/components/shadcn/input'
+import { Label } from '@/components/shadcn/label'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/shadcn/select'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/shadcn/table'
+import { logicalToday } from '@/lib/logicalDay'
+import { cn } from '@/lib/utils'
 
-export default function HistoryView({
-  history,
-  config,
-  API_URL = '',
-  startEditingLog
-}) {
-  const [expandedEntries, setExpandedEntries] = useState({});
+const WINDOWS = [
+  { value: 'morning', label: 'Morning metrics' },
+  { value: 'morningJournal', label: 'Morning journal' },
+  { value: 'night', label: 'Night metrics' },
+  { value: 'nightJournal', label: 'Night journal' },
+  { value: 'weekly', label: 'Weekly specs' },
+]
 
-  const formatPhotoUrl = (url) => {
-    if (!url) return '';
-    return url.startsWith('http') ? url : `${API_URL || ''}${url}`;
-  };
+function StatusCell({ entryDate, type, isCompleted, config }) {
+  if (isCompleted) return <Badge className="bg-emerald-600 hover:bg-emerald-600">Done</Badge>
 
-  const toggleEntryExpand = (date) => {
-    setExpandedEntries(prev => ({ ...prev, [date]: !prev[date] }));
-  };
+  const today = logicalToday()
+  if (entryDate > today) return <Badge variant="outline">Pending</Badge>
+  if (entryDate < today) return <Badge variant="destructive">Missed</Badge>
 
-  const getLogStatusBadge = (entryDate, type, isCompleted) => {
-    if (isCompleted) {
-      return <span className="badge bg-green">✓ Done</span>;
-    }
+  const hour = new Date().getHours()
+  const isMorning = type.startsWith('morning')
+  const start = isMorning ? (config.morningStart ?? 5) : (config.nightStart ?? 20)
+  const end = isMorning ? (config.morningEnd ?? 12) : (config.nightEnd ?? 24)
 
-    const todayStr = new Date().toISOString().split('T')[0];
-    
-    // Future dates
-    if (entryDate > todayStr) {
-      return <span className="badge" style={{ background: 'rgba(0, 0, 0, 0.05)', color: 'var(--text-secondary)' }}>Pending</span>;
-    }
-    
-    // Past dates
-    if (entryDate < todayStr) {
-      return <span className="badge bg-red">✗ Missed</span>;
-    }
-    
-    // Today's date
-    const currentHour = new Date().getHours();
-    const isMorning = type.startsWith('morning');
-    const startHour = isMorning ? (config.morningStart || 5) : (config.nightStart || 20);
-    const endHour = isMorning ? (config.morningEnd || 12) : (config.nightEnd || 24);
-    
-    if (currentHour < startHour) {
-      return <span className="badge" style={{ background: 'rgba(0, 0, 0, 0.05)', color: 'var(--text-secondary)' }}>Pending</span>;
-    } else if (currentHour >= startHour && currentHour < endHour) {
-      return <span className="badge" style={{ background: 'rgba(245, 158, 11, 0.1)', color: '#d97706' }}>Due Now</span>;
-    } else {
-      return <span className="badge bg-red">✗ Missed</span>;
-    }
-  };
+  if (hour < start) return <Badge variant="outline">Pending</Badge>
+  if (hour < end) return <Badge variant="secondary">Due now</Badge>
+  return <Badge variant="destructive">Missed</Badge>
+}
+
+function ExpandedEntry({ entry, photoUrl, startEditingLog }) {
+  const mj = entry.morningJournalData
+  const nj = entry.nightJournalData
+  const photos = Object.entries(entry.weeklyData?.photos || {}).filter(([, v]) => v)
+  const doneIds = nj?.todosCompleted || []
 
   return (
-    <div>
-      <div className="section-title">
-        <h2>Logged Data History</h2>
-        <p>All recorded bio-feedback, sleep, nutrition and measurements.</p>
-      </div>
+    <div className="flex flex-col gap-5">
+      <div className="grid gap-5 md:grid-cols-2">
+        <div>
+          <h4 className="mb-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            Morning journal
+          </h4>
+          {mj?.feeling || mj?.todos?.length ? (
+            <div className="flex flex-col gap-2 text-sm">
+              {mj.feeling && <p className="leading-snug">{mj.feeling}</p>}
+              {mj.todos?.length > 0 && (
+                <ul className="flex flex-col gap-1">
+                  {mj.todos.map((t) => (
+                    <li key={t.id} className="flex items-start gap-2">
+                      <span className={doneIds.includes(t.id) ? 'text-emerald-600' : 'text-muted-foreground'}>
+                        {doneIds.includes(t.id) ? '✓' : '○'}
+                      </span>
+                      <span className={doneIds.includes(t.id) ? 'text-muted-foreground line-through' : ''}>
+                        {t.text}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">Not logged.</p>
+          )}
+        </div>
 
-
-
-      {/* Log a Past/Missed Day widget */}
-      <div className="glass-card" style={{ 
-        padding: '16px 20px', 
-        marginBottom: '24px', 
-        display: 'flex', 
-        gap: '16px', 
-        alignItems: 'center', 
-        flexWrap: 'wrap',
-        border: '1px solid var(--border-color)',
-        background: 'var(--bg-surface)'
-      }}>
-        <span style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
-          📅 Log a Past/Missed Day
-        </span>
-        <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
-          <input 
-            type="date" 
-            className="form-input" 
-            style={{ width: '150px', padding: '6px 10px', height: '34px', margin: 0 }}
-            id="pastLogDateInput"
-            max={new Date().toISOString().split('T')[0]}
-          />
-          <select 
-            className="form-input" 
-            style={{ width: '160px', padding: '6px 10px', height: '34px', margin: 0 }}
-            id="pastLogTypeInput"
-          >
-            <option value="morning">Morning Metrics</option>
-            <option value="morningJournal">Morning Journal</option>
-            <option value="night">Night Metrics</option>
-            <option value="nightJournal">Night Journal</option>
-            <option value="weekly">Weekly Specs</option>
-          </select>
-          <button 
-            className="btn btn-primary btn-sm" 
-            style={{ height: '34px', padding: '0 16px', display: 'flex', alignItems: 'center', fontWeight: 600 }}
-            onClick={() => {
-              const dateVal = document.getElementById('pastLogDateInput').value;
-              const typeVal = document.getElementById('pastLogTypeInput').value;
-              if (!dateVal) {
-                alert("Please select a date first.");
-                return;
-              }
-              const todayStr = new Date().toISOString().split('T')[0];
-              if (dateVal > todayStr) {
-                alert("Cannot log future dates.");
-                return;
-              }
-              startEditingLog(dateVal, typeVal);
-            }}
-          >
-            ➕ Start Log
-          </button>
+        <div>
+          <h4 className="mb-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            Night journal
+          </h4>
+          {nj?.feeling || nj?.tomorrow ? (
+            <div className="flex flex-col gap-2 text-sm leading-snug">
+              {nj.feeling && <p>{nj.feeling}</p>}
+              {nj.tomorrow && (
+                <p>
+                  <span className="text-muted-foreground">Tomorrow: </span>
+                  {nj.tomorrow}
+                </p>
+              )}
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">Not logged.</p>
+          )}
         </div>
       </div>
 
+      {photos.length > 0 && (
+        <div>
+          <h4 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            Progress photos
+          </h4>
+          <div className="flex flex-wrap gap-2">
+            {photos.map(([pose, url]) => (
+              <img key={pose} src={photoUrl(url)} alt={pose} className="h-28 rounded-md border object-cover" />
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div className="flex flex-wrap gap-2">
+        {WINDOWS.map((w) => (
+          <Button key={w.value} variant="outline" size="sm" onClick={() => startEditingLog(entry.date, w.value)}>
+            Edit {w.label.toLowerCase()}
+          </Button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+export default function HistoryView({ history, config, API_URL = '', startEditingLog }) {
+  const [expanded, setExpanded] = useState({})
+  const [pastDate, setPastDate] = useState('')
+  const [pastWindow, setPastWindow] = useState('morning')
+
+  const photoUrl = (url) => (!url ? '' : url.startsWith('http') ? url : `${API_URL}${url}`)
+  const toggle = (date) => setExpanded((p) => ({ ...p, [date]: !p[date] }))
+
+  return (
+    <div className="flex flex-col gap-6">
+      <Card>
+        <CardHeader>
+          <CardTitle>Log a past day</CardTitle>
+          <CardDescription>Backfill a missed entry.</CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-wrap items-end gap-3">
+          <div className="grid gap-2">
+            <Label htmlFor="past-date">Date</Label>
+            <Input
+              id="past-date"
+              type="date"
+              max={logicalToday()}
+              value={pastDate}
+              onChange={(e) => setPastDate(e.target.value)}
+              className="w-44"
+            />
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="past-window">Log type</Label>
+            <Select value={pastWindow} onValueChange={setPastWindow}>
+              <SelectTrigger id="past-window" className="w-52">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {WINDOWS.map((w) => (
+                  <SelectItem key={w.value} value={w.value}>
+                    {w.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <Button disabled={!pastDate} onClick={() => startEditingLog(pastDate, pastWindow)}>
+            <Pencil className="size-4" />
+            Start log
+          </Button>
+        </CardContent>
+      </Card>
+
       {history.length === 0 ? (
-        <p className="no-history text-muted">No logs recorded yet. Start tracking above!</p>
+        <Card>
+          <CardContent className="py-12 text-center text-sm text-muted-foreground">
+            No logs recorded yet.
+          </CardContent>
+        </Card>
       ) : (
-        <div className="table-responsive">
-          <table className="history-table">
-            <thead>
-              <tr>
-                <th>Date</th>
-                <th>Morning Log</th>
-                <th>Morning Journal</th>
-                <th>Night Log</th>
-                <th>Night Journal</th>
-                <th>Weight</th>
-                <th>Sleep</th>
-                <th>Calories</th>
-                <th>Steps</th>
-              </tr>
-            </thead>
-            <tbody>
+        <div className="overflow-x-auto rounded-xl border">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-36">Date</TableHead>
+                <TableHead>Morning</TableHead>
+                <TableHead>M. journal</TableHead>
+                <TableHead>Night</TableHead>
+                <TableHead>N. journal</TableHead>
+                <TableHead className="text-right">Weight</TableHead>
+                <TableHead className="text-right">Sleep</TableHead>
+                <TableHead className="text-right">Calories</TableHead>
+                <TableHead className="text-right">Steps</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {history.map((entry) => (
                 <React.Fragment key={entry.date}>
-                  <tr 
-                    style={{ cursor: 'pointer' }}
-                    onClick={() => toggleEntryExpand(entry.date)}
-                  >
-                    <td className="font-heading font-semibold" style={{ display: 'flex', alignItems: 'center', gap: '6px', borderBottom: 'none', height: '45px' }}>
-                      <span style={{ 
-                        display: 'inline-block', 
-                        transition: 'transform 0.15s ease', 
-                        transform: expandedEntries[entry.date] ? 'rotate(90deg)' : 'none',
-                        color: 'var(--text-muted)',
-                        fontSize: '0.65rem'
-                      }}>▶</span>
-                      {entry.date}
-                    </td>
-                    <td>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        {getLogStatusBadge(entry.date, 'morning', entry.morningCompleted)}
-                      </div>
-                    </td>
-                    <td>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        {getLogStatusBadge(entry.date, 'morningJournal', entry.morningJournalCompleted)}
-                      </div>
-                    </td>
-                    <td>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        {getLogStatusBadge(entry.date, 'night', entry.nightCompleted)}
-                      </div>
-                    </td>
-                    <td>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        {getLogStatusBadge(entry.date, 'nightJournal', entry.nightJournalCompleted)}
-                      </div>
-                    </td>
-                    <td>{entry.morningData?.wakingWeight ? `${entry.morningData.wakingWeight} kg` : '-'}</td>
-                    <td>{entry.morningData?.sleepHours ? `${entry.morningData.sleepHours} hrs` : '-'}</td>
-                    <td>{entry.nightData?.calories ? `${entry.nightData.calories} kcal` : '-'}</td>
-                    <td>{entry.nightData?.steps ? parseInt(entry.nightData.steps).toLocaleString() : '-'}</td>
-                  </tr>
-                  {expandedEntries[entry.date] && (
-                    <tr className="expanded-row" onClick={(e) => e.stopPropagation()}>
-                      <td colSpan="9" style={{ padding: '16px 24px', background: '#f8fafc', borderBottom: '1px solid var(--border-color)' }}>
-                        <div className="expanded-journal-grid">
-                          <div className="expanded-journal-section">
-                            <h4>☀️ Morning Journal</h4>
-                            {entry.morningJournalCompleted && entry.morningJournalData ? (
-                              <div className="expanded-journal-qa" style={{ whiteSpace: 'pre-wrap', fontSize: '0.85rem', lineHeight: '1.5', color: 'var(--text-primary)' }}>
-                                {entry.morningJournalData.journalEntry ? (
-                                  <div>{entry.morningJournalData.journalEntry}</div>
-                                ) : (
-                                  <>
-                                    {entry.morningJournalData.journalQ1 && (
-                                      <div style={{ marginBottom: '8px' }}>
-                                        <strong>1. Top 3 priority goals:</strong>
-                                        <div style={{ paddingLeft: '12px', color: 'var(--text-secondary)' }}>{entry.morningJournalData.journalQ1}</div>
-                                      </div>
-                                    )}
-                                    {entry.morningJournalData.journalQ2 && (
-                                      <div style={{ marginBottom: '8px' }}>
-                                        <strong>2. Energetic & emotional tone:</strong>
-                                        <div style={{ paddingLeft: '12px', color: 'var(--text-secondary)' }}>{entry.morningJournalData.journalQ2}</div>
-                                      </div>
-                                    )}
-                                    {entry.morningJournalData.journalQ3 && (
-                                      <div>
-                                        <strong>3. Obstacles & backup strategy:</strong>
-                                        <div style={{ paddingLeft: '12px', color: 'var(--text-secondary)' }}>{entry.morningJournalData.journalQ3}</div>
-                                      </div>
-                                    )}
-                                  </>
-                                )}
-                              </div>
-                            ) : (
-                              <p className="text-muted" style={{ fontSize: '0.8rem', margin: 0 }}>No morning journal recorded.</p>
-                            )}
-                          </div>
+                  <TableRow className="cursor-pointer" onClick={() => toggle(entry.date)}>
+                    <TableCell className="font-medium">
+                      <span className="flex items-center gap-1.5">
+                        <ChevronRight
+                          className={cn(
+                            'size-3.5 text-muted-foreground transition-transform',
+                            expanded[entry.date] && 'rotate-90'
+                          )}
+                        />
+                        {entry.date}
+                      </span>
+                    </TableCell>
+                    <TableCell>
+                      <StatusCell entryDate={entry.date} type="morning" isCompleted={entry.morningCompleted} config={config} />
+                    </TableCell>
+                    <TableCell>
+                      <StatusCell entryDate={entry.date} type="morningJournal" isCompleted={entry.morningJournalCompleted} config={config} />
+                    </TableCell>
+                    <TableCell>
+                      <StatusCell entryDate={entry.date} type="night" isCompleted={entry.nightCompleted} config={config} />
+                    </TableCell>
+                    <TableCell>
+                      <StatusCell entryDate={entry.date} type="nightJournal" isCompleted={entry.nightJournalCompleted} config={config} />
+                    </TableCell>
+                    <TableCell className="text-right font-mono tabular-nums">
+                      {entry.morningData?.wakingWeight ? `${entry.morningData.wakingWeight} kg` : '—'}
+                    </TableCell>
+                    <TableCell className="text-right font-mono tabular-nums">
+                      {entry.morningData?.sleepHours ? `${entry.morningData.sleepHours} h` : '—'}
+                    </TableCell>
+                    <TableCell className="text-right font-mono tabular-nums">
+                      {entry.nightData?.calories || '—'}
+                    </TableCell>
+                    <TableCell className="text-right font-mono tabular-nums">
+                      {entry.nightData?.steps ? Number(entry.nightData.steps).toLocaleString() : '—'}
+                    </TableCell>
+                  </TableRow>
 
-                          <div className="expanded-journal-section">
-                            <h4>🌙 Evening Retrospective</h4>
-                            {entry.nightJournalCompleted && entry.nightJournalData ? (
-                              <div className="expanded-journal-qa" style={{ whiteSpace: 'pre-wrap', fontSize: '0.85rem', lineHeight: '1.5', color: 'var(--text-primary)' }}>
-                                {entry.nightJournalData.journalEntry ? (
-                                  <div>{entry.nightJournalData.journalEntry}</div>
-                                ) : (
-                                  <>
-                                    {entry.nightJournalData.journalQ1 && (
-                                      <div style={{ marginBottom: '8px' }}>
-                                        <strong>1. Wins & achievements:</strong>
-                                        <div style={{ paddingLeft: '12px', color: 'var(--text-secondary)' }}>{entry.nightJournalData.journalQ1}</div>
-                                      </div>
-                                    )}
-                                    {entry.nightJournalData.journalQ2 && (
-                                      <div style={{ marginBottom: '8px' }}>
-                                        <strong>2. Learnings & improvements:</strong>
-                                        <div style={{ paddingLeft: '12px', color: 'var(--text-secondary)' }}>{entry.nightJournalData.journalQ2}</div>
-                                      </div>
-                                    )}
-                                    {entry.nightJournalData.journalQ3 && (
-                                      <div>
-                                        <strong>3. Tomorrow's primary focus:</strong>
-                                        <div style={{ paddingLeft: '12px', color: 'var(--text-secondary)' }}>{entry.nightJournalData.journalQ3}</div>
-                                      </div>
-                                    )}
-                                  </>
-                                )}
-                              </div>
-                            ) : (
-                              <p className="text-muted" style={{ fontSize: '0.8rem', margin: 0 }}>No night journal recorded.</p>
-                            )}
-                            {entry.nightCompleted && entry.nightData?.supplements && (
-                              <div style={{ marginTop: '12px', padding: '8px 12px', background: 'var(--bg-surface)', borderRadius: '6px', fontSize: '0.82rem', color: 'var(--text-primary)' }}>
-                                <strong>💊 Supplements Stack:</strong>{' '}
-                                {typeof entry.nightData.supplements === 'object' && entry.nightData.supplements !== null && !Array.isArray(entry.nightData.supplements) ? (
-                                  Object.entries(entry.nightData.supplements).filter(([_, v]) => Boolean(v)).map(([k]) => k).join(', ') || 'None'
-                                ) : (
-                                  `${entry.nightData.supplements}/10`
-                                )}
-                              </div>
-                            )}
-                            {entry.nightData?.proteinShake && (
-                              <div style={{ marginTop: '12px', padding: '8px 12px', background: 'var(--bg-surface)', borderRadius: '6px', fontSize: '0.82rem', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                                <div>
-                                  <strong>🥤 Protein Shake:</strong>{' '}
-                                  <span style={{ color: entry.nightData.proteinShake.taken ? '#4ade80' : '#f87171' }}>
-                                    {entry.nightData.proteinShake.taken ? '✓ Taken' : '❌ Not Taken'}
-                                  </span>
-                                </div>
-                                {entry.nightData.proteinShake.photoUrl && (
-                                  <a href={formatPhotoUrl(entry.nightData.proteinShake.photoUrl)} target="_blank" rel="noreferrer" title="Protein Shake Proof">
-                                    <img src={formatPhotoUrl(entry.nightData.proteinShake.photoUrl)} alt="protein shake proof" style={{ width: '40px', height: '40px', objectFit: 'cover', borderRadius: '6px', border: '1px solid var(--border-color)' }} />
-                                  </a>
-                                )}
-                              </div>
-                            )}
-                            {entry.weeklyData?.photos && (entry.weeklyData.photos.front || entry.weeklyData.photos.back || entry.weeklyData.photos.sideLeft || entry.weeklyData.photos.sideRight || entry.weeklyData.photos.side) && (
-                              <div style={{ marginTop: '12px', padding: '8px 12px', background: 'var(--bg-surface)', borderRadius: '6px', fontSize: '0.82rem', color: 'var(--text-primary)' }}>
-                                <strong style={{ display: 'block', marginBottom: '6px' }}>📸 Weekly Progress Photos:</strong>
-                                <div style={{ display: 'flex', gap: '8px' }}>
-                                  {['front', 'back', 'sideLeft', 'sideRight', 'side'].map(p => entry.weeklyData.photos[p] ? (
-                                    <a key={p} href={formatPhotoUrl(entry.weeklyData.photos[p])} target="_blank" rel="noreferrer" title={`${p} pose`}>
-                                      <img src={formatPhotoUrl(entry.weeklyData.photos[p])} alt={p} style={{ width: '48px', height: '48px', objectFit: 'cover', borderRadius: '4px', border: '1px solid var(--border-color)' }} />
-                                    </a>
-                                  ) : null)}
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-
-                        <div style={{ 
-                          marginTop: '16px', 
-                          paddingTop: '12px', 
-                          borderTop: '1px solid var(--border-color)', 
-                          display: 'flex', 
-                          gap: '10px', 
-                          flexWrap: 'wrap',
-                          alignItems: 'center'
-                        }}>
-                          <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-muted)' }}>✏️ Log/Modify Day:</span>
-                          <button 
-                            className="btn btn-secondary btn-sm" 
-                            style={{ 
-                              padding: '4px 10px', 
-                              fontSize: '0.75rem',
-                              background: entry.morningCompleted ? 'rgba(0,0,0,0.05)' : 'rgba(239, 68, 68, 0.05)',
-                              color: entry.morningCompleted ? 'var(--text-primary)' : 'var(--color-danger)'
-                            }} 
-                            onClick={() => startEditingLog(entry.date, 'morning')}
-                          >
-                            {entry.morningCompleted ? 'Morning Metrics' : '+ Log Morning Metrics'}
-                          </button>
-                          <button 
-                            className="btn btn-secondary btn-sm" 
-                            style={{ 
-                              padding: '4px 10px', 
-                              fontSize: '0.75rem',
-                              background: entry.morningJournalCompleted ? 'rgba(0,0,0,0.05)' : 'rgba(239, 68, 68, 0.05)',
-                              color: entry.morningJournalCompleted ? 'var(--text-primary)' : 'var(--color-danger)'
-                            }} 
-                            onClick={() => startEditingLog(entry.date, 'morningJournal')}
-                          >
-                            {entry.morningJournalCompleted ? 'Morning Journal' : '+ Log Morning Journal'}
-                          </button>
-                          <button 
-                            className="btn btn-secondary btn-sm" 
-                            style={{ 
-                              padding: '4px 10px', 
-                              fontSize: '0.75rem',
-                              background: entry.nightCompleted ? 'rgba(0,0,0,0.05)' : 'rgba(239, 68, 68, 0.05)',
-                              color: entry.nightCompleted ? 'var(--text-primary)' : 'var(--color-danger)'
-                            }} 
-                            onClick={() => startEditingLog(entry.date, 'night')}
-                          >
-                            {entry.nightCompleted ? 'Night Metrics' : '+ Log Night Metrics'}
-                          </button>
-                          <button 
-                            className="btn btn-secondary btn-sm" 
-                            style={{ 
-                              padding: '4px 10px', 
-                              fontSize: '0.75rem',
-                              background: entry.nightJournalCompleted ? 'rgba(0,0,0,0.05)' : 'rgba(239, 68, 68, 0.05)',
-                              color: entry.nightJournalCompleted ? 'var(--text-primary)' : 'var(--color-danger)'
-                            }} 
-                            onClick={() => startEditingLog(entry.date, 'nightJournal')}
-                          >
-                            {entry.nightJournalCompleted ? 'Night Journal' : '+ Log Night Journal'}
-                          </button>
-                          <button 
-                            className="btn btn-secondary btn-sm" 
-                            style={{ 
-                              padding: '4px 10px', 
-                              fontSize: '0.75rem',
-                              background: entry.weeklyCompleted ? 'rgba(0,0,0,0.05)' : 'rgba(239, 68, 68, 0.05)',
-                              color: entry.weeklyCompleted ? 'var(--text-primary)' : 'var(--color-danger)'
-                            }} 
-                            onClick={() => startEditingLog(entry.date, 'weekly')}
-                          >
-                            {entry.weeklyCompleted ? 'Weekly Specs' : '+ Log Weekly Specs'}
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
+                  {expanded[entry.date] && (
+                    <TableRow className="hover:bg-transparent">
+                      <TableCell colSpan={9} className="bg-muted/40 p-5">
+                        <ExpandedEntry entry={entry} photoUrl={photoUrl} startEditingLog={startEditingLog} />
+                      </TableCell>
+                    </TableRow>
                   )}
                 </React.Fragment>
               ))}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         </div>
       )}
     </div>
-  );
+  )
 }
