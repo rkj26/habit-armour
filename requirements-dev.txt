@@ -1,0 +1,6 @@
+# Local development and CI only. The deployed venv installs requirements.lock.txt
+# (see install.sh) and does not need these.
+-r requirements.txt
+
+pytest>=8.0.0
+ruff>=0.8.0

@@ -1,0 +1,43 @@
+# Tool configuration only. Habit Armour is not a distributable package -- it is
+# deployed by rsync (see install.sh), so there is deliberately no [project] or
+# [build-system] table here.
+
+[tool.ruff]
+line-length = 110
+target-version = "py312"
+extend-exclude = [".venv", "client", "uploads", "runs"]
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle
+    "F",   # pyflakes
+    "I",   # isort
+    "B",   # flake8-bugbear
+    "UP",  # pyupgrade
+    "SIM", # flake8-simplify
+]
+ignore = [
+    "E501",   # line length is the formatter's job. What it leaves long is unsplittable --
+              # mostly the triple-quoted Gemini prompts in app/pillars/practice.py, where
+              # rewrapping would change the text sent to the model.
+    "E712",   # `Column == True` is required SQLAlchemy/SQLModel filter syntax; `if col:`
+              # does not build a query expression. All hits are filters, not truthiness bugs.
+    "B008",   # Depends()/Query() in argument defaults is the FastAPI idiom.
+    "SIM105", # contextlib.suppress is not clearer than try/except: pass here.
+]
+
+[tool.ruff.lint.per-file-ignores]
+# agent.py catches broadly on purpose: an AppleScript or subprocess failure must
+# never take down the lock daemon. BLE001 is not selected above, but if a future
+# agent widens the rule set, this records that the bare catches are deliberate.
+"agent.py" = ["BLE001"]
+# conftest sets DATABASE_URL before importing app.*, so those imports cannot sit
+# at the top of the file.
+"tests/conftest.py" = ["E402"]
+
+[tool.ruff.format]
+quote-style = "double"
+
+[tool.pytest.ini_options]
+pythonpath = "."
+testpaths = ["tests"]

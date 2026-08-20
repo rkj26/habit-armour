@@ -7,5 +7,4 @@ pyobjc-framework-Cocoa>=10.3
 pyobjc-framework-Quartz>=10.3
 python-multipart>=0.0.12
 
-# Testing
-pytest>=8.0.0
+# Dev/test tooling lives in requirements-dev.txt
