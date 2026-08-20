@@ -597,12 +597,26 @@ export default function SettingsView({
                 type="number"
                 className="form-input"
                 name="practiceNewCardsPerDay"
-                value={config.practiceNewCardsPerDay !== undefined ? config.practiceNewCardsPerDay : 2}
+                value={config.practiceNewCardsPerDay !== undefined ? config.practiceNewCardsPerDay : 1}
                 onChange={handleConfigChange}
                 min="0"
                 max="10"
               />
-              <span className="sub-label">How many brand-new topic ladders get introduced per day (each shown as one grouped box). Topics you've already started always keep showing their due reviews in full, regardless of this cap.</span>
+              <span className="sub-label">How many brand-new topic ladders get introduced per day, each shown as one grouped box.</span>
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">Review Topic Areas Per Day</label>
+              <input
+                type="number"
+                className="form-input"
+                name="practiceReviewTopicsPerDay"
+                value={config.practiceReviewTopicsPerDay !== undefined ? config.practiceReviewTopicsPerDay : 1}
+                onChange={handleConfigChange}
+                min="0"
+                max="10"
+              />
+              <span className="sub-label">How many already-started topics (most overdue for recall first) get surfaced per day. Default is 1 new + 1 review = 2 topic boxes/day. Set higher if you want more than one review topic shown at once.</span>
             </div>
           </div>
         )}

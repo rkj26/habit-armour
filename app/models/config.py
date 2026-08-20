@@ -50,6 +50,7 @@ class AppConfigModel(SQLModel, table=True):
     practiceMinDueToUnlock: int = Field(default_factory=lambda: settings.PRACTICE_MIN_DUE_TO_UNLOCK)
     practiceDailyTarget: int = Field(default_factory=lambda: settings.PRACTICE_DAILY_TARGET)
     practiceNewCardsPerDay: int = Field(default_factory=lambda: settings.PRACTICE_NEW_CARDS_PER_DAY)
+    practiceReviewTopicsPerDay: int = Field(default_factory=lambda: settings.PRACTICE_REVIEW_TOPICS_PER_DAY)
     
     # Allowed Website Whitelist during Hardware Lock
     allowedWebsites: List[str] = Field(default_factory=lambda: list(settings.ALLOWED_WEBSITES), sa_type=JSON)

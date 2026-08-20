@@ -26,13 +26,13 @@ export default function DueQueueSection({
             </div>
             <p style={{ margin: '4px 0 0 0', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
               {dueData?.targetMet
-                ? `You've completed ${dueData?.completedToday || 0} session(s) today — daily requirement met! Feel free to practice extra due cards below.`
-                : `Target: ${dueData?.dailyTarget || 5} questions per day • ${dueData?.completedToday || 0} completed today`}
+                ? `Today's topic area(s) cleared — daily requirement met! Feel free to practice extra due cards below.`
+                : `Today: ${dueData?.reviewTopicsPerDay ?? 1} review topic${(dueData?.reviewTopicsPerDay ?? 1) === 1 ? '' : 's'} + ${dueData?.newTopicsPerDay ?? 1} new topic${(dueData?.newTopicsPerDay ?? 1) === 1 ? '' : 's'} (${dueData?.completedToday || 0} question${dueData?.completedToday === 1 ? '' : 's'} completed so far)`}
             </p>
           </div>
           <div className="due-progress-stat">
-            <div className="stat-number">{dueData?.completedToday || 0} / {dueData?.dailyTarget || 5}</div>
-            <div className="stat-label">Daily Progress</div>
+            <div className="stat-number">{dueData?.topicsCompletedToday ?? 0} / {dueData?.topicsShownToday ?? 0}</div>
+            <div className="stat-label">Topic Areas Done</div>
           </div>
         </div>
 
@@ -41,7 +41,7 @@ export default function DueQueueSection({
             className="progress-bar-fill"
             style={{
               height: '100%',
-              width: `${Math.min(100, Math.round(((dueData?.completedToday || 0) / (dueData?.dailyTarget || 5)) * 100))}%`,
+              width: `${dueData?.topicsShownToday ? Math.min(100, Math.round((dueData.topicsCompletedToday / dueData.topicsShownToday) * 100)) : 100}%`,
               background: dueData?.targetMet ? '#22c55e' : 'linear-gradient(90deg, #6366f1, #8b5cf6)',
               borderRadius: '4px',
               transition: 'width 0.3s ease'
@@ -49,7 +49,7 @@ export default function DueQueueSection({
           />
         </div>
 
-        {dueData && (dueData.totalDueBacklog > dueData.dueCount || dueData.queuedNewTopicsCount > 0) && (
+        {dueData && (dueData.totalDueBacklog > dueData.dueCount || dueData.queuedNewTopicsCount > 0 || dueData.queuedReviewTopicsCount > 0) && (
           <div style={{
             marginTop: '12px',
             padding: '8px 12px',
@@ -65,9 +65,14 @@ export default function DueQueueSection({
             gap: '8px'
           }}>
             <span>
-              ⚡ <strong>Topic Ladder Pacing:</strong> Showing <strong>{dueData.dueCount} cards</strong> across active topics today.
-              {dueData.queuedNewTopicsCount > 0 && (
-                <span> ({dueData.queuedNewTopicsCount} new topic areas queued for upcoming days to prevent overload).</span>
+              ⚡ <strong>Topic Ladder Pacing:</strong> {dueData.topicsShownToday} topic area{dueData.topicsShownToday === 1 ? '' : 's'} today ({dueData.dueCount} question{dueData.dueCount === 1 ? '' : 's'} total).
+              {(dueData.queuedReviewTopicsCount > 0 || dueData.queuedNewTopicsCount > 0) && (
+                <span>
+                  {' '}({[
+                    dueData.queuedReviewTopicsCount > 0 ? `${dueData.queuedReviewTopicsCount} review` : null,
+                    dueData.queuedNewTopicsCount > 0 ? `${dueData.queuedNewTopicsCount} new` : null,
+                  ].filter(Boolean).join(' + ')} topic area{(dueData.queuedReviewTopicsCount + dueData.queuedNewTopicsCount) === 1 ? '' : 's'} queued for upcoming days).
+                </span>
               )}
             </span>
             <span style={{ fontWeight: 600, color: 'var(--primary)' }}>

@@ -35,6 +35,8 @@ def init_db():
                 conn.exec_driver_sql("ALTER TABLE app_config ADD COLUMN practiceDailyTarget INTEGER DEFAULT 5;")
             if "practiceNewCardsPerDay" not in cfg_cols:
                 conn.exec_driver_sql("ALTER TABLE app_config ADD COLUMN practiceNewCardsPerDay INTEGER DEFAULT 5;")
+            if "practiceReviewTopicsPerDay" not in cfg_cols:
+                conn.exec_driver_sql("ALTER TABLE app_config ADD COLUMN practiceReviewTopicsPerDay INTEGER DEFAULT 1;")
             if "allowedWebsites" not in cfg_cols:
                 conn.exec_driver_sql("ALTER TABLE app_config ADD COLUMN allowedWebsites JSON;")
             conn.commit()

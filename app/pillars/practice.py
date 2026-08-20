@@ -536,7 +536,8 @@ def get_due_practice_queue(
         config = get_effective_config(session)
 
     daily_target = getattr(config, "practiceDailyTarget", 5) or 5
-    new_topics_per_day = getattr(config, "practiceNewCardsPerDay", 2) or 2
+    new_topics_per_day = getattr(config, "practiceNewCardsPerDay", 1) or 1
+    review_topics_per_day = getattr(config, "practiceReviewTopicsPerDay", 1) or 1
 
     # Fetch today's entry to determine completion status
     entry = session.exec(select(DailyEntry).where(DailyEntry.date == today)).first()
@@ -654,22 +655,38 @@ def get_due_practice_queue(
             g["sectionTag"] = next((t for t in (g["itemTags"] or []) if t.startswith("Section:")), None)
             new_groups.append(g)
 
+    # Most urgent (lowest retrievability) reviews first -- only the top
+    # `review_topics_per_day` in-progress topics are surfaced today, same
+    # pacing philosophy as new topics. The rest stay queued; nothing here
+    # touches actual FSRS due dates, only which groups are shown.
     review_groups.sort(key=lambda g: g["mostUrgentRetrievability"])
     new_groups.sort(key=lambda g: (SECTION_RANK.get(g["sectionTag"], 5), g["itemTitle"]))
 
+    shown_review_groups = review_groups[:review_topics_per_day]
+    queued_review_groups = review_groups[review_topics_per_day:]
     shown_new_groups = new_groups[:new_topics_per_day]
     queued_new_groups = new_groups[new_topics_per_day:]
 
-    due_groups = review_groups + shown_new_groups
+    due_groups = shown_review_groups + shown_new_groups
     paced_due_list = [q for g in due_groups for q in g["questions"]]
-    target_met = completed_today >= daily_target
+
+    topics_target_today = review_topics_per_day + new_topics_per_day
+    topics_shown_today = len(due_groups)
+    topics_completed_today = sum(1 for g in due_groups if g["dueCount"] > 0 and g["completedTodayCount"] >= g["dueCount"])
+    # Vacuously true when nothing is shown today (fully caught up / bank exhausted).
+    target_met = topics_completed_today >= topics_shown_today
 
     return {
         "today": today,
         "dueCount": len(paced_due_list),
         "totalDueBacklog": len(due_list),
         "queuedNewTopicsCount": len(queued_new_groups),
+        "queuedReviewTopicsCount": len(queued_review_groups),
         "newTopicsPerDay": new_topics_per_day,
+        "reviewTopicsPerDay": review_topics_per_day,
+        "topicsTargetToday": topics_target_today,
+        "topicsShownToday": topics_shown_today,
+        "topicsCompletedToday": topics_completed_today,
         "dailyTarget": daily_target,
         "completedToday": completed_today,
         "targetMet": target_met,

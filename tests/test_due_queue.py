@@ -10,7 +10,7 @@ silently regress:
   - each group's questions are sorted by ladder `order`, not creation order.
   - not-yet-due questions are excluded entirely.
 """
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from sqlmodel import select
 
@@ -49,6 +49,20 @@ def _set_new_topics_per_day(db_session, n):
     cfg.practiceNewCardsPerDay = n
     db_session.add(cfg)
     db_session.commit()
+
+
+def _set_review_topics_per_day(db_session, n):
+    cfg = db_session.exec(select(AppConfigModel).where(AppConfigModel.id == 1)).first()
+    if not cfg:
+        cfg = AppConfigModel(id=1)
+    cfg.practiceReviewTopicsPerDay = n
+    db_session.add(cfg)
+    db_session.commit()
+
+
+def _attempt(item_id, question_id, att_id):
+    return StudyAttempt(id=att_id, questionId=question_id, itemId=item_id,
+                         answerMarkdown="x", evaluation={"score": 7.0})
 
 
 def test_in_progress_topic_always_shown_in_full_even_with_zero_new_topic_budget(client, db_session):
@@ -140,3 +154,104 @@ def test_not_yet_due_questions_are_excluded_from_their_group(client, db_session)
 
     assert group["dueCount"] == 1
     assert group["questions"][0]["id"] == "q_e1"
+
+
+def test_review_topics_capped_to_the_most_urgent_by_default_one_per_day(client, db_session):
+    """Two in-progress topics due today; only the more urgent (lower
+    retrievability) one should surface when reviewTopicsPerDay=1 (the default)."""
+    today = get_local_date_string()
+    _set_new_topics_per_day(db_session, 0)
+    _set_review_topics_per_day(db_session, 1)
+
+    # Both "last reviewed" 10 days ago -- retrievability then actually depends
+    # on stability instead of tying at 1.0 (elapsed=0 always scores R=1.0
+    # regardless of stability, which would make this test pass for the wrong
+    # reason).
+    ten_days_ago = (datetime.strptime(today, "%Y-%m-%d") - timedelta(days=10)).isoformat()
+
+    _make_item(db_session, "item_urgent", "Urgent Review Topic")
+    _make_question(db_session, "q_urgent", "item_urgent", order=0, due_date=today, repetitions=3)
+    q_urgent = db_session.get(StudyQuestion, "q_urgent")
+    q_urgent.stability = 1.0  # low stability -> low retrievability -> more urgent
+    q_urgent.lastReviewedAt = ten_days_ago
+    db_session.add(q_urgent)
+    db_session.add(_attempt("item_urgent", "q_urgent", "att_urgent"))
+
+    _make_item(db_session, "item_stable", "Stable Review Topic")
+    _make_question(db_session, "q_stable", "item_stable", order=0, due_date=today, repetitions=3)
+    q_stable = db_session.get(StudyQuestion, "q_stable")
+    q_stable.stability = 1000.0  # high stability -> high retrievability -> less urgent
+    q_stable.lastReviewedAt = ten_days_ago
+    db_session.add(q_stable)
+    db_session.add(_attempt("item_stable", "q_stable", "att_stable"))
+    db_session.commit()
+
+    data = client.get("/api/practice/due").json()
+    shown_ids = [g["itemId"] for g in data["dueGroups"]]
+
+    assert shown_ids == ["item_urgent"]
+    assert data["queuedReviewTopicsCount"] == 1
+    assert data["reviewTopicsPerDay"] == 1
+
+
+def test_default_pacing_is_exactly_one_review_and_one_new_topic(client, db_session):
+    """Matches the '2 big topics: 1 review + 1 new' daily model -- with three
+    in-progress topics and three new topics all due, only one of each shows."""
+    today = get_local_date_string()
+
+    for i in range(3):
+        item_id = f"item_review_{i}"
+        _make_item(db_session, item_id, f"Review Topic {i}")
+        q_id = f"q_review_{i}"
+        _make_question(db_session, q_id, item_id, order=0, due_date=today, repetitions=1)
+        db_session.add(_attempt(item_id, q_id, f"att_review_{i}"))
+
+    for i in range(3):
+        item_id = f"item_new_{i}"
+        _make_item(db_session, item_id, f"New Topic {i}", tags=["Section: Foundations"])
+        _make_question(db_session, f"q_new_{i}", item_id, order=0, due_date=today)
+    db_session.commit()
+
+    data = client.get("/api/practice/due").json()
+
+    assert data["topicsTargetToday"] == 2
+    assert data["topicsShownToday"] == 2
+    assert len(data["dueGroups"]) == 2
+    assert sum(1 for g in data["dueGroups"] if g["isReview"]) == 1
+    assert sum(1 for g in data["dueGroups"] if not g["isReview"]) == 1
+    assert data["queuedReviewTopicsCount"] == 2
+    assert data["queuedNewTopicsCount"] == 2
+
+
+def test_target_met_reflects_todays_topics_not_a_flat_question_count(client, db_session):
+    today = get_local_date_string()
+    _set_new_topics_per_day(db_session, 0)
+    _set_review_topics_per_day(db_session, 1)
+
+    _make_item(db_session, "item_f", "Small Topic")
+    _make_question(db_session, "q_f1", "item_f", order=0, due_date=today, repetitions=1)
+    db_session.add(_attempt("item_f", "q_f1", "att_f"))
+    db_session.commit()
+
+    # Not completed yet today
+    data = client.get("/api/practice/due").json()
+    assert data["targetMet"] is False
+
+    # Simulate completing the one due question today via the daily entry
+    from app.models.daily_entry import DailyEntry
+    entry = db_session.exec(select(DailyEntry).where(DailyEntry.date == today)).first()
+    if not entry:
+        entry = DailyEntry(date=today)
+    entry.practiceCompletedQuestionIds = ["q_f1"]
+    db_session.add(entry)
+    db_session.commit()
+
+    data = client.get("/api/practice/due").json()
+    assert data["targetMet"] is True
+    assert data["topicsCompletedToday"] == 1
+
+
+def test_target_met_is_vacuously_true_when_nothing_is_due(client, db_session):
+    data = client.get("/api/practice/due").json()
+    assert data["dueGroups"] == []
+    assert data["targetMet"] is True

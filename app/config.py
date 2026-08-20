@@ -53,7 +53,8 @@ class Settings(BaseSettings):
     PRACTICE_LOCK_START_HOUR: int = 21
     PRACTICE_MIN_DUE_TO_UNLOCK: int = 1
     PRACTICE_DAILY_TARGET: int = 5
-    PRACTICE_NEW_CARDS_PER_DAY: int = 2  # new TOPIC AREAS introduced per day (repurposed from raw card count)
+    PRACTICE_NEW_CARDS_PER_DAY: int = 1  # new TOPIC AREAS introduced per day (repurposed from raw card count)
+    PRACTICE_REVIEW_TOPICS_PER_DAY: int = 1  # in-progress topic AREAS surfaced per day (most urgent first)
     GEMINI_API_KEY: Optional[str] = None
     
     # Allowed Website Hosts during Hardware Lock
