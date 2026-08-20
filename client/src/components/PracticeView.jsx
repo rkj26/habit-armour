@@ -5,13 +5,18 @@ import { renderMarkdown } from '../utils/renderMarkdown';
 export default function PracticeView({ API_URL, status, onRefreshStatus }) {
   const [practiceStatus, setPracticeStatus] = useState(null);
   const [dueQuestions, setDueQuestions] = useState([]);
+  const [dueGroups, setDueGroups] = useState([]);
   const [dueMetadata, setDueMetadata] = useState({
     dailyTarget: 5,
     completedToday: 0,
     targetMet: false,
     dueCount: 0,
-    totalBankCount: 0
+    totalBankCount: 0,
+    totalDueBacklog: 0,
+    queuedNewTopicsCount: 0,
+    newTopicsPerDay: 2
   });
+  const [expandedDueGroups, setExpandedDueGroups] = useState({});
   const [allQuestions, setAllQuestions] = useState([]);
   const [items, setItems] = useState([]);
   const [performanceData, setPerformanceData] = useState(null);
@@ -29,9 +34,6 @@ export default function PracticeView({ API_URL, status, onRefreshStatus }) {
   const [perfFilter, setPerfFilter] = useState('all'); // 'all', 'Mastered', 'Proficient', 'Developing', 'Needs Work'
   const [searchQuery, setSearchQuery] = useState('');
   const [expandedItems, setExpandedItems] = useState({});
-
-  // Question Decomposing state
-  const [decomposingId, setDecomposingId] = useState(null);
 
   // Modals state
   const [showItemModal, setShowItemModal] = useState(false);
@@ -53,13 +55,7 @@ export default function PracticeView({ API_URL, status, onRefreshStatus }) {
   const [questionDifficulty, setQuestionDifficulty] = useState('Medium');
   const [savingQuestion, setSavingQuestion] = useState(false);
 
-  // Gemini Question Generator
-  const [showGenerateModal, setShowGenerateModal] = useState(false);
-  const [generateItemId, setGenerateItemId] = useState('');
-  const [generateCount, setGenerateCount] = useState(3);
-  const [generateIsAtomic, setGenerateIsAtomic] = useState(true);
-  const [generating, setGenerating] = useState(false);
-  const [generateSuccessMsg, setGenerateSuccessMsg] = useState(null);
+  // Manual Override Modal
 
   // Manual Override Modal
   const [showOverrideModal, setShowOverrideModal] = useState(false);
@@ -109,6 +105,7 @@ export default function PracticeView({ API_URL, status, onRefreshStatus }) {
       setPracticeStatus(statusData);
       setDueMetadata(dueData);
       setDueQuestions(dueData.dueQuestions || []);
+      setDueGroups(dueData.dueGroups || []);
       setItems(itemsData.items || []);
       setAllQuestions(questionsData.questions || []);
       if (perfRes.ok) setPerformanceData(perfData);
@@ -152,32 +149,6 @@ export default function PracticeView({ API_URL, status, onRefreshStatus }) {
 
   const toggleItemExpand = (itemId) => {
     setExpandedItems(prev => ({ ...prev, [itemId]: !prev[itemId] }));
-  };
-
-  const handleDecomposeQuestion = async (questionId) => {
-    if (!questionId) return;
-    setDecomposingId(questionId);
-    setError(null);
-    try {
-      const baseUrl = getBaseUrl();
-      const res = await fetch(`${baseUrl}/api/practice/questions/${questionId}/decompose`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok || !data.success) {
-        throw new Error(data.detail || data.error || `HTTP ${res.status}: Failed to decompose question`);
-      }
-
-      setSuccessMsg(`✂️ Successfully split question into ${data.createdCount} atomic bite-sized questions (1-2 min target) with pre-cached answer keys!`);
-      setTimeout(() => setSuccessMsg(null), 6000);
-      fetchPracticeData();
-    } catch (err) {
-      console.error('Decompose error:', err);
-      setError(`Failed to split question: ${err.message}`);
-    } finally {
-      setDecomposingId(null);
-    }
   };
 
   const handleSaveItem = async (e) => {
@@ -255,39 +226,6 @@ export default function PracticeView({ API_URL, status, onRefreshStatus }) {
     }
   };
 
-  const handleGenerateQuestions = async (e) => {
-    e.preventDefault();
-    if (!generateItemId) return;
-
-    setGenerating(true);
-    setError(null);
-    setGenerateSuccessMsg(null);
-    try {
-      const baseUrl = getBaseUrl();
-      const res = await fetch(`${baseUrl}/api/practice/questions/generate`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          itemId: generateItemId,
-          count: parseInt(generateCount, 10) || 3,
-          atomic: generateIsAtomic
-        })
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.detail || data.error || 'Failed to generate questions via Gemini');
-
-      setGenerateSuccessMsg(`✨ Successfully generated and added ${data.count} atomic active recall questions with cached answer keys!`);
-      fetchPracticeData();
-      setTimeout(() => {
-        setShowGenerateModal(false);
-        setGenerateSuccessMsg(null);
-      }, 2500);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setGenerating(false);
-    }
-  };
 
   const handleSubmitOverride = async (e) => {
     e.preventDefault();
@@ -415,19 +353,6 @@ export default function PracticeView({ API_URL, status, onRefreshStatus }) {
             }}
           >
             ➕ Add Topic / Paper
-          </button>
-          <button
-            className="btn btn-secondary"
-            onClick={() => {
-              if (items.length > 0) {
-                setGenerateItemId(items[0].id);
-                setShowGenerateModal(true);
-              } else {
-                setError('Create at least one topic or paper before generating questions.');
-              }
-            }}
-          >
-            ⚡ AI Question Generator
           </button>
           <button className="btn btn-secondary" onClick={fetchPracticeData} disabled={loading}>
             🔄 Refresh
@@ -630,6 +555,15 @@ export default function PracticeView({ API_URL, status, onRefreshStatus }) {
             </div>
           )}
 
+          {dueMetadata?.queuedNewTopicsCount > 0 && (
+            <div className="burnout-safe-banner" style={{ background: '#eef2ff', borderColor: 'rgba(79,70,229,0.25)' }}>
+              <span style={{ fontSize: '1.2rem' }}>🗓️</span>
+              <div style={{ fontSize: '0.85rem', color: '#4338ca', lineHeight: '1.5' }}>
+                <strong>{dueMetadata.queuedNewTopicsCount} more new topic{dueMetadata.queuedNewTopicsCount === 1 ? '' : 's'} queued</strong> — showing {dueMetadata.newTopicsPerDay || 2} new topic area{(dueMetadata.newTopicsPerDay || 2) === 1 ? '' : 's'}/day so you're not flooded. They'll surface on upcoming days (topics you've already started always show their reviews in full). Adjust the pace in Settings.
+              </div>
+            </div>
+          )}
+
           {dueQuestions.length === 0 ? (
             <div className="empty-state card" style={{ padding: '48px 24px', textAlign: 'center' }}>
               <span style={{ fontSize: '2.5rem' }}>🎉</span>
@@ -648,65 +582,102 @@ export default function PracticeView({ API_URL, status, onRefreshStatus }) {
             </div>
           ) : (
             <div className="due-cards-list">
-              {dueQuestions.map(q => {
-                const stab = q.fsrs?.stability ? `${q.fsrs.stability}d` : `${q.sm2?.intervalDays || 0}d`;
-                const retriev = q.fsrs?.retrievability !== undefined ? Math.round(q.fsrs.retrievability * 100) : null;
-                const diff = q.fsrs?.difficulty ? `${q.fsrs.difficulty}/10` : '5.0/10';
+              {dueGroups.map(group => {
+                const isExpanded = expandedDueGroups[group.itemId] !== false; // default: expanded
+                const isReview = group.isReview;
+                const doneCount = group.completedTodayCount || 0;
+                const totalCount = group.dueCount || group.questions.length;
+                const groupTags = (group.itemTags || []).filter(t => !t.startsWith('Section:'));
+                const sectionTag = (group.itemTags || []).find(t => t.startsWith('Section:'));
 
                 return (
-                  <div key={q.id} className="due-question-card">
-                    <div className="due-card-header">
-                      <div className="due-card-tags">
-                        <span className={`badge ${q.answerTemplate === 'paper' ? 'badge-paper' : 'badge-topic'}`}>
-                          {q.answerTemplate === 'paper' ? '📄 PAPER' : '🧠 TOPIC'}
-                        </span>
-                        <span className="badge badge-difficulty">{q.difficulty || 'Medium'}</span>
-                        <span className="badge badge-time">
-                          ⏱️ ~1-2 min
-                        </span>
-                        {q.hasModelSolution && (
-                          <span className="badge badge-cached">
-                            ⚡ Solution Saved
+                  <div key={group.itemId} className="due-topic-group" style={{
+                    border: '1px solid var(--border-color)',
+                    borderRadius: 'var(--radius-lg)',
+                    background: '#ffffff',
+                    boxShadow: 'var(--shadow-sm)',
+                    marginBottom: '20px',
+                    overflow: 'hidden'
+                  }}>
+                    <div
+                      onClick={() => setExpandedDueGroups(prev => ({ ...prev, [group.itemId]: !isExpanded }))}
+                      style={{
+                        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                        padding: '16px 20px', cursor: 'pointer', background: '#f8fafc',
+                        borderBottom: isExpanded ? '1px solid var(--border-color)' : 'none'
+                      }}
+                    >
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                        <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap' }}>
+                          <span className="badge" style={{ background: isReview ? 'rgba(16,185,129,0.15)' : 'rgba(79,70,229,0.15)', color: isReview ? '#059669' : '#4f46e5', fontWeight: 700 }}>
+                            {isReview ? '🔁 Review' : '✨ New Topic'}
                           </span>
-                        )}
-                        {q.itemTags && q.itemTags.map((tag, idx) => (
-                          <span key={idx} className="badge badge-tag">{tag}</span>
-                        ))}
+                          <span className={`badge ${group.answerTemplate === 'paper' ? 'badge-paper' : 'badge-topic'}`}>
+                            {group.answerTemplate === 'paper' ? '📄 PAPER' : '🧠 TOPIC'}
+                          </span>
+                          {sectionTag && <span className="badge badge-tag">{sectionTag.replace('Section: ', '')}</span>}
+                          {groupTags.slice(0, 3).map((tag, idx) => (
+                            <span key={idx} className="badge badge-tag">{tag}</span>
+                          ))}
+                        </div>
+                        <h3 style={{ fontSize: '1.15rem', fontWeight: 700, margin: 0 }}>{group.itemTitle}</h3>
                       </div>
-                      <div className="sm2-meta">
-                        <span>Stability: <strong>{stab}</strong></span>
-                        {retriev !== null && (
-                          <span>Recall: <strong style={{ color: retriev >= 90 ? '#166534' : '#ea580c' }}>{retriev}%</strong></span>
-                        )}
-                        <span>Diff: <strong>{diff}</strong></span>
-                        <span>Due: <strong style={{ color: '#ea580c' }}>Today</strong></span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        <span className="sm2-meta">{doneCount}/{totalCount} done today</span>
+                        <span style={{ fontSize: '1.1rem' }}>{isExpanded ? '▼' : '▶'}</span>
                       </div>
                     </div>
 
-                    <h3 className="due-item-title">{q.itemTitle}</h3>
-                    <div className="due-prompt markdown-rendered" style={{ margin: '14px 0', lineHeight: '1.65' }}>
-                      {renderMarkdown(q.prompt)}
-                    </div>
+                    {isExpanded && (
+                      <div style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                        {group.questions.map((q, qIdx) => {
+                          const stab = q.fsrs?.stability ? `${q.fsrs.stability}d` : `${q.sm2?.intervalDays || 0}d`;
+                          const retriev = q.fsrs?.retrievability !== undefined ? Math.round(q.fsrs.retrievability * 100) : null;
+                          const diff = q.fsrs?.difficulty ? `${q.fsrs.difficulty}/10` : '5.0/10';
 
-                    <div className="due-card-actions" style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-                      <button
-                        className="btn btn-primary"
-                        onClick={() => {
-                          window.scrollTo({ top: 0, behavior: 'smooth' });
-                          setActiveQuestion(q);
-                        }}
-                      >
-                        ⚡ Start Active Recall Practice
-                      </button>
-                      <button
-                        className="btn btn-secondary"
-                        title="Split this question into 2-4 bite-sized sub-questions"
-                        onClick={() => handleDecomposeQuestion(q.id)}
-                        disabled={decomposingId === q.id}
-                      >
-                        {decomposingId === q.id ? '⏳ Splitting via AI...' : '✂️ Split into 1-2m Atomic Questions'}
-                      </button>
-                    </div>
+                          return (
+                            <div key={q.id} className="due-question-card" style={{ marginBottom: 0, opacity: q.completedToday ? 0.6 : 1 }}>
+                              <div className="due-card-header">
+                                <div className="due-card-tags">
+                                  <span className="badge" style={{ background: 'rgba(99,102,241,0.15)', color: '#6366f1', fontWeight: 700 }}>#{qIdx + 1}</span>
+                                  <span className="badge badge-difficulty">{q.difficulty || 'Medium'}</span>
+                                  <span className="badge badge-time">⏱️ ~1-2 min</span>
+                                  {q.hasModelSolution && (
+                                    <span className="badge badge-cached">⚡ Solution Saved</span>
+                                  )}
+                                  {q.completedToday && (
+                                    <span className="badge" style={{ background: 'rgba(16,185,129,0.15)', color: '#059669' }}>✓ Done today</span>
+                                  )}
+                                </div>
+                                <div className="sm2-meta">
+                                  <span>Stability: <strong>{stab}</strong></span>
+                                  {retriev !== null && (
+                                    <span>Recall: <strong style={{ color: retriev >= 90 ? '#166534' : '#ea580c' }}>{retriev}%</strong></span>
+                                  )}
+                                  <span>Diff: <strong>{diff}</strong></span>
+                                </div>
+                              </div>
+
+                              <div className="due-prompt markdown-rendered" style={{ margin: '14px 0', lineHeight: '1.65' }}>
+                                {renderMarkdown(q.prompt)}
+                              </div>
+
+                              <div className="due-card-actions" style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                                <button
+                                  className="btn btn-primary"
+                                  onClick={() => {
+                                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                                    setActiveQuestion(q);
+                                  }}
+                                >
+                                  ⚡ Start Active Recall Practice
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
                 );
               })}
@@ -825,14 +796,6 @@ export default function PracticeView({ API_URL, status, onRefreshStatus }) {
                         }}
                       >
                         ⚡ Practice Now (Free Recall)
-                      </button>
-                      <button
-                        className="btn btn-secondary"
-                        title="Split this question into 2-4 bite-sized sub-questions"
-                        onClick={() => handleDecomposeQuestion(q.id)}
-                        disabled={decomposingId === q.id}
-                      >
-                        {decomposingId === q.id ? '⏳ Splitting via AI...' : '✂️ Split into Atomic Questions'}
                       </button>
                     </div>
                   </div>
@@ -1049,14 +1012,6 @@ export default function PracticeView({ API_URL, status, onRefreshStatus }) {
                       >
                         ⚡ Practice Question
                       </button>
-                      <button
-                        className="btn btn-secondary"
-                        title="Split this question into 2-4 bite-sized sub-questions"
-                        onClick={() => handleDecomposeQuestion(q.questionId)}
-                        disabled={decomposingId === q.questionId}
-                      >
-                        {decomposingId === q.questionId ? '⏳ Splitting via AI...' : '✂️ Split into Atomic Questions'}
-                      </button>
                     </div>
                   </div>
                 );
@@ -1105,7 +1060,7 @@ export default function PracticeView({ API_URL, status, onRefreshStatus }) {
           {/* Items Grid */}
           <div className="bank-items-grid">
             {filteredItems.map(item => {
-              const itemQuestions = allQuestions.filter(q => q.itemId === item.id);
+              const itemQuestions = allQuestions.filter(q => q.itemId === item.id).sort((a, b) => (a.order || 0) - (b.order || 0));
               const isExpanded = !!expandedItems[item.id];
 
               return (
@@ -1115,16 +1070,6 @@ export default function PracticeView({ API_URL, status, onRefreshStatus }) {
                       {item.type === 'paper' ? '📄 PAPER' : '🧠 THEORY TOPIC'}
                     </span>
                     <div className="bank-item-menu">
-                      <button
-                        className="btn-icon"
-                        title="Generate Questions via Gemini"
-                        onClick={() => {
-                          setGenerateItemId(item.id);
-                          setShowGenerateModal(true);
-                        }}
-                      >
-                        ✨
-                      </button>
                       <button
                         className="btn-icon"
                         title="Add Manual Question"
@@ -1186,10 +1131,11 @@ export default function PracticeView({ API_URL, status, onRefreshStatus }) {
                             No questions added yet. Click ✨ to generate questions via Gemini.
                           </div>
                         ) : (
-                          itemQuestions.map(q => (
+                          itemQuestions.map((q, qIdx) => (
                             <div key={q.id} style={{ background: '#f8fafc', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-md)', padding: '10px 12px' }}>
                               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
                                 <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                                  <span className="badge" style={{ fontSize: '0.7rem', background: 'rgba(99, 102, 241, 0.15)', color: '#6366f1', fontWeight: 700 }}>#{qIdx + 1}</span>
                                   <span className="badge badge-difficulty" style={{ fontSize: '0.7rem' }}>{q.difficulty}</span>
                                   <span className="badge badge-time" style={{ fontSize: '0.68rem' }}>⏱️ ~1-2m</span>
                                   {q.hasModelSolution && <span className="badge badge-cached" style={{ fontSize: '0.68rem' }}>⚡ Key Saved</span>}
@@ -1200,15 +1146,6 @@ export default function PracticeView({ API_URL, status, onRefreshStatus }) {
                                 {renderMarkdown(q.prompt)}
                               </div>
                               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '6px' }}>
-                                <button
-                                  className="btn btn-secondary"
-                                  style={{ padding: '3px 8px', fontSize: '0.72rem' }}
-                                  title="Split into bite-sized questions"
-                                  onClick={() => handleDecomposeQuestion(q.id)}
-                                  disabled={decomposingId === q.id}
-                                >
-                                  {decomposingId === q.id ? '✂️...' : '✂️ Split'}
-                                </button>
                                 <button
                                   className="btn btn-primary"
                                   style={{ padding: '3px 10px', fontSize: '0.75rem' }}
@@ -1417,71 +1354,7 @@ export default function PracticeView({ API_URL, status, onRefreshStatus }) {
         </div>
       )}
 
-      {/* Gemini AI Question Generator Modal */}
-      {showGenerateModal && (
-        <div className="modal-backdrop">
-          <div className="modal-content glass-card">
-            <h3>⚡ Gemini AI Atomic Question Generator</h3>
-            <p className="modal-desc">
-              Generate crisp, bite-sized active-recall questions designed for rapid 1–2 minute drills with pre-cached answer keys.
-            </p>
-            {generateSuccessMsg && (
-              <div className="banner banner-success" style={{ marginBottom: '12px' }}>
-                {generateSuccessMsg}
-              </div>
-            )}
-            <form onSubmit={handleGenerateQuestions}>
-              <div className="form-group">
-                <label>Target Topic / Paper</label>
-                <select
-                  className="input-field"
-                  value={generateItemId}
-                  onChange={(e) => setGenerateItemId(e.target.value)}
-                >
-                  {items.map(item => (
-                    <option key={item.id} value={item.id}>
-                      {item.title} ({item.type.toUpperCase()})
-                    </option>
-                  ))}
-                </select>
-              </div>
 
-              <div className="form-group">
-                <label>Number of Atomic Questions</label>
-                <select
-                  className="input-field"
-                  value={generateCount}
-                  onChange={(e) => setGenerateCount(e.target.value)}
-                >
-                  <option value={2}>2 Atomic Questions</option>
-                  <option value={3}>3 Atomic Questions (Recommended)</option>
-                  <option value={4}>4 Atomic Questions</option>
-                </select>
-              </div>
-
-              <div className="form-group" style={{ background: '#f8fafc', padding: '10px 14px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', margin: 0, fontWeight: 600, fontSize: '0.85rem' }}>
-                  <input
-                    type="checkbox"
-                    checked={generateIsAtomic}
-                    onChange={(e) => setGenerateIsAtomic(e.target.checked)}
-                  />
-                  <span>⚡ Enforce 1–2 minute single-concept atomic questions (prevents burnout)</span>
-                </label>
-              </div>
-
-              <div className="modal-actions">
-                <button type="button" className="btn btn-secondary" onClick={() => setShowGenerateModal(false)}>
-                  Close
-                </button>
-                <button type="submit" className="btn btn-primary" disabled={generating}>
-                  {generating ? '✨ Generating & Pre-Caching Answer Keys...' : '⚡ Generate & Add to Bank'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
 
       {/* Manual Override Modal */}
       {showOverrideModal && (
