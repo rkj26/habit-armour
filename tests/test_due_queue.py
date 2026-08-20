@@ -10,19 +10,24 @@ silently regress:
   - each group's questions are sorted by ladder `order`, not creation order.
   - not-yet-due questions are excluded entirely.
 """
+
 from datetime import datetime, timedelta
 
 from sqlmodel import select
 
-from app.config import get_local_date_string
+from app.config import get_local_date_string, now_local
 from app.models.config import AppConfigModel
 from app.models.study import StudyAttempt, StudyItem, StudyQuestion
 
 
 def _make_item(db_session, item_id, title, tags=None):
     item = StudyItem(
-        id=item_id, type="topic", title=title, tags=tags or [],
-        notes="", createdAt=datetime.utcnow().isoformat(),
+        id=item_id,
+        type="topic",
+        title=title,
+        tags=tags or [],
+        notes="",
+        createdAt=now_local().isoformat(),
     )
     db_session.add(item)
     db_session.commit()
@@ -31,11 +36,23 @@ def _make_item(db_session, item_id, title, tags=None):
 
 def _make_question(db_session, q_id, item_id, order, due_date, repetitions=0):
     q = StudyQuestion(
-        id=q_id, itemId=item_id, itemType="topic", prompt=f"prompt {q_id}",
-        answerTemplate="topic", difficulty="Easy", source="manual", active=True,
-        order=order, easeFactor=2.5, repetitions=repetitions, intervalDays=0,
-        dueDate=due_date, stability=1.0 if repetitions else 0.0, fsrsDifficulty=5.0,
-        lapses=0, state=2 if repetitions else 0,
+        id=q_id,
+        itemId=item_id,
+        itemType="topic",
+        prompt=f"prompt {q_id}",
+        answerTemplate="topic",
+        difficulty="Easy",
+        source="manual",
+        active=True,
+        order=order,
+        easeFactor=2.5,
+        repetitions=repetitions,
+        intervalDays=0,
+        dueDate=due_date,
+        stability=1.0 if repetitions else 0.0,
+        fsrsDifficulty=5.0,
+        lapses=0,
+        state=2 if repetitions else 0,
     )
     db_session.add(q)
     db_session.commit()
@@ -61,8 +78,9 @@ def _set_review_topics_per_day(db_session, n):
 
 
 def _attempt(item_id, question_id, att_id):
-    return StudyAttempt(id=att_id, questionId=question_id, itemId=item_id,
-                         answerMarkdown="x", evaluation={"score": 7.0})
+    return StudyAttempt(
+        id=att_id, questionId=question_id, itemId=item_id, answerMarkdown="x", evaluation={"score": 7.0}
+    )
 
 
 def test_in_progress_topic_always_shown_in_full_even_with_zero_new_topic_budget(client, db_session):
@@ -72,8 +90,11 @@ def test_in_progress_topic_always_shown_in_full_even_with_zero_new_topic_budget(
     _make_item(db_session, "item_a", "Topic A")
     _make_question(db_session, "q_a1", "item_a", order=0, due_date=today, repetitions=1)
     _make_question(db_session, "q_a2", "item_a", order=1, due_date=today, repetitions=0)
-    db_session.add(StudyAttempt(id="att_1", questionId="q_a1", itemId="item_a",
-                                 answerMarkdown="x", evaluation={"score": 8.0}))
+    db_session.add(
+        StudyAttempt(
+            id="att_1", questionId="q_a1", itemId="item_a", answerMarkdown="x", evaluation={"score": 8.0}
+        )
+    )
     db_session.commit()
 
     data = client.get("/api/practice/due").json()
@@ -94,8 +115,15 @@ def test_topic_with_history_shown_even_if_only_its_unreviewed_tail_is_due_today(
     _make_item(db_session, "item_mid", "Mid-Ladder Topic")
     _make_question(db_session, "q_mid_reviewed", "item_mid", order=0, due_date="2099-01-01", repetitions=1)
     _make_question(db_session, "q_mid_new", "item_mid", order=1, due_date=today, repetitions=0)
-    db_session.add(StudyAttempt(id="att_mid", questionId="q_mid_reviewed", itemId="item_mid",
-                                 answerMarkdown="x", evaluation={"score": 7.0}))
+    db_session.add(
+        StudyAttempt(
+            id="att_mid",
+            questionId="q_mid_reviewed",
+            itemId="item_mid",
+            answerMarkdown="x",
+            evaluation={"score": 7.0},
+        )
+    )
     db_session.commit()
 
     data = client.get("/api/practice/due").json()
@@ -239,6 +267,7 @@ def test_target_met_reflects_todays_topics_not_a_flat_question_count(client, db_
 
     # Simulate completing the one due question today via the daily entry
     from app.models.daily_entry import DailyEntry
+
     entry = db_session.exec(select(DailyEntry).where(DailyEntry.date == today)).first()
     if not entry:
         entry = DailyEntry(date=today)

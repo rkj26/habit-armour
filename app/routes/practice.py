@@ -1,87 +1,94 @@
-import os
-import re
 import base64
 import json
-import httpx
+import os
+import re
 from datetime import datetime
-from typing import Dict, Any, Optional, List
-from fastapi import APIRouter, Depends, HTTPException, Query
+
+import httpx
+from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, select
+
+from app.config import elapsed_logical_days, get_local_date_string, settings
 from app.database import get_session
-from app.config import settings, get_local_date_string
-from app.models.study import StudyItem, StudyQuestion, StudyAttempt
-from app.models.daily_entry import DailyEntry
-from app.pillars.status import get_effective_config, get_or_create_today_entry
+from app.models.study import StudyAttempt, StudyItem, StudyQuestion
 from app.pillars.practice import (
-    get_due_practice_queue,
-    record_practice_attempt,
-    get_performance_analytics,
     balance_backlog_schedule,
+    compute_retrievability,
+    decompose_question_with_gemini,
     evaluate_answer_with_gemini,
     generate_model_solution_with_gemini,
-    decompose_question_with_gemini,
-    compute_retrievability,
-    is_practice_satisfied
+    get_due_practice_queue,
+    get_performance_analytics,
+    is_practice_satisfied,
+    record_practice_attempt,
+)
+from app.pillars.status import get_effective_config, get_or_create_today_entry
+from app.schemas import (
+    AttemptSubmit,
+    BalanceBacklogRequest,
+    GenerateQuestionsRequest,
+    OverrideRequest,
+    PracticeImageUpload,
+    QuestionCreate,
+    QuestionUpdate,
+    StudyItemCreate,
+    StudyItemUpdate,
 )
 
 router = APIRouter(prefix="/api/practice", tags=["Consistent Practice"])
 UPLOADS_DIR = os.path.join(os.getcwd(), "uploads")
 os.makedirs(UPLOADS_DIR, exist_ok=True)
 
+
 def _next_order_for_item(session: Session, item_id: str) -> int:
     existing = session.exec(select(StudyQuestion.order).where(StudyQuestion.itemId == item_id)).all()
     orders = [o or 0 for o in existing]
     return (max(orders) + 1) if orders else 0
 
+
 # -----------------------------------------------------------------------------
 # Items (Topics / Papers)
 # -----------------------------------------------------------------------------
 
+
 @router.get("/items")
 def get_study_items(session: Session = Depends(get_session)):
     items = session.exec(select(StudyItem)).all()
-    return {"items": [i.dict() for i in items]}
+    return {"items": [i.model_dump() for i in items]}
+
 
 @router.post("/items")
-def create_study_item(payload: Dict[str, Any], session: Session = Depends(get_session)):
-    title = payload.get("title", "").strip()
-    if not title:
-        raise HTTPException(status_code=400, detail="Title is required")
-    item_type = payload.get("type", "topic")
-    tags = payload.get("tags", [])
-    if isinstance(tags, str):
-        tags = [s.strip() for s in tags.split(",") if s.strip()]
+def create_study_item(payload: StudyItemCreate, session: Session = Depends(get_session)):
+    item_type = payload.type
     item_id = f"{item_type}_{int(datetime.now().timestamp() * 1000)}"
-    
+
     new_item = StudyItem(
         id=item_id,
         type=item_type,
-        title=title,
-        tags=tags,
-        notes=payload.get("notes", ""),
-        paper=payload.get("paper") if item_type == "paper" else None
+        title=payload.title.strip(),
+        tags=payload.tags,
+        notes=payload.notes,
+        paper=payload.paper if item_type == "paper" else None,
     )
     session.add(new_item)
     session.commit()
     session.refresh(new_item)
-    return {"success": True, "item": new_item.dict()}
+    return {"success": True, "item": new_item.model_dump()}
+
 
 @router.put("/items/{item_id}")
-def update_study_item(item_id: str, payload: Dict[str, Any], session: Session = Depends(get_session)):
+def update_study_item(item_id: str, payload: StudyItemUpdate, session: Session = Depends(get_session)):
     item = session.exec(select(StudyItem).where(StudyItem.id == item_id)).first()
     if not item:
         raise HTTPException(status_code=404, detail="Item not found")
-    if "title" in payload: item.title = payload["title"].strip()
-    if "tags" in payload:
-        tags = payload["tags"]
-        item.tags = [s.strip() for s in tags.split(",") if s.strip()] if isinstance(tags, str) else tags
-    if "notes" in payload: item.notes = payload["notes"].strip()
-    if "paper" in payload: item.paper = payload["paper"]
-    if "type" in payload: item.type = payload["type"]
+    # exclude_unset so an omitted field is left alone rather than nulled
+    for field, value in payload.model_dump(exclude_unset=True).items():
+        setattr(item, field, value.strip() if field in {"title", "notes"} and value else value)
     session.add(item)
     session.commit()
     session.refresh(item)
-    return {"success": True, "item": item.dict()}
+    return {"success": True, "item": item.model_dump()}
+
 
 @router.delete("/items/{item_id}")
 def delete_study_item(item_id: str, session: Session = Depends(get_session)):
@@ -97,81 +104,82 @@ def delete_study_item(item_id: str, session: Session = Depends(get_session)):
     session.commit()
     return {"success": True}
 
+
 # -----------------------------------------------------------------------------
 # Questions Bank
 # -----------------------------------------------------------------------------
 
+
 @router.get("/questions")
-def get_questions(itemId: Optional[str] = None, session: Session = Depends(get_session)):
+def get_questions(itemId: str | None = None, session: Session = Depends(get_session)):
     query = select(StudyQuestion).where(StudyQuestion.active == True)
     if itemId:
         query = query.where(StudyQuestion.itemId == itemId)
     questions = session.exec(query).all()
-    
+
     today_str = get_local_date_string()
+    items_map = {it.id: it for it in session.exec(select(StudyItem)).all()}
+
     result = []
     for q in questions:
-        item = session.exec(select(StudyItem).where(StudyItem.id == q.itemId)).first()
-        
-        # Calculate current elapsed days and retrievability
-        elapsed = 0
-        if q.lastReviewedAt:
-            try:
-                last_d = datetime.fromisoformat(q.lastReviewedAt.replace("Z", "+00:00")).date()
-                today_d = datetime.strptime(today_str, "%Y-%m-%d").date()
-                elapsed = max(0, (today_d - last_d).days)
-            except Exception:
-                elapsed = 0
-        r_current = compute_retrievability(elapsed, q.stability) if q.stability > 0 else (1.0 if q.repetitions > 0 else 0.0)
+        item = items_map.get(q.itemId)
 
-        result.append({
-            "id": q.id,
-            "itemId": q.itemId,
-            "itemType": q.itemType,
-            "prompt": q.prompt,
-            "answerTemplate": q.answerTemplate,
-            "difficulty": q.difficulty,
-            "source": q.source,
-            "active": q.active,
-            "order": q.order or 0,
-            "fsrs": {
-                "stability": q.stability,
-                "difficulty": q.fsrsDifficulty or 5.0,
-                "retrievability": r_current,
-                "lapses": q.lapses or 0,
-                "state": q.state or 0,
-                "repetitions": q.repetitions,
-                "intervalDays": q.intervalDays,
-                "dueDate": q.dueDate,
-                "lastReviewedAt": q.lastReviewedAt
-            },
-            "sm2": {
-                "easeFactor": q.easeFactor,
-                "repetitions": q.repetitions,
-                "intervalDays": q.intervalDays,
-                "dueDate": q.dueDate,
-                "lastReviewedAt": q.lastReviewedAt
-            },
-            "itemTitle": item.title if item else "Unknown",
-            "itemTags": item.tags if item else [],
-            "itemNotes": item.notes if item else "",
-            "itemPaper": item.paper if item else None,
-            "hasModelSolution": bool(q.modelSolution),
-            "modelSolution": q.modelSolution,
-            "keyTakeaways": q.keyTakeaways or []
-        })
+        elapsed = elapsed_logical_days(q.lastReviewedAt, today_str)
+        r_current = (
+            compute_retrievability(elapsed, q.stability)
+            if q.stability > 0
+            else (1.0 if q.repetitions > 0 else 0.0)
+        )
+
+        result.append(
+            {
+                "id": q.id,
+                "itemId": q.itemId,
+                "itemType": q.itemType,
+                "prompt": q.prompt,
+                "answerTemplate": q.answerTemplate,
+                "difficulty": q.difficulty,
+                "source": q.source,
+                "active": q.active,
+                "order": q.order or 0,
+                "fsrs": {
+                    "stability": q.stability,
+                    "difficulty": q.fsrsDifficulty or 5.0,
+                    "retrievability": r_current,
+                    "lapses": q.lapses or 0,
+                    "state": q.state or 0,
+                    "repetitions": q.repetitions,
+                    "intervalDays": q.intervalDays,
+                    "dueDate": q.dueDate,
+                    "lastReviewedAt": q.lastReviewedAt,
+                },
+                "sm2": {
+                    "easeFactor": q.easeFactor,
+                    "repetitions": q.repetitions,
+                    "intervalDays": q.intervalDays,
+                    "dueDate": q.dueDate,
+                    "lastReviewedAt": q.lastReviewedAt,
+                },
+                "itemTitle": item.title if item else "Unknown",
+                "itemTags": item.tags if item else [],
+                "itemNotes": item.notes if item else "",
+                "itemPaper": item.paper if item else None,
+                "hasModelSolution": bool(q.modelSolution),
+                "modelSolution": q.modelSolution,
+                "keyTakeaways": q.keyTakeaways or [],
+            }
+        )
     return {"questions": result}
 
+
 @router.post("/questions")
-def create_question(payload: Dict[str, Any], session: Session = Depends(get_session)):
-    item_id = payload.get("itemId")
-    prompt = payload.get("prompt", "").strip()
-    if not item_id or not prompt:
-        raise HTTPException(status_code=400, detail="itemId and prompt are required")
+def create_question(payload: QuestionCreate, session: Session = Depends(get_session)):
+    item_id = payload.itemId
+    prompt = payload.prompt.strip()
     item = session.exec(select(StudyItem).where(StudyItem.id == item_id)).first()
     if not item:
         raise HTTPException(status_code=404, detail="Parent study item not found")
-        
+
     q_id = f"q_{int(datetime.now().timestamp() * 1000)}"
     today = get_local_date_string()
     next_order = _next_order_for_item(session, item_id)
@@ -181,8 +189,8 @@ def create_question(payload: Dict[str, Any], session: Session = Depends(get_sess
         itemId=item_id,
         itemType=item.type,
         prompt=prompt,
-        answerTemplate=payload.get("answerTemplate", "paper" if item.type == "paper" else "topic"),
-        difficulty=payload.get("difficulty", "Medium"),
+        answerTemplate=payload.answerTemplate or ("paper" if item.type == "paper" else "topic"),
+        difficulty=payload.difficulty,
         source="manual",
         active=True,
         order=next_order,
@@ -190,29 +198,27 @@ def create_question(payload: Dict[str, Any], session: Session = Depends(get_sess
         repetitions=0,
         intervalDays=0,
         dueDate=today,
-        modelSolution=payload.get("modelSolution"),
-        keyTakeaways=payload.get("keyTakeaways", [])
+        modelSolution=payload.modelSolution,
+        keyTakeaways=payload.keyTakeaways,
     )
     session.add(new_q)
     session.commit()
     session.refresh(new_q)
-    return {"success": True, "question": new_q.dict()}
+    return {"success": True, "question": new_q.model_dump()}
+
 
 @router.put("/questions/{q_id}")
-def update_question(q_id: str, payload: Dict[str, Any], session: Session = Depends(get_session)):
+def update_question(q_id: str, payload: QuestionUpdate, session: Session = Depends(get_session)):
     q = session.exec(select(StudyQuestion).where(StudyQuestion.id == q_id)).first()
     if not q:
         raise HTTPException(status_code=404, detail="Question not found")
-    if "prompt" in payload: q.prompt = payload["prompt"].strip()
-    if "answerTemplate" in payload: q.answerTemplate = payload["answerTemplate"]
-    if "difficulty" in payload: q.difficulty = payload["difficulty"]
-    if "active" in payload: q.active = bool(payload["active"])
-    if "modelSolution" in payload: q.modelSolution = payload["modelSolution"]
-    if "keyTakeaways" in payload: q.keyTakeaways = payload["keyTakeaways"]
+    for field, value in payload.model_dump(exclude_unset=True).items():
+        setattr(q, field, value.strip() if field == "prompt" and value else value)
     session.add(q)
     session.commit()
     session.refresh(q)
-    return {"success": True, "question": q.dict()}
+    return {"success": True, "question": q.model_dump()}
+
 
 @router.delete("/questions/{q_id}")
 def delete_question(q_id: str, session: Session = Depends(get_session)):
@@ -224,32 +230,32 @@ def delete_question(q_id: str, session: Session = Depends(get_session)):
     session.commit()
     return {"success": True}
 
+
 # -----------------------------------------------------------------------------
 # AI Question Generator (Atomic / Bite-Sized Focus)
 # -----------------------------------------------------------------------------
 
+
 @router.post("/questions/generate")
-async def generate_questions(payload: Dict[str, Any], session: Session = Depends(get_session)):
+async def generate_questions(payload: GenerateQuestionsRequest, session: Session = Depends(get_session)):
     api_key = settings.GEMINI_API_KEY or os.environ.get("GEMINI_API_KEY")
     if not api_key:
         raise HTTPException(status_code=400, detail="GEMINI_API_KEY is not configured in .env")
-        
-    item_id = payload.get("itemId")
-    count = payload.get("count", 8)
-    is_atomic = payload.get("atomic", False)
-    if not item_id:
-        raise HTTPException(status_code=400, detail="itemId is required")
-        
+
+    item_id = payload.itemId
+    count = payload.count
+    is_atomic = payload.atomic
+
     item = session.exec(select(StudyItem).where(StudyItem.id == item_id)).first()
     if not item:
         raise HTTPException(status_code=404, detail="Item not found")
-        
+
     if is_atomic:
         prompt_text = f"""You are a master educator and Principal ML Researcher creating crisp, atomic active-recall practice questions.
 Item Title: "{item.title}"
 Item Type: "{item.type}"
-Item Notes: "{item.notes or 'None'}"
-{f'Paper Metadata: {json.dumps(item.paper)}' if item.paper else ''}
+Item Notes: "{item.notes or "None"}"
+{f"Paper Metadata: {json.dumps(item.paper)}" if item.paper else ""}
 
 INSTRUCTIONS:
 Generate {count} distinct, ATOMIC active-recall questions.
@@ -263,7 +269,7 @@ Respond with strict JSON matching:
   "questions": [
     {{
       "prompt": "Specific, atomic question text (1-2 min target)...",
-      "answerTemplate": "{'paper' if item.type == 'paper' else 'topic'}",
+      "answerTemplate": "{"paper" if item.type == "paper" else "topic"}",
       "difficulty": "Medium",
       "idealAnswer": "Complete, pristine LaTeX model solution for this atomic question...",
       "keyTakeaways": ["Key point 1...", "Key point 2..."]
@@ -274,8 +280,8 @@ Respond with strict JSON matching:
         prompt_text = f"""You are a master educator and Principal ML Researcher building a SCAFFOLDED LADDER of active-recall questions for one topic.
 Item Title: "{item.title}"
 Item Type: "{item.type}"
-Item Notes: "{item.notes or 'None'}"
-{f'Paper Metadata: {json.dumps(item.paper)}' if item.paper else ''}
+Item Notes: "{item.notes or "None"}"
+{f"Paper Metadata: {json.dumps(item.paper)}" if item.paper else ""}
 
 GOAL:
 Generate {count} questions that, taken together IN ORDER, let a student reconstruct the entire topic from first principles: every core definition, every equation, the intuition/"why" behind each design choice, and how the pieces compose. This is NOT a set of disconnected trivia questions — it is a deliberate ladder.
@@ -292,7 +298,7 @@ Respond with strict JSON matching, with "questions" as an ARRAY IN THE INTENDED 
   "questions": [
     {{
       "prompt": "Question text (references earlier questions' notation where natural)...",
-      "answerTemplate": "{'paper' if item.type == 'paper' else 'topic'}",
+      "answerTemplate": "{"paper" if item.type == "paper" else "topic"}",
       "difficulty": "Easy | Medium | Hard",
       "questionMode": "intuition | math",
       "idealAnswer": "Complete, pristine LaTeX model solution for this question...",
@@ -303,18 +309,21 @@ Respond with strict JSON matching, with "questions" as an ARRAY IN THE INTENDED 
 
     url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={api_key}"
     async with httpx.AsyncClient(timeout=60.0) as client:
-        res = await client.post(url, json={
-            "contents": [{"parts": [{"text": prompt_text}]}],
-            "generationConfig": {"responseMimeType": "application/json"}
-        })
+        res = await client.post(
+            url,
+            json={
+                "contents": [{"parts": [{"text": prompt_text}]}],
+                "generationConfig": {"responseMimeType": "application/json"},
+            },
+        )
         if res.status_code != 200:
             raise HTTPException(status_code=res.status_code, detail=f"Gemini API Error: {res.text}")
-            
+
         data = res.json()
         raw_text = data["candidates"][0]["content"]["parts"][0]["text"]
         parsed = json.loads(raw_text)
         candidate_qs = parsed.get("questions", [])
-        
+
     today = get_local_date_string()
     next_order = _next_order_for_item(session, item_id)
     created = []
@@ -335,17 +344,19 @@ Respond with strict JSON matching, with "questions" as an ARRAY IN THE INTENDED 
             intervalDays=0,
             dueDate=today,
             modelSolution=cq.get("idealAnswer"),
-            keyTakeaways=cq.get("keyTakeaways", [])
+            keyTakeaways=cq.get("keyTakeaways", []),
         )
         session.add(new_q)
         created.append(new_q)
-        
+
     session.commit()
-    return {"success": True, "count": len(created), "questions": [q.dict() for q in created]}
+    return {"success": True, "count": len(created), "questions": [q.model_dump() for q in created]}
+
 
 # -----------------------------------------------------------------------------
 # AI Question Decomposer (Split Monolithic Questions into Atomic Chunks)
 # -----------------------------------------------------------------------------
+
 
 @router.post("/questions/{q_id}/decompose")
 async def decompose_question(q_id: str, session: Session = Depends(get_session)):
@@ -355,11 +366,11 @@ async def decompose_question(q_id: str, session: Session = Depends(get_session))
     item = session.exec(select(StudyItem).where(StudyItem.id == q.itemId)).first()
     if not item:
         raise HTTPException(status_code=404, detail="Parent study item not found")
-        
+
     atomic_list = await decompose_question_with_gemini(item, q)
     if not atomic_list:
         raise HTTPException(status_code=500, detail="Failed to decompose question into atomic parts")
-        
+
     today = get_local_date_string()
     created_qs = []
     for idx, aq in enumerate(atomic_list):
@@ -379,56 +390,59 @@ async def decompose_question(q_id: str, session: Session = Depends(get_session))
             intervalDays=0,
             dueDate=today,
             modelSolution=aq.get("idealAnswer"),
-            keyTakeaways=aq.get("keyTakeaways", [])
+            keyTakeaways=aq.get("keyTakeaways", []),
         )
         session.add(new_q)
         created_qs.append(new_q)
-        
+
     # Archive original monolithic question to prevent duplicate review
     q.active = False
     session.add(q)
     session.commit()
-    
+
     return {
         "success": True,
         "originalQuestionId": q_id,
         "createdCount": len(created_qs),
-        "atomicQuestions": [cq.dict() for cq in created_qs]
+        "atomicQuestions": [cq.model_dump() for cq in created_qs],
     }
+
 
 # -----------------------------------------------------------------------------
 # Due Queue & Practice Attempts (FSRS Powered)
 # -----------------------------------------------------------------------------
 
+
 @router.post("/balance-backlog")
-def balance_backlog(payload: Optional[Dict[str, Any]] = None, session: Session = Depends(get_session)):
-    cards_per_day = payload.get("cardsPerDay", 5) if payload else 5
-    return balance_backlog_schedule(session, cards_per_day)
+def balance_backlog(payload: BalanceBacklogRequest | None = None, session: Session = Depends(get_session)):
+    return balance_backlog_schedule(session, payload.cardsPerDay if payload else 5)
+
 
 @router.get("/due")
 def get_due_questions(session: Session = Depends(get_session)):
     return get_due_practice_queue(session)
 
+
 @router.post("/attempts")
-async def submit_practice_attempt(payload: Dict[str, Any], session: Session = Depends(get_session)):
-    question_id = payload.get("questionId")
-    answer_markdown = payload.get("answerMarkdown", "").strip()
-    if not question_id or not answer_markdown:
-        raise HTTPException(status_code=400, detail="questionId and answerMarkdown are required")
-        
+async def submit_practice_attempt(payload: AttemptSubmit, session: Session = Depends(get_session)):
+    question_id = payload.questionId
+    answer_markdown = payload.answerMarkdown
+
     q = session.exec(select(StudyQuestion).where(StudyQuestion.id == question_id)).first()
     if not q:
         raise HTTPException(status_code=404, detail="Question not found")
     item = session.exec(select(StudyItem).where(StudyItem.id == q.itemId)).first()
     if not item:
         raise HTTPException(status_code=404, detail="Parent study item not found")
-        
+
     eval_res = await evaluate_answer_with_gemini(item, q, answer_markdown)
     return record_practice_attempt(session, q, item, answer_markdown, eval_res)
+
 
 # -----------------------------------------------------------------------------
 # Instant Cached Model Solution Key
 # -----------------------------------------------------------------------------
+
 
 @router.post("/questions/{q_id}/model-solution")
 async def get_question_model_solution(q_id: str, session: Session = Depends(get_session)):
@@ -438,7 +452,7 @@ async def get_question_model_solution(q_id: str, session: Session = Depends(get_
     item = session.exec(select(StudyItem).where(StudyItem.id == q.itemId)).first()
     if not item:
         raise HTTPException(status_code=404, detail="Parent study item not found")
-        
+
     # Check if answer key is already stored in SQLite database
     if q.modelSolution and q.modelSolution.strip():
         return {
@@ -447,9 +461,9 @@ async def get_question_model_solution(q_id: str, session: Session = Depends(get_
             "itemTitle": item.title,
             "idealAnswer": q.modelSolution,
             "keyTakeaways": q.keyTakeaways or [],
-            "cached": True
+            "cached": True,
         }
-        
+
     # Generate on demand via Gemini and cache forever in SQLite
     res = await generate_model_solution_with_gemini(item, q)
     ideal = res.get("idealAnswer", "")
@@ -460,78 +474,95 @@ async def get_question_model_solution(q_id: str, session: Session = Depends(get_
         session.add(q)
         session.commit()
         session.refresh(q)
-        
+
     return {
         "success": True,
         "questionId": q_id,
         "itemTitle": item.title,
         "idealAnswer": ideal,
         "keyTakeaways": takeaways,
-        "cached": False
+        "cached": False,
     }
+
 
 # -----------------------------------------------------------------------------
 # Performance & Mastery Analytics (FSRS DSR Model)
 # -----------------------------------------------------------------------------
 
+
 @router.get("/performance")
 def get_performance(session: Session = Depends(get_session)):
     return get_performance_analytics(session)
 
+
 @router.get("/attempts")
-def get_attempts(questionId: Optional[str] = None, itemId: Optional[str] = None, limit: int = 50, session: Session = Depends(get_session)):
+def get_attempts(
+    questionId: str | None = None,
+    itemId: str | None = None,
+    limit: int = 50,
+    session: Session = Depends(get_session),
+):
     query = select(StudyAttempt).order_by(StudyAttempt.submittedAt.desc())
-    if questionId: query = query.where(StudyAttempt.questionId == questionId)
-    elif itemId: query = query.where(StudyAttempt.itemId == itemId)
+    if questionId:
+        query = query.where(StudyAttempt.questionId == questionId)
+    elif itemId:
+        query = query.where(StudyAttempt.itemId == itemId)
     attempts = session.exec(query.limit(limit)).all()
-    return {"attempts": [a.dict() for a in attempts]}
+    return {"attempts": [a.model_dump() for a in attempts]}
+
 
 @router.post("/upload-image")
-def upload_practice_image(payload: Dict[str, Any]):
-    data_url = payload.get("dataUrl")
-    question_id = payload.get("questionId", "diagram")
-    if not data_url:
-        raise HTTPException(status_code=400, detail="dataUrl is required")
-        
+def upload_practice_image(payload: PracticeImageUpload):
+    data_url = payload.dataUrl
+    question_id = payload.questionId
+
     match = re.match(r"^data:image\/([a-zA-Z0-9+.-]+);base64,(.+)$", data_url, re.DOTALL)
     if not match:
-        raise HTTPException(status_code=400, detail="Invalid base64 image format. Expected data:image/...;base64,...")
-        
+        raise HTTPException(
+            status_code=400, detail="Invalid base64 image format. Expected data:image/...;base64,..."
+        )
+
     raw_sub = match.group(1).lower()
-    ext = "jpg" if raw_sub in ("jpeg", "jpg") else "png" if "png" in raw_sub else "webp" if "webp" in raw_sub else "jpg"
+    ext = (
+        "jpg"
+        if raw_sub in ("jpeg", "jpg")
+        else "png"
+        if "png" in raw_sub
+        else "webp"
+        if "webp" in raw_sub
+        else "jpg"
+    )
     try:
         buffer = base64.b64decode(match.group(2).strip())
     except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Failed to decode base64 image: {e}")
-        
+        raise HTTPException(status_code=400, detail=f"Failed to decode base64 image: {e}") from e
+
     clean_qid = re.sub(r"[^a-zA-Z0-9_-]", "_", question_id)
     filename = f"practice_{clean_qid}_{int(datetime.now().timestamp() * 1000)}.{ext}"
     filepath = os.path.join(UPLOADS_DIR, filename)
-    
+
     with open(filepath, "wb") as f:
         f.write(buffer)
-        
+
     return {"success": True, "url": f"/uploads/{filename}", "filename": filename}
+
 
 @router.get("/status")
 def get_practice_status(session: Session = Depends(get_session)):
     today = get_local_date_string()
     entry = get_or_create_today_entry(session, today)
     config = get_effective_config(session)
-    
+
     due_qs = session.exec(
-        select(StudyQuestion).where(
-            StudyQuestion.active == True,
-            StudyQuestion.dueDate <= today
-        )
+        select(StudyQuestion).where(StudyQuestion.active == True, StudyQuestion.dueDate <= today)
     ).all()
-    
+
     all_qs = session.exec(select(StudyQuestion).where(StudyQuestion.active == True)).all()
     all_items = session.exec(select(StudyItem)).all()
     all_attempts = session.exec(select(StudyAttempt)).all()
-    
+
     is_comp = is_practice_satisfied(entry, len(due_qs), config.practiceMinDueToUnlock)
-    
+
     return {
         "today": today,
         "dueCount": len(due_qs),
@@ -542,13 +573,14 @@ def get_practice_status(session: Session = Depends(get_session)):
         "overrideReason": entry.practiceOverrideReason,
         "totalQuestions": len(all_qs),
         "totalItems": len(all_items),
-        "totalAttempts": len(all_attempts)
+        "totalAttempts": len(all_attempts),
     }
 
+
 @router.post("/override")
-def override_practice_today(payload: Dict[str, Any], session: Session = Depends(get_session)):
+def override_practice_today(payload: OverrideRequest, session: Session = Depends(get_session)):
     entry = get_or_create_today_entry(session)
-    reason = payload.get("reason", "Manual practice override applied")
+    reason = payload.reason or "Manual practice override applied"
     entry.practiceManualOverride = True
     entry.practiceCompleted = True
     entry.practiceOverrideReason = reason
@@ -557,20 +589,18 @@ def override_practice_today(payload: Dict[str, Any], session: Session = Depends(
     session.refresh(entry)
     return {"success": True, "message": "Practice requirement overridden for today."}
 
+
 @router.post("/reset-override")
 def reset_practice_override(session: Session = Depends(get_session)):
     entry = get_or_create_today_entry(session)
     entry.practiceManualOverride = False
     entry.practiceOverrideReason = None
-    
+
     today = get_local_date_string()
     due_qs = session.exec(
-        select(StudyQuestion).where(
-            StudyQuestion.active == True,
-            StudyQuestion.dueDate <= today
-        )
+        select(StudyQuestion).where(StudyQuestion.active == True, StudyQuestion.dueDate <= today)
     ).all()
-    
+
     config = get_effective_config(session)
     entry.practiceCompleted = is_practice_satisfied(entry, len(due_qs), config.practiceMinDueToUnlock)
     session.add(entry)

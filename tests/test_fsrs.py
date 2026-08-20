@@ -2,6 +2,7 @@
 Unit tests for the FSRS-5 math and daily-gate logic in app/pillars/practice.py.
 Pure functions -- no DB/client needed.
 """
+
 from app.models.daily_entry import DailyEntry
 from app.pillars.practice import (
     compute_next_fsrs,
@@ -24,9 +25,14 @@ def test_score_to_fsrs_grade_boundaries():
 
 def test_compute_next_fsrs_new_card_good_grade_enters_review_state():
     result = compute_next_fsrs(
-        current_stability=0.0, current_difficulty=5.0, current_reps=0,
-        current_lapses=0, current_state=0, last_reviewed_at=None,
-        grade=3, today_str="2026-08-20",
+        current_stability=0.0,
+        current_difficulty=5.0,
+        current_reps=0,
+        current_lapses=0,
+        current_state=0,
+        last_reviewed_at=None,
+        grade=3,
+        today_str="2026-08-20",
     )
     assert result["repetitions"] == 1
     assert result["lapses"] == 0
@@ -37,9 +43,14 @@ def test_compute_next_fsrs_new_card_good_grade_enters_review_state():
 
 def test_compute_next_fsrs_new_card_again_grade_stays_in_learning():
     result = compute_next_fsrs(
-        current_stability=0.0, current_difficulty=5.0, current_reps=0,
-        current_lapses=0, current_state=0, last_reviewed_at=None,
-        grade=1, today_str="2026-08-20",
+        current_stability=0.0,
+        current_difficulty=5.0,
+        current_reps=0,
+        current_lapses=0,
+        current_state=0,
+        last_reviewed_at=None,
+        grade=1,
+        today_str="2026-08-20",
     )
     assert result["lapses"] == 1
     assert result["state"] == 1  # Learning, not Review, on a first-attempt fail
@@ -47,9 +58,14 @@ def test_compute_next_fsrs_new_card_again_grade_stays_in_learning():
 
 def test_compute_next_fsrs_lapse_increments_lapses_and_enters_relearning():
     result = compute_next_fsrs(
-        current_stability=10.0, current_difficulty=5.0, current_reps=3,
-        current_lapses=0, current_state=2, last_reviewed_at="2026-08-10T00:00:00",
-        grade=1, today_str="2026-08-20",
+        current_stability=10.0,
+        current_difficulty=5.0,
+        current_reps=3,
+        current_lapses=0,
+        current_state=2,
+        last_reviewed_at="2026-08-10T00:00:00",
+        grade=1,
+        today_str="2026-08-20",
     )
     assert result["lapses"] == 1
     assert result["state"] == 3  # Relearning
@@ -58,9 +74,14 @@ def test_compute_next_fsrs_lapse_increments_lapses_and_enters_relearning():
 
 def test_compute_next_fsrs_good_recall_does_not_shrink_stability():
     result = compute_next_fsrs(
-        current_stability=5.0, current_difficulty=5.0, current_reps=2,
-        current_lapses=0, current_state=2, last_reviewed_at="2026-08-10T00:00:00",
-        grade=4, today_str="2026-08-20",  # Easy
+        current_stability=5.0,
+        current_difficulty=5.0,
+        current_reps=2,
+        current_lapses=0,
+        current_state=2,
+        last_reviewed_at="2026-08-10T00:00:00",
+        grade=4,
+        today_str="2026-08-20",  # Easy
     )
     assert result["stability"] >= 5.0
     assert result["lapses"] == 0

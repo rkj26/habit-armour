@@ -4,6 +4,7 @@ real ~/.habitarmour/habit_armour.db or the repo's own db) by setting
 DATABASE_URL before any `app.*` module is imported -- app/config.py reads it
 at import time via `settings = Settings()`.
 """
+
 import os
 import tempfile
 
