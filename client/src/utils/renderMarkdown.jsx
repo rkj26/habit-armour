@@ -16,7 +16,7 @@ function renderKaTeX(latex, isBlock = false) {
         dangerouslySetInnerHTML={{ __html: html }}
       />
     );
-  } catch (err) {
+  } catch {
     return <code className="katex-error">{latex}</code>;
   }
 }
@@ -28,7 +28,7 @@ export function formatInlineText(str) {
   if (!str || typeof str !== 'string') return str;
 
   // Split by inline code, bold, math, and links
-  const tokens = str.split(/(`[^`]+`|\*\*[^*]+\*\*|\*[^*]+\*|\$[^\$]+?\$)/g);
+  const tokens = str.split(/(`[^`]+`|\*\*[^*]+\*\*|\*[^*]+\*|\$[^$]+?\$)/g);
 
   return tokens.map((token, idx) => {
     if (!token) return null;

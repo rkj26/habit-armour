@@ -55,9 +55,8 @@ export function useDraft(key, initialValue, { enabled = true } = {}) {
         /* nothing useful to do */
       }
       setValue(resetTo === undefined ? initialValue : resetTo)
-      // eslint-disable-next-line react-hooks/exhaustive-deps
     },
-    [storageKey]
+    [storageKey, initialValue]
   )
 
   return [value, setValue, clear]
