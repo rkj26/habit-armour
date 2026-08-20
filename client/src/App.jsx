@@ -17,9 +17,9 @@ import GymView from './components/GymView';
 import AnkiView from './components/AnkiView';
 import PracticeView from './components/PracticeView';
 import SettingsView from './components/SettingsView';
-
-// API Base URL - handle Vite dev server (port 5173) and local network IP origin
-const API_URL = import.meta.env.VITE_API_URL || (window.location.port === '5173' ? 'http://localhost:3000' : window.location.origin);
+import Gallery from './components/ui/Gallery';
+import { Alert, Stack } from './components/ui';
+import { api, API_URL } from './api/client';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('morning');
@@ -29,13 +29,10 @@ export default function App() {
     morningEnd: 12, 
     nightStart: 20, 
     nightEnd: 24, 
-    gracePeriodSec: 120, 
-    googleSheetsUrl: "", 
-    googleSheetsEnabled: false,
+    gracePeriodSec: 120,
     journalStorage: "none",
     obsidianVaultPath: "",
     obsidianJournalFolder: "Journal",
-    googleDocId: "",
     gymLockEnabled: true,
     gymLockStartHour: 21,
     gymMinDurationMinutes: 30,
@@ -63,10 +60,14 @@ export default function App() {
   const [ipInfo, setIpInfo] = useState('localhost');
   const [history, setHistory] = useState([]);
   const [submitSuccess, setSubmitSuccess] = useState(null);
-  const [testingSync, setTestingSync] = useState(false);
-  const [syncStatusMsg, setSyncStatusMsg] = useState(null);
-  const [syncingAll, setSyncingAll] = useState(false);
   const [editingDate, setEditingDate] = useState(null);
+
+  // Surfaced to the user instead of dropped into console.error. `offline` is
+  // tracked separately because a dead server means everything on screen is
+  // stale, which is worth saying once rather than per failed request.
+  const [offline, setOffline] = useState(false);
+  const [formError, setFormError] = useState(null);
+  const [configError, setConfigError] = useState(null);
   
   // Gym verification states
   const [gymVerifyLoading, setGymVerifyLoading] = useState(false);
@@ -182,28 +183,11 @@ export default function App() {
     }
   }, [weeklyData, editingDate]);
 
-  // Hevy Gym & AI States
+  // Hevy Gym States
   const [hevyStatus, setHevyStatus] = useState({ hevyApiKeyConfigured: false, geminiApiKeyConfigured: false });
   const [hevyWorkouts, setHevyWorkouts] = useState([]);
   const [workoutsLoading, setWorkoutsLoading] = useState(false);
   const [workoutsError, setWorkoutsError] = useState(null);
-  const [analysisText, setAnalysisText] = useState(() => {
-    try {
-      return localStorage.getItem('hevy_ai_analysis') || '';
-    } catch {
-      return '';
-    }
-  });
-  const [analysisLoading, setAnalysisLoading] = useState(false);
-  const [analysisError, setAnalysisError] = useState(null);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem('hevy_ai_analysis', analysisText);
-    } catch (err) {
-      console.error('Failed to save AI analysis cache:', err);
-    }
-  }, [analysisText]);
 
   // Fetch initial info
   useEffect(() => {
@@ -220,11 +204,11 @@ export default function App() {
 
   const fetchStatus = async () => {
     try {
-      const res = await fetch(`${API_URL}/api/status`);
-      const data = await res.json();
-      setStatus(data);
+      setStatus(await api.getStatus());
+      setOffline(false);
     } catch (err) {
-      console.error("Failed to fetch status:", err);
+      // The 5s poll is the app's heartbeat, so it owns the offline flag.
+      if (err.isOffline) setOffline(true);
     }
   };
 
@@ -233,25 +217,12 @@ export default function App() {
     setGymVerifyError(null);
     setGymVerifyResult(null);
     try {
-      const res = await fetch(`${API_URL}/api/hevy/verify-today`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
-      });
-      const data = await res.json();
-      if (res.ok && data.success) {
-        setGymVerifyResult({
-          success: true,
-          workout: data.workout,
-          reason: data.reason
-        });
+      const data = await api.hevy.verifyToday();
+      setGymVerifyResult({ success: data.success, workout: data.workout, reason: data.error });
+      if (data.success) {
         fetchStatus();
       } else {
-        setGymVerifyError(data.reason || "Verification failed");
-        setGymVerifyResult({
-          success: false,
-          workout: data.workout,
-          reason: data.reason
-        });
+        setGymVerifyError(data.error || 'Verification failed');
       }
     } catch (err) {
       setGymVerifyError(err.message);
@@ -262,14 +233,13 @@ export default function App() {
 
   const fetchHevyStatus = async () => {
     try {
-      const res = await fetch(`${API_URL}/api/hevy/status`);
-      const data = await res.json();
+      const data = await api.hevy.status();
       setHevyStatus(data);
       if (data.hevyApiKeyConfigured) {
         fetchHevyWorkouts();
       }
     } catch (err) {
-      console.error("Failed to fetch Hevy status:", err);
+      if (!err.isOffline) setWorkoutsError(err.message);
     }
   };
 
@@ -277,14 +247,8 @@ export default function App() {
     setWorkoutsLoading(true);
     setWorkoutsError(null);
     try {
-      const res = await fetch(`${API_URL}/api/hevy/workouts`);
-      if (!res.ok) {
-        const errorData = await res.json().catch(() => ({}));
-        throw new Error(errorData.error || `HTTP ${res.status}`);
-      }
-      const data = await res.json();
-      const workoutsList = Array.isArray(data) ? data : (data.workouts || []);
-      setHevyWorkouts(workoutsList);
+      const data = await api.hevy.workouts();
+      setHevyWorkouts(Array.isArray(data) ? data : data.workouts || []);
     } catch (err) {
       setWorkoutsError(err.message);
     } finally {
@@ -292,55 +256,28 @@ export default function App() {
     }
   };
 
-  const generateAIWorkoutAnalysis = async () => {
-    setAnalysisLoading(true);
-    setAnalysisError(null);
-    try {
-      const res = await fetch(`${API_URL}/api/hevy/analyze`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ workouts: hevyWorkouts })
-      });
-      if (!res.ok) {
-        const errorData = await res.json().catch(() => ({}));
-        throw new Error(errorData.error || `HTTP ${res.status}`);
-      }
-      const data = await res.json();
-      setAnalysisText(data.analysis);
-    } catch (err) {
-      setAnalysisError(err.message);
-    } finally {
-      setAnalysisLoading(false);
-    }
-  };
-
   const fetchConfig = async () => {
     try {
-      const res = await fetch(`${API_URL}/api/config`);
-      const data = await res.json();
-      setConfig(data);
+      setConfig(await api.getConfig());
     } catch (err) {
-      console.error("Failed to fetch config:", err);
+      if (!err.isOffline) setConfigError(err.message);
     }
   };
 
   const fetchIP = async () => {
     try {
-      const res = await fetch(`${API_URL}/api/ip`);
-      const data = await res.json();
-      setIpInfo(data.ip);
-    } catch (err) {
-      console.error("Failed to fetch IP:", err);
+      const { ip } = await api.getIp();
+      setIpInfo(ip);
+    } catch {
+      // Cosmetic: the sidebar just keeps showing "localhost".
     }
   };
 
   const fetchHistory = async () => {
     try {
-      const res = await fetch(`${API_URL}/api/history`);
-      const data = await res.json();
-      setHistory(data);
+      setHistory(await api.getHistory());
     } catch (err) {
-      console.error("Failed to fetch history:", err);
+      if (!err.isOffline) setFormError(err.message);
     }
   };
 
@@ -353,93 +290,27 @@ export default function App() {
   };
 
   const saveConfig = async () => {
+    setConfigError(null);
     try {
-      const res = await fetch(`${API_URL}/api/config`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(config)
-      });
-      if (res.ok) {
-        setSubmitSuccess("Configuration updated!");
-        setTimeout(() => setSubmitSuccess(null), 3000);
-      }
+      // The server validates types and returns 422 with the offending field, so
+      // a rejected save now says which value was wrong instead of doing nothing.
+      await api.saveConfig(config);
+      setSubmitSuccess('Configuration updated!');
+      setTimeout(() => setSubmitSuccess(null), 3000);
     } catch (err) {
-      console.error("Failed to save config:", err);
+      setConfigError(err.message);
     }
   };
 
   const triggerTestLock = async () => {
+    setFormError(null);
     try {
-      await fetch(`${API_URL}/api/test-lock`, { method: 'POST' });
-      alert("Test lock active for 15 seconds! If your macOS lock daemon is running, your screen will lock in a few seconds.");
+      await api.triggerTestLock();
+      setSubmitSuccess('Test lock active for 15 seconds. Your screen will lock shortly.');
+      setTimeout(() => setSubmitSuccess(null), 5000);
       fetchStatus();
     } catch (err) {
-      alert("Error triggering test lock: " + err.message);
-    }
-  };
-
-  const testSheetSync = async () => {
-    if (!config.googleSheetsUrl) {
-      alert("Please provide a Google Sheets Apps Script Web App URL first.");
-      return;
-    }
-    setTestingSync(true);
-    setSyncStatusMsg(null);
-    try {
-      const res = await fetch(`${API_URL}/api/test-sync`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ googleSheetsUrl: config.googleSheetsUrl })
-      });
-      const data = await res.json();
-      if (data.success) {
-        setSyncStatusMsg({ success: true, text: "Connection successful! Apps Script is fully responsive." });
-      } else {
-        setSyncStatusMsg({ success: false, text: `Connection failed: ${data.error || 'Unknown response structure'}` });
-      }
-    } catch (err) {
-      setSyncStatusMsg({ success: false, text: `Request failed: ${err.message}` });
-    } finally {
-      setTestingSync(false);
-    }
-  };
-
-  const syncLogEntry = async (date, windowType) => {
-    try {
-      const res = await fetch(`${API_URL}/api/sync-entry`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ date, window: windowType })
-      });
-      const data = await res.json();
-      if (data.success) {
-        setSubmitSuccess(`${windowType.toUpperCase()} log synced successfully!`);
-        fetchHistory();
-        setTimeout(() => setSubmitSuccess(null), 3000);
-      } else {
-        alert(`Sync failed: ${data.error || 'Unknown error'}`);
-      }
-    } catch (err) {
-      alert(`Sync request failed: ${err.message}`);
-    }
-  };
-
-  const syncAllUnsynced = async () => {
-    setSyncingAll(true);
-    try {
-      const res = await fetch(`${API_URL}/api/sync-all`, { method: 'POST' });
-      const data = await res.json();
-      if (data.success) {
-        setSubmitSuccess(`Sync complete! Synced ${data.syncedCount} log(s). Errors: ${data.failedCount}`);
-        fetchHistory();
-        setTimeout(() => setSubmitSuccess(null), 3000);
-      } else {
-        alert(`Batch sync failed: ${data.error || 'Unknown error'}`);
-      }
-    } catch (err) {
-      alert(`Sync request failed: ${err.message}`);
-    } finally {
-      setSyncingAll(false);
+      setFormError(err.message);
     }
   };
 
@@ -578,8 +449,54 @@ export default function App() {
     setActiveTab('history');
   };
 
+  /**
+   * Returns a human-readable reason the log can't be submitted yet, or null.
+   * Split out so the same rules can drive both the submit guard and (later)
+   * a disabled submit button, rather than only firing after a failed click.
+   */
+  const getSubmitBlocker = (windowType, data) => {
+    if (windowType === 'morningJournal' || windowType === 'nightJournal') {
+      const words = (data.journalEntry || '').trim().split(/\s+/).filter(Boolean).length;
+      if (words < 100) {
+        return `Journal entry has ${words} of the 100 words required to submit.`;
+      }
+    }
+
+    if (windowType === 'night' && config.enforceSupplementsBlocker !== false) {
+      const suppList = config.supplementsList || ['Vitamin D3', 'Vitamin K2', 'Omega-3', 'Creatine'];
+      const userSupps = data.supplements || {};
+      const missing = suppList.filter(s => !userSupps[s]);
+      if (missing.length > 0) {
+        return `All supplements must be checked before the night log clears the lock. Missing: ${missing.join(', ')}.`;
+      }
+    }
+
+    if (windowType === 'night' && config.enforceProteinShakeBlocker !== false) {
+      const ps = data.proteinShake;
+      if (!ps?.taken || !ps?.photoUrl) {
+        return 'The night log needs protein shake confirmation and a proof photo.';
+      }
+    }
+
+    if (windowType === 'weekly' && config.weeklyPhotosRequired !== false) {
+      const photos = data.photos || {};
+      const missing = [];
+      if (!photos.front) missing.push('Front');
+      if (!photos.back) missing.push('Back');
+      if (!photos.sideLeft) missing.push('Left side');
+      if (!photos.sideRight) missing.push('Right side');
+      if (missing.length > 0) {
+        return `All 4 weekly progress photos are required. Missing: ${missing.join(', ')}.`;
+      }
+    }
+
+    return null;
+  };
+
   const handleFormSubmit = async (e, windowType) => {
     e.preventDefault();
+    setFormError(null);
+
     let dataToSubmit = {};
     if (windowType === 'morning') dataToSubmit = morningData;
     else if (windowType === 'morningJournal') dataToSubmit = morningData;
@@ -587,52 +504,15 @@ export default function App() {
     else if (windowType === 'nightJournal') dataToSubmit = nightData;
     else if (windowType === 'weekly') dataToSubmit = weeklyData;
 
-    if (windowType === 'morningJournal' || windowType === 'nightJournal') {
-      const words = (dataToSubmit.journalEntry || '').trim().split(/\s+/).filter(Boolean).length;
-      if (words < 100) {
-        alert(`Journal entry only has ${words} words. A minimum of 100 words is required to submit.`);
-        return;
-      }
-    }
-
-    if (windowType === 'night' && config.enforceSupplementsBlocker !== false) {
-      const suppList = config.supplementsList || ['Vitamin D3', 'Vitamin K2', 'Omega-3', 'Creatine'];
-      const userSupps = dataToSubmit.supplements || {};
-      const missing = suppList.filter(s => !userSupps[s]);
-      if (missing.length > 0) {
-        alert(`🔒 All required supplements must be taken & checked to submit your Night Log and clear the Night Lock.\n\nMissing supplements:\n• ${missing.join('\n• ')}`);
-        return;
-      }
-    }
-
-    if (windowType === 'night' && config.enforceProteinShakeBlocker !== false) {
-      const ps = dataToSubmit.proteinShake;
-      if (!ps?.taken || !ps?.photoUrl) {
-        alert(`🔒 Required Protein Shake confirmation and a proof photo are required to submit your Night Log and clear the Night Lock.`);
-        return;
-      }
-    }
-
-    if (windowType === 'weekly' && config.weeklyPhotosRequired !== false) {
-      const photos = dataToSubmit.photos || {};
-      const missing = [];
-      if (!photos.front) missing.push('Front Pose');
-      if (!photos.back) missing.push('Back Pose');
-      if (!photos.sideLeft) missing.push('Left Side Pose');
-      if (!photos.sideRight) missing.push('Right Side Pose');
-      if (missing.length > 0) {
-        alert(`🔒 All 4 weekly progress photos (Front, Back, Left Side, Right Side) are required to submit Weekly Specs and clear Weekly Lock.\n\nMissing photos:\n• ${missing.join('\n• ')}`);
-        return;
-      }
+    const blocker = getSubmitBlocker(windowType, dataToSubmit);
+    if (blocker) {
+      setFormError(blocker);
+      return;
     }
 
     try {
-      const res = await fetch(`${API_URL}/api/submit`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ window: windowType, data: dataToSubmit, date: editingDate })
-      });
-      if (res.ok) {
+      {
+        await api.submitLog({ window: windowType, data: dataToSubmit, date: editingDate });
         setSubmitSuccess(`${windowType.toUpperCase()} log ${editingDate ? 'updated' : 'submitted'} successfully!`);
         if (windowType === 'morning') {
           setMorningData(prev => {
@@ -662,13 +542,9 @@ export default function App() {
         fetchHistory();
         setTimeout(() => setSubmitSuccess(null), 3000);
         setActiveTab('history');
-      } else {
-        const errorData = await res.json().catch(() => ({}));
-        alert(`Submission failed: ${errorData.error || 'Unknown error'}`);
       }
     } catch (err) {
-      console.error("Submit error:", err);
-      alert("Submit error: " + err.message);
+      setFormError(err.message);
     }
   };
 
@@ -750,12 +626,29 @@ export default function App() {
           ipInfo={ipInfo}
           triggerTestLock={triggerTestLock}
           config={config}
-          syncAllUnsynced={syncAllUnsynced}
-          syncingAll={syncingAll}
         />
 
         <main className="main-content glass-card">
           {submitSuccess && <div className="success-toast">{submitSuccess}</div>}
+
+          <Stack gap={3} style={{ marginBottom: (offline || formError || configError) ? 'var(--space-4)' : 0 }}>
+            {offline && (
+              <Alert variant="warning" title="Can't reach Habit Armour">
+                Everything below is the last state received. Check that the server is running on port{' '}
+                {new URL(API_URL || window.location.origin).port || '3000'}.
+              </Alert>
+            )}
+            {formError && (
+              <Alert variant="danger" title="Couldn't submit" onDismiss={() => setFormError(null)}>
+                {formError}
+              </Alert>
+            )}
+            {configError && (
+              <Alert variant="danger" title="Couldn't save settings" onDismiss={() => setConfigError(null)}>
+                {configError}
+              </Alert>
+            )}
+          </Stack>
 
           <div className="tab-pane">
             {activeTab === 'morning' && (
@@ -828,9 +721,6 @@ export default function App() {
                 history={history}
                 config={config}
                 API_URL={API_URL}
-                syncAllUnsynced={syncAllUnsynced}
-                syncingAll={syncingAll}
-                syncLogEntry={syncLogEntry}
                 startEditingLog={startEditingLog}
               />
             )}
@@ -841,10 +731,6 @@ export default function App() {
                 hevyWorkouts={hevyWorkouts}
                 workoutsLoading={workoutsLoading}
                 workoutsError={workoutsError}
-                analysisLoading={analysisLoading}
-                analysisError={analysisError}
-                analysisText={analysisText}
-                generateAIWorkoutAnalysis={generateAIWorkoutAnalysis}
                 fetchHevyWorkouts={fetchHevyWorkouts}
               />
             )}
@@ -880,12 +766,11 @@ export default function App() {
               <SettingsView 
                 config={config}
                 handleConfigChange={handleConfigChange}
-                testingSync={testingSync}
-                testSheetSync={testSheetSync}
-                syncStatusMsg={syncStatusMsg}
                 saveConfig={saveConfig}
               />
             )}
+
+            {activeTab === 'gallery' && import.meta.env.DEV && <Gallery />}
           </div>
         </main>
       </div>

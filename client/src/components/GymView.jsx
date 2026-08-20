@@ -24,12 +24,11 @@ export default function GymView({
       {/* Status Banner Card */}
       <div style={{
         background: isGymLocked ? 'rgba(239, 68, 68, 0.08)' : 'rgba(34, 197, 94, 0.08)',
-        backdropFilter: 'blur(16px)',
         border: `1px solid ${isGymLocked ? 'rgba(239, 68, 68, 0.3)' : 'rgba(34, 197, 94, 0.3)'}`,
         borderLeft: `5px solid ${isGymLocked ? '#ef4444' : '#22c55e'}`,
         padding: '24px',
         borderRadius: 'var(--radius-md, 14px)',
-        boxShadow: '0 8px 32px rgba(0,0,0,0.15)'
+        boxShadow: 'var(--shadow-sm)'
       }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
           <div>
@@ -77,7 +76,6 @@ export default function GymView({
       }}>
         <div style={{
           background: 'rgba(99, 102, 241, 0.08)',
-          backdropFilter: 'blur(16px)',
           border: '1px solid rgba(99, 102, 241, 0.2)',
           borderRadius: '12px',
           padding: '18px 22px',
@@ -99,7 +97,6 @@ export default function GymView({
 
         <div style={{
           background: status.isYesterdayActive === false ? 'rgba(239, 68, 68, 0.08)' : 'rgba(34, 197, 94, 0.08)',
-          backdropFilter: 'blur(16px)',
           border: `1px solid ${status.isYesterdayActive === false ? 'rgba(239, 68, 68, 0.2)' : 'rgba(34, 197, 94, 0.2)'}`,
           borderRadius: '12px',
           padding: '18px 22px',
@@ -124,14 +121,13 @@ export default function GymView({
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '20px' }}>
         {/* Left Column: Requirements Checklist */}
         <div style={{
-          background: 'rgba(255, 255, 255, 0.02)',
-          backdropFilter: 'blur(16px)',
-          border: '1px solid rgba(255, 255, 255, 0.07)',
+          background: 'var(--bg-surface)',
+          border: '1px solid var(--border-color)',
           borderRadius: 'var(--radius-md, 14px)',
           padding: '24px',
           height: 'fit-content'
         }}>
-          <h4 style={{ fontSize: '1.05rem', fontWeight: 700, margin: '0 0 16px 0', borderBottom: '1px solid rgba(255, 255, 255, 0.06)', paddingBottom: '10px' }}>
+          <h4 style={{ fontSize: '1.05rem', fontWeight: 700, margin: '0 0 16px 0', borderBottom: '1px solid var(--border-color)', paddingBottom: '10px' }}>
             📋 Verification Rules
           </h4>
           <ul style={{ listStyleType: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '14px' }}>
@@ -154,14 +150,13 @@ export default function GymView({
 
         {/* Right Column: Today's Workout Details */}
         <div style={{
-          background: 'rgba(255, 255, 255, 0.02)',
-          backdropFilter: 'blur(16px)',
-          border: '1px solid rgba(255, 255, 255, 0.07)',
+          background: 'var(--bg-surface)',
+          border: '1px solid var(--border-color)',
           borderRadius: 'var(--radius-md, 14px)',
           padding: '24px',
           height: 'fit-content'
         }}>
-          <h4 style={{ fontSize: '1.05rem', fontWeight: 700, margin: '0 0 16px 0', borderBottom: '1px solid rgba(255, 255, 255, 0.06)', paddingBottom: '10px' }}>
+          <h4 style={{ fontSize: '1.05rem', fontWeight: 700, margin: '0 0 16px 0', borderBottom: '1px solid var(--border-color)', paddingBottom: '10px' }}>
             🏋️ Logged Routine Details
           </h4>
           {gymVerifyResult?.workout || (status.entry && status.entry.gymWorkoutData) ? (
@@ -170,13 +165,13 @@ export default function GymView({
               const durationMins = Math.round((new Date(w.end_time || new Date()) - new Date(w.start_time)) / 60000);
               return (
                 <div>
-                  <p style={{ margin: '0 0 4px 0', fontWeight: 700, fontSize: '1.1rem', color: 'var(--accent-purple, #6366f1)' }}>{w.title}</p>
+                  <p style={{ margin: '0 0 4px 0', fontWeight: 700, fontSize: '1.1rem', color: 'var(--color-accent)' }}>{w.title}</p>
                   <p style={{ margin: '0 0 14px 0', fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
                     🕒 Started: {new Date(w.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} ({durationMins} mins duration)
                   </p>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                     {w.exercises?.map((e, idx) => (
-                      <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.88rem', padding: '8px 12px', background: 'rgba(255, 255, 255, 0.03)', borderRadius: '8px' }}>
+                      <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.88rem', padding: '8px 12px', background: 'var(--bg-surface)', borderRadius: '8px' }}>
                         <span>{e.title}</span>
                         <span style={{ fontWeight: 600, color: 'var(--text-secondary)' }}>{e.sets?.length} sets</span>
                       </div>

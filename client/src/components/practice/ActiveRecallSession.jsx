@@ -66,7 +66,7 @@ export default function ActiveRecallSession({
               </div>
 
               {evaluationResult.fsrs && (
-                <div style={{ textAlign: 'right', background: 'rgba(255, 255, 255, 0.03)', padding: '8px 14px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
+                <div style={{ textAlign: 'right', background: 'var(--bg-surface)', padding: '8px 14px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
                   <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>FSRS-5 MEMORY INTERVAL</div>
                   <div style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--primary)' }}>
                     Next Due: {evaluationResult.fsrs.dueDate} ({evaluationResult.fsrs.intervalDays}d)
@@ -84,7 +84,7 @@ export default function ActiveRecallSession({
                 <h4 style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '10px' }}>RUBRIC AUDIT</h4>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '10px' }}>
                   {Object.entries(evaluationResult.evaluation.rubric).map(([category, item]) => (
-                    <div key={category} style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-md)', padding: '10px' }}>
+                    <div key={category} style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-md)', padding: '10px' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
                         <span style={{ fontSize: '0.78rem', fontWeight: 700, textTransform: 'capitalize' }}>{category}</span>
                         <span className="badge" style={{ fontSize: '0.7rem' }}>{item.score} / 10</span>
@@ -98,7 +98,7 @@ export default function ActiveRecallSession({
 
             {/* Detailed Critique */}
             {evaluationResult.evaluation.critique && (
-              <div style={{ marginTop: '16px', background: 'rgba(255, 255, 255, 0.02)', padding: '14px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
+              <div style={{ marginTop: '16px', background: 'var(--bg-surface)', padding: '14px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
                 <h4 style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', margin: '0 0 8px 0' }}>ACADEMIC CRITIQUE</h4>
                 <div className="markdown-rendered" style={{ fontSize: '0.88rem', lineHeight: 1.6 }}>
                   {renderMarkdown(evaluationResult.evaluation.critique)}

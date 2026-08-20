@@ -1,17 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { renderMarkdown } from '../utils/renderMarkdown';
-
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+import { api } from '../api/client';
 
 export default function HevyView({
   hevyStatus,
   hevyWorkouts,
   workoutsLoading,
   workoutsError,
-  analysisLoading,
-  analysisError,
-  analysisText,
-  generateAIWorkoutAnalysis,
   fetchHevyWorkouts
 }) {
   const [showCreator, setShowCreator] = useState(false);
@@ -53,13 +47,10 @@ export default function HevyView({
   const fetchTemplates = async () => {
     setTemplatesLoading(true);
     try {
-      const res = await fetch(`${API_URL}/api/hevy/templates`);
-      if (res.ok) {
-        const data = await res.json();
-        setTemplates(data.exercise_templates || data || []);
-      }
+      const data = await api.hevy.templates();
+      setTemplates(data.exercise_templates || data || []);
     } catch (err) {
-      console.error('Failed to fetch templates:', err);
+      setUploadError(err.message);
     } finally {
       setTemplatesLoading(false);
     }
@@ -109,21 +100,12 @@ export default function HevyView({
     };
 
     try {
-      const res = await fetch(`${API_URL}/api/hevy/upload-workout`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-      const data = await res.json();
-      if (res.ok && data.success) {
-        setUploadSuccess(`Successfully uploaded "${payload.title}" to Hevy!`);
-        if (fetchHevyWorkouts) fetchHevyWorkouts();
-        setTimeout(() => setUploadSuccess(null), 4000);
-      } else {
-        setUploadError(data.error || 'Failed to upload workout to Hevy.');
-      }
+      await api.hevy.uploadWorkout(payload);
+      setUploadSuccess(`Successfully uploaded "${payload.title}" to Hevy!`);
+      if (fetchHevyWorkouts) fetchHevyWorkouts();
+      setTimeout(() => setUploadSuccess(null), 4000);
     } catch (err) {
-      setUploadError(err.message || 'Failed to connect to Habit Armour server.');
+      setUploadError(err.message);
     } finally {
       setUploading(false);
     }
@@ -204,21 +186,12 @@ export default function HevyView({
     };
 
     try {
-      const res = await fetch(`${API_URL}/api/hevy/upload-workout`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-      const data = await res.json();
-      if (res.ok && data.success) {
-        setUploadSuccess(`Successfully uploaded "${payload.title}" to Hevy!`);
-        if (fetchHevyWorkouts) fetchHevyWorkouts();
-        setTimeout(() => setUploadSuccess(null), 4000);
-      } else {
-        setUploadError(data.error || 'Failed to upload workout to Hevy.');
-      }
+      await api.hevy.uploadWorkout(payload);
+      setUploadSuccess(`Successfully uploaded "${payload.title}" to Hevy!`);
+      if (fetchHevyWorkouts) fetchHevyWorkouts();
+      setTimeout(() => setUploadSuccess(null), 4000);
     } catch (err) {
-      setUploadError(err.message || 'Failed to connect to Habit Armour server.');
+      setUploadError(err.message);
     } finally {
       setUploading(false);
     }
@@ -234,7 +207,7 @@ export default function HevyView({
             💪 Gym Workouts & Hevy Integration
           </h2>
           <p style={{ margin: '4px 0 0 0', color: 'var(--text-secondary)' }}>
-            Sync training logs, post workouts directly to Hevy, and receive AI progress analysis.
+            Sync training logs and post workouts directly to Hevy.
           </p>
         </div>
         {hevyStatus.hevyApiKeyConfigured && (
@@ -250,7 +223,7 @@ export default function HevyView({
 
       {!hevyStatus.hevyApiKeyConfigured ? (
         <div className="settings-section">
-          <h3 className="settings-section-title" style={{ color: 'var(--accent-red)', borderBottomColor: 'rgba(239, 68, 68, 0.2)' }}>
+          <h3 className="settings-section-title" style={{ color: 'var(--color-danger)', borderBottomColor: 'rgba(239, 68, 68, 0.2)' }}>
             🔑 Configure Hevy API Key
           </h3>
           <p className="settings-section-desc">To view & upload workouts, open the <strong>.env</strong> file at the root of your project and configure your Hevy API key:</p>
@@ -262,7 +235,7 @@ export default function HevyView({
 
           {/* Interactive Hevy Workout Creator Card */}
           {showCreator && (
-            <div className="card" style={{ background: 'var(--bg-card)', border: '1px solid rgba(139, 92, 246, 0.3)', borderRadius: 'var(--radius-md)', padding: '24px', boxShadow: '0 8px 32px rgba(0,0,0,0.15)' }}>
+            <div className="card" style={{ background: 'var(--bg-surface)', border: '1px solid rgba(139, 92, 246, 0.3)', borderRadius: 'var(--radius-md)', padding: '24px', boxShadow: 'var(--shadow-sm)' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '12px' }}>
                 <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px' }}>
                   📤 Create & Upload Workout to Hevy API
@@ -308,9 +281,9 @@ export default function HevyView({
                         type="button"
                         onClick={() => handleSelectQuickPreset(key)}
                         style={{
-                          background: quickActivity === key ? 'var(--accent-purple)' : 'rgba(255,255,255,0.05)',
+                          background: quickActivity === key ? 'var(--color-accent)' : 'var(--bg-subtle)',
                           color: quickActivity === key ? '#fff' : 'var(--text-primary)',
-                          border: `1px solid ${quickActivity === key ? 'var(--accent-purple)' : 'var(--border-color)'}`,
+                          border: `1px solid ${quickActivity === key ? 'var(--color-accent)' : 'var(--border-color)'}`,
                           padding: '12px',
                           borderRadius: '8px',
                           fontWeight: 600,
@@ -400,7 +373,7 @@ export default function HevyView({
                         type="button" 
                         className="btn" 
                         onClick={handleAddExerciseRow} 
-                        style={{ fontSize: '0.8rem', padding: '6px 12px', background: 'rgba(255,255,255,0.08)' }}
+                        style={{ fontSize: '0.8rem', padding: '6px 12px', background: 'var(--bg-subtle)' }}
                       >
                         ➕ Add Exercise
                       </button>
@@ -481,7 +454,7 @@ export default function HevyView({
                           <button 
                             type="button" 
                             onClick={() => handleAddSetRow(exIdx)} 
-                            style={{ alignSelf: 'flex-start', marginTop: '6px', fontSize: '0.8rem', background: 'none', border: 'none', color: 'var(--accent-purple)', cursor: 'pointer', fontWeight: 600 }}
+                            style={{ alignSelf: 'flex-start', marginTop: '6px', fontSize: '0.8rem', background: 'none', border: 'none', color: 'var(--color-accent)', cursor: 'pointer', fontWeight: 600 }}
                           >
                             + Add Set
                           </button>
@@ -503,54 +476,6 @@ export default function HevyView({
             </div>
           )}
 
-          {/* AI Coach Panel */}
-          <div className="ai-coach-panel">
-            <div className="ai-coach-header">
-              <div className="ai-coach-title-group">
-                <h3 className="settings-section-title" style={{ border: 'none', margin: 0, padding: 0 }}>
-                  🤖 Coach Gemini Analysis
-                </h3>
-                <p className="settings-section-desc" style={{ margin: '4px 0 0 0' }}>Get feedback on volume, overloading, and consistency trends.</p>
-              </div>
-              {hevyStatus.geminiApiKeyConfigured ? (
-                <button 
-                  className="btn btn-primary" 
-                  disabled={analysisLoading || hevyWorkouts.length === 0} 
-                  onClick={generateAIWorkoutAnalysis}
-                >
-                  {analysisLoading ? 'Analyzing...' : analysisText ? 'Re-run Analysis' : 'Run AI Analysis'}
-                </button>
-              ) : null}
-            </div>
-
-            {!hevyStatus.geminiApiKeyConfigured ? (
-              <div className="alert alert-warning" style={{ margin: 0, padding: '16px', borderLeft: '4px solid #f59e0b', background: '#fffbeb' }}>
-                <p style={{ margin: 0 }}>To enable AI Workout Analysis, please configure your Gemini API Key in the <strong>.env</strong> file:</p>
-                <pre style={{ background: '#fcf8e3', padding: '8px', borderRadius: '4px', border: '1px solid #faebcc', margin: '8px 0', fontFamily: 'monospace', fontSize: '0.85rem' }}>GEMINI_API_KEY=your_gemini_api_key</pre>
-                <p style={{ fontSize: '0.85rem', margin: 0 }}>Get a free API key from Google AI Studio.</p>
-              </div>
-            ) : (
-              <div className="ai-analysis-box">
-                {analysisLoading && (
-                  <div style={{ textAlign: 'center', padding: '10px 0' }}>
-                    <p className="pulse-glow" style={{ fontWeight: 600, margin: 0 }}>🤖 Coach Gemini is analyzing your training volume, progressive overload, and consistency trends...</p>
-                  </div>
-                )}
-                {analysisError && (
-                  <p style={{ color: 'var(--accent-red)', fontWeight: 600, margin: 0 }}>Error: {analysisError}</p>
-                )}
-                {!analysisLoading && !analysisError && !analysisText && (
-                  <p className="text-muted" style={{ margin: 0, textAlign: 'center' }}>Click "Run AI Analysis" to critique your recent workouts.</p>
-                )}
-                {!analysisLoading && !analysisError && analysisText && (
-                  <div className="markdown-content">
-                    {renderMarkdown(analysisText)}
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-
           {/* Workouts Grid */}
           <div className="workouts-section">
             <h3 className="settings-section-title" style={{ marginBottom: '16px' }}>📅 Recent Workout Logs</h3>
@@ -560,8 +485,8 @@ export default function HevyView({
               </div>
             )}
             {workoutsError && (
-              <div className="alert alert-warning" style={{ padding: '16px', background: '#fff5f5', borderLeft: '4px solid var(--accent-red)' }}>
-                <p style={{ color: 'var(--accent-red)', fontWeight: 600, margin: 0 }}>Failed to fetch workouts: {workoutsError}</p>
+              <div className="alert alert-warning" style={{ padding: '16px', background: '#fff5f5', borderLeft: '4px solid var(--color-danger)' }}>
+                <p style={{ color: 'var(--color-danger)', fontWeight: 600, margin: 0 }}>Failed to fetch workouts: {workoutsError}</p>
               </div>
             )}
             {!workoutsLoading && !workoutsError && hevyWorkouts.length === 0 && (

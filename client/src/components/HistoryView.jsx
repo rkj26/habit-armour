@@ -4,9 +4,6 @@ export default function HistoryView({
   history,
   config,
   API_URL = '',
-  syncAllUnsynced,
-  syncingAll,
-  syncLogEntry,
   startEditingLog
 }) {
   const [expandedEntries, setExpandedEntries] = useState({});
@@ -70,7 +67,7 @@ export default function HistoryView({
         alignItems: 'center', 
         flexWrap: 'wrap',
         border: '1px solid var(--border-color)',
-        background: 'rgba(255,255,255,0.01)'
+        background: 'var(--bg-surface)'
       }}>
         <span style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
           📅 Log a Past/Missed Day
@@ -248,7 +245,7 @@ export default function HistoryView({
                               <p className="text-muted" style={{ fontSize: '0.8rem', margin: 0 }}>No night journal recorded.</p>
                             )}
                             {entry.nightCompleted && entry.nightData?.supplements && (
-                              <div style={{ marginTop: '12px', padding: '8px 12px', background: 'rgba(255, 255, 255, 0.03)', borderRadius: '6px', fontSize: '0.82rem', color: 'var(--text-primary)' }}>
+                              <div style={{ marginTop: '12px', padding: '8px 12px', background: 'var(--bg-surface)', borderRadius: '6px', fontSize: '0.82rem', color: 'var(--text-primary)' }}>
                                 <strong>💊 Supplements Stack:</strong>{' '}
                                 {typeof entry.nightData.supplements === 'object' && entry.nightData.supplements !== null && !Array.isArray(entry.nightData.supplements) ? (
                                   Object.entries(entry.nightData.supplements).filter(([_, v]) => Boolean(v)).map(([k]) => k).join(', ') || 'None'
@@ -258,7 +255,7 @@ export default function HistoryView({
                               </div>
                             )}
                             {entry.nightData?.proteinShake && (
-                              <div style={{ marginTop: '12px', padding: '8px 12px', background: 'rgba(255, 255, 255, 0.03)', borderRadius: '6px', fontSize: '0.82rem', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                              <div style={{ marginTop: '12px', padding: '8px 12px', background: 'var(--bg-surface)', borderRadius: '6px', fontSize: '0.82rem', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                                 <div>
                                   <strong>🥤 Protein Shake:</strong>{' '}
                                   <span style={{ color: entry.nightData.proteinShake.taken ? '#4ade80' : '#f87171' }}>
@@ -267,18 +264,18 @@ export default function HistoryView({
                                 </div>
                                 {entry.nightData.proteinShake.photoUrl && (
                                   <a href={formatPhotoUrl(entry.nightData.proteinShake.photoUrl)} target="_blank" rel="noreferrer" title="Protein Shake Proof">
-                                    <img src={formatPhotoUrl(entry.nightData.proteinShake.photoUrl)} alt="protein shake proof" style={{ width: '40px', height: '40px', objectFit: 'cover', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.2)' }} />
+                                    <img src={formatPhotoUrl(entry.nightData.proteinShake.photoUrl)} alt="protein shake proof" style={{ width: '40px', height: '40px', objectFit: 'cover', borderRadius: '6px', border: '1px solid var(--border-color)' }} />
                                   </a>
                                 )}
                               </div>
                             )}
                             {entry.weeklyData?.photos && (entry.weeklyData.photos.front || entry.weeklyData.photos.back || entry.weeklyData.photos.sideLeft || entry.weeklyData.photos.sideRight || entry.weeklyData.photos.side) && (
-                              <div style={{ marginTop: '12px', padding: '8px 12px', background: 'rgba(255, 255, 255, 0.03)', borderRadius: '6px', fontSize: '0.82rem', color: 'var(--text-primary)' }}>
+                              <div style={{ marginTop: '12px', padding: '8px 12px', background: 'var(--bg-surface)', borderRadius: '6px', fontSize: '0.82rem', color: 'var(--text-primary)' }}>
                                 <strong style={{ display: 'block', marginBottom: '6px' }}>📸 Weekly Progress Photos:</strong>
                                 <div style={{ display: 'flex', gap: '8px' }}>
                                   {['front', 'back', 'sideLeft', 'sideRight', 'side'].map(p => entry.weeklyData.photos[p] ? (
                                     <a key={p} href={formatPhotoUrl(entry.weeklyData.photos[p])} target="_blank" rel="noreferrer" title={`${p} pose`}>
-                                      <img src={formatPhotoUrl(entry.weeklyData.photos[p])} alt={p} style={{ width: '48px', height: '48px', objectFit: 'cover', borderRadius: '4px', border: '1px solid rgba(255,255,255,0.2)' }} />
+                                      <img src={formatPhotoUrl(entry.weeklyData.photos[p])} alt={p} style={{ width: '48px', height: '48px', objectFit: 'cover', borderRadius: '4px', border: '1px solid var(--border-color)' }} />
                                     </a>
                                   ) : null)}
                                 </div>
@@ -303,7 +300,7 @@ export default function HistoryView({
                               padding: '4px 10px', 
                               fontSize: '0.75rem',
                               background: entry.morningCompleted ? 'rgba(0,0,0,0.05)' : 'rgba(239, 68, 68, 0.05)',
-                              color: entry.morningCompleted ? 'var(--text-primary)' : 'var(--accent-red)'
+                              color: entry.morningCompleted ? 'var(--text-primary)' : 'var(--color-danger)'
                             }} 
                             onClick={() => startEditingLog(entry.date, 'morning')}
                           >
@@ -315,7 +312,7 @@ export default function HistoryView({
                               padding: '4px 10px', 
                               fontSize: '0.75rem',
                               background: entry.morningJournalCompleted ? 'rgba(0,0,0,0.05)' : 'rgba(239, 68, 68, 0.05)',
-                              color: entry.morningJournalCompleted ? 'var(--text-primary)' : 'var(--accent-red)'
+                              color: entry.morningJournalCompleted ? 'var(--text-primary)' : 'var(--color-danger)'
                             }} 
                             onClick={() => startEditingLog(entry.date, 'morningJournal')}
                           >
@@ -327,7 +324,7 @@ export default function HistoryView({
                               padding: '4px 10px', 
                               fontSize: '0.75rem',
                               background: entry.nightCompleted ? 'rgba(0,0,0,0.05)' : 'rgba(239, 68, 68, 0.05)',
-                              color: entry.nightCompleted ? 'var(--text-primary)' : 'var(--accent-red)'
+                              color: entry.nightCompleted ? 'var(--text-primary)' : 'var(--color-danger)'
                             }} 
                             onClick={() => startEditingLog(entry.date, 'night')}
                           >
@@ -339,7 +336,7 @@ export default function HistoryView({
                               padding: '4px 10px', 
                               fontSize: '0.75rem',
                               background: entry.nightJournalCompleted ? 'rgba(0,0,0,0.05)' : 'rgba(239, 68, 68, 0.05)',
-                              color: entry.nightJournalCompleted ? 'var(--text-primary)' : 'var(--accent-red)'
+                              color: entry.nightJournalCompleted ? 'var(--text-primary)' : 'var(--color-danger)'
                             }} 
                             onClick={() => startEditingLog(entry.date, 'nightJournal')}
                           >
@@ -351,7 +348,7 @@ export default function HistoryView({
                               padding: '4px 10px', 
                               fontSize: '0.75rem',
                               background: entry.weeklyCompleted ? 'rgba(0,0,0,0.05)' : 'rgba(239, 68, 68, 0.05)',
-                              color: entry.weeklyCompleted ? 'var(--text-primary)' : 'var(--accent-red)'
+                              color: entry.weeklyCompleted ? 'var(--text-primary)' : 'var(--color-danger)'
                             }} 
                             onClick={() => startEditingLog(entry.date, 'weekly')}
                           >

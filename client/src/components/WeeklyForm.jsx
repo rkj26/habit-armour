@@ -1,26 +1,29 @@
 import React, { useState } from 'react';
+import EditingBanner from './EditingBanner';
 import { compressImage } from '../utils/imageCompressor';
-
-const DEFAULT_API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+import { api, API_URL as SHARED_API_URL } from '../api/client';
+import { Alert } from './ui';
 
 export default function WeeklyForm({
   weeklyData,
   setWeeklyData,
   photosRequired = true,
-  API_URL = DEFAULT_API_URL,
+  API_URL = SHARED_API_URL,
   editingDate,
   cancelEditing,
   onSubmit
 }) {
   const [uploadingPose, setUploadingPose] = useState(null);
+  const [uploadError, setUploadError] = useState(null);
   const photos = weeklyData.photos || { front: '', back: '', sideLeft: '', sideRight: '' };
 
   const handlePhotoSelect = async (pose, e) => {
     const file = e.target.files && e.target.files[0];
     if (!file) return;
 
+    setUploadError(null);
     if (!file.type.startsWith('image/')) {
-      alert('Please select a valid image file (JPEG, PNG, WebP).');
+      setUploadError('Select a valid image file (JPEG, PNG or WebP).');
       return;
     }
 
@@ -28,28 +31,16 @@ export default function WeeklyForm({
     try {
       const dataUrl = await compressImage(file, 1600, 0.8);
       const targetDate = weeklyData.weekCommencing || editingDate || new Date().toISOString().split('T')[0];
-      const res = await fetch(`${API_URL}/api/upload-photo`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ date: targetDate, pose, dataUrl })
-      });
-
-      const data = await res.json().catch(() => ({}));
-      if (res.ok && data.success) {
-        setWeeklyData(prev => ({
-          ...prev,
-          photos: {
-            ...(prev.photos || {}),
-            [pose]: data.url
-          }
-        }));
-      } else {
-        const errorMsg = data.detail || data.error || (res.status ? `HTTP ${res.status}: ${res.statusText}` : 'Unknown error');
-        alert(`Photo upload failed: ${typeof errorMsg === 'object' ? JSON.stringify(errorMsg) : errorMsg}`);
-      }
+      const data = await api.uploadPhoto({ date: targetDate, pose, dataUrl });
+      setWeeklyData(prev => ({
+        ...prev,
+        photos: {
+          ...(prev.photos || {}),
+          [pose]: data.url
+        }
+      }));
     } catch (err) {
-      console.error('Error uploading photo:', err);
-      alert(`Failed to upload progress photo: ${err.message || 'Unknown error'}`);
+      setUploadError(err.message);
     } finally {
       setUploadingPose(null);
     }
@@ -87,33 +78,23 @@ export default function WeeklyForm({
         </p>
       </div>
 
-      {editingDate && (
-        <div style={{
-          background: 'rgba(245, 158, 11, 0.08)',
-          border: '1px solid rgba(245, 158, 11, 0.3)',
-          borderLeft: '4px solid var(--accent-purple)',
-          padding: '12px 16px',
-          borderRadius: 'var(--radius-sm)',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          fontSize: '0.9rem'
-        }}>
-          <span>⚠️ <strong>Editing Log mode active</strong> for date <strong>{editingDate}</strong>. Submitting will update the database.</span>
-          <button type="button" className="btn btn-secondary btn-sm" onClick={cancelEditing}>Cancel Edit</button>
-        </div>
+      {uploadError && (
+        <Alert variant="danger" title="Photo upload failed" onDismiss={() => setUploadError(null)}>
+          {uploadError}
+        </Alert>
       )}
+
+      <EditingBanner editingDate={editingDate} cancelEditing={cancelEditing} />
 
       {/* Card 1: Baseline & Response Plan */}
       <div style={{
-        background: 'rgba(255, 255, 255, 0.02)',
-        backdropFilter: 'blur(16px)',
-        border: '1px solid rgba(255, 255, 255, 0.07)',
+        background: 'var(--bg-surface)',
+        border: '1px solid var(--border-color)',
         borderRadius: 'var(--radius-md, 14px)',
         padding: '24px',
-        boxShadow: '0 8px 32px rgba(0,0,0,0.15)'
+        boxShadow: 'var(--shadow-sm)'
       }}>
-        <div style={{ marginBottom: '18px', borderBottom: '1px solid rgba(255, 255, 255, 0.06)', paddingBottom: '12px' }}>
+        <div style={{ marginBottom: '18px', borderBottom: '1px solid var(--border-color)', paddingBottom: '12px' }}>
           <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px' }}>
             ⚖️ Weekly Baseline & Response Plan
           </h3>
@@ -138,14 +119,13 @@ export default function WeeklyForm({
 
       {/* Card 2: Circumference Specs */}
       <div style={{
-        background: 'rgba(255, 255, 255, 0.02)',
-        backdropFilter: 'blur(16px)',
-        border: '1px solid rgba(255, 255, 255, 0.07)',
+        background: 'var(--bg-surface)',
+        border: '1px solid var(--border-color)',
         borderRadius: 'var(--radius-md, 14px)',
         padding: '24px',
-        boxShadow: '0 8px 32px rgba(0,0,0,0.15)'
+        boxShadow: 'var(--shadow-sm)'
       }}>
-        <div style={{ marginBottom: '18px', borderBottom: '1px solid rgba(255, 255, 255, 0.06)', paddingBottom: '12px' }}>
+        <div style={{ marginBottom: '18px', borderBottom: '1px solid var(--border-color)', paddingBottom: '12px' }}>
           <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px' }}>
             📐 Circumference Specs (cm)
           </h3>
@@ -189,14 +169,13 @@ export default function WeeklyForm({
 
       {/* Card 3: Required Progress Photos */}
       <div style={{
-        background: 'rgba(255, 255, 255, 0.02)',
-        backdropFilter: 'blur(16px)',
-        border: '1px solid rgba(255, 255, 255, 0.07)',
+        background: 'var(--bg-surface)',
+        border: '1px solid var(--border-color)',
         borderRadius: 'var(--radius-md, 14px)',
         padding: '24px',
-        boxShadow: '0 8px 32px rgba(0,0,0,0.15)'
+        boxShadow: 'var(--shadow-sm)'
       }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '18px', borderBottom: '1px solid rgba(255, 255, 255, 0.06)', paddingBottom: '12px', flexWrap: 'wrap', gap: '10px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '18px', borderBottom: '1px solid var(--border-color)', paddingBottom: '12px', flexWrap: 'wrap', gap: '10px' }}>
           <div>
             <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px' }}>
               📷 Required Progress Photos
@@ -255,7 +234,7 @@ export default function WeeklyForm({
                         objectFit: 'cover',
                         borderRadius: '8px',
                         marginBottom: '10px',
-                        border: '1px solid rgba(255, 255, 255, 0.1)'
+                        border: '1px solid var(--border-color)'
                       }}
                     />
                     <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>

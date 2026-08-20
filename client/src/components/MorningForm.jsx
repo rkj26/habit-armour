@@ -1,4 +1,5 @@
 import React from 'react';
+import EditingBanner from './EditingBanner';
 
 export default function MorningForm({ morningData, setMorningData, editingDate, cancelEditing, onSubmit }) {
   return (
@@ -13,33 +14,17 @@ export default function MorningForm({ morningData, setMorningData, editingDate, 
         </p>
       </div>
 
-      {editingDate && (
-        <div style={{
-          background: 'rgba(245, 158, 11, 0.08)',
-          border: '1px solid rgba(245, 158, 11, 0.3)',
-          borderLeft: '4px solid var(--accent-purple)',
-          padding: '12px 16px',
-          borderRadius: 'var(--radius-sm)',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          fontSize: '0.9rem'
-        }}>
-          <span>⚠️ <strong>Editing Log mode active</strong> for date <strong>{editingDate}</strong>. Submitting will update the database.</span>
-          <button type="button" className="btn btn-secondary btn-sm" onClick={cancelEditing}>Cancel Edit</button>
-        </div>
-      )}
+      <EditingBanner editingDate={editingDate} cancelEditing={cancelEditing} />
 
       {/* Card 1: Waking Bio-Metrics & Sleep */}
       <div style={{
-        background: 'rgba(255, 255, 255, 0.02)',
-        backdropFilter: 'blur(16px)',
-        border: '1px solid rgba(255, 255, 255, 0.07)',
+        background: 'var(--bg-surface)',
+        border: '1px solid var(--border-color)',
         borderRadius: 'var(--radius-md, 14px)',
         padding: '24px',
-        boxShadow: '0 8px 32px rgba(0,0,0,0.15)'
+        boxShadow: 'var(--shadow-sm)'
       }}>
-        <div style={{ marginBottom: '18px', borderBottom: '1px solid rgba(255, 255, 255, 0.06)', paddingBottom: '12px' }}>
+        <div style={{ marginBottom: '18px', borderBottom: '1px solid var(--border-color)', paddingBottom: '12px' }}>
           <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px' }}>
             💤 Waking Weight & Sleep Quality
           </h3>
@@ -84,14 +69,13 @@ export default function MorningForm({ morningData, setMorningData, editingDate, 
 
       {/* Card 2: Wellness, Mood & Recovery */}
       <div style={{
-        background: 'rgba(255, 255, 255, 0.02)',
-        backdropFilter: 'blur(16px)',
-        border: '1px solid rgba(255, 255, 255, 0.07)',
+        background: 'var(--bg-surface)',
+        border: '1px solid var(--border-color)',
         borderRadius: 'var(--radius-md, 14px)',
         padding: '24px',
-        boxShadow: '0 8px 32px rgba(0,0,0,0.15)'
+        boxShadow: 'var(--shadow-sm)'
       }}>
-        <div style={{ marginBottom: '18px', borderBottom: '1px solid rgba(255, 255, 255, 0.06)', paddingBottom: '12px' }}>
+        <div style={{ marginBottom: '18px', borderBottom: '1px solid var(--border-color)', paddingBottom: '12px' }}>
           <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px' }}>
             🧠 Wellness, Mood & DOMS Recovery
           </h3>
@@ -132,14 +116,13 @@ export default function MorningForm({ morningData, setMorningData, editingDate, 
 
       {/* Card 3: Cardiovascular Vitals */}
       <div style={{
-        background: 'rgba(255, 255, 255, 0.02)',
-        backdropFilter: 'blur(16px)',
-        border: '1px solid rgba(255, 255, 255, 0.07)',
+        background: 'var(--bg-surface)',
+        border: '1px solid var(--border-color)',
         borderRadius: 'var(--radius-md, 14px)',
         padding: '24px',
-        boxShadow: '0 8px 32px rgba(0,0,0,0.15)'
+        boxShadow: 'var(--shadow-sm)'
       }}>
-        <div style={{ marginBottom: '18px', borderBottom: '1px solid rgba(255, 255, 255, 0.06)', paddingBottom: '12px' }}>
+        <div style={{ marginBottom: '18px', borderBottom: '1px solid var(--border-color)', paddingBottom: '12px' }}>
           <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px' }}>
             🩺 Cardiovascular & Vitals
           </h3>

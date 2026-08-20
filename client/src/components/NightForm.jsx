@@ -1,4 +1,5 @@
 import React from 'react';
+import EditingBanner from './EditingBanner';
 import { compressImage } from '../utils/imageCompressor';
 
 export default function NightForm({
@@ -104,33 +105,17 @@ export default function NightForm({
         </p>
       </div>
 
-      {editingDate && (
-        <div style={{
-          background: 'rgba(245, 158, 11, 0.08)',
-          border: '1px solid rgba(245, 158, 11, 0.3)',
-          borderLeft: '4px solid var(--accent-purple)',
-          padding: '12px 16px',
-          borderRadius: 'var(--radius-sm)',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          fontSize: '0.9rem'
-        }}>
-          <span>⚠️ <strong>Editing Log mode active</strong> for date <strong>{editingDate}</strong>. Submitting will update the database.</span>
-          <button type="button" className="btn btn-secondary btn-sm" onClick={cancelEditing}>Cancel Edit</button>
-        </div>
-      )}
+      <EditingBanner editingDate={editingDate} cancelEditing={cancelEditing} />
 
       {/* Card 1: Nutrition & Macros */}
       <div style={{
-        background: 'rgba(255, 255, 255, 0.02)',
-        backdropFilter: 'blur(16px)',
-        border: '1px solid rgba(255, 255, 255, 0.07)',
+        background: 'var(--bg-surface)',
+        border: '1px solid var(--border-color)',
         borderRadius: 'var(--radius-md, 14px)',
         padding: '24px',
-        boxShadow: '0 8px 32px rgba(0,0,0,0.15)'
+        boxShadow: 'var(--shadow-sm)'
       }}>
-        <div style={{ marginBottom: '18px', borderBottom: '1px solid rgba(255, 255, 255, 0.06)', paddingBottom: '12px' }}>
+        <div style={{ marginBottom: '18px', borderBottom: '1px solid var(--border-color)', paddingBottom: '12px' }}>
           <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px' }}>
             🥗 Macronutrients & Nutrition
           </h3>
@@ -180,14 +165,13 @@ export default function NightForm({
 
       {/* Card 1.5: Required Protein Shake & Proof Photo */}
       <div style={{
-        background: 'rgba(255, 255, 255, 0.02)',
-        backdropFilter: 'blur(16px)',
-        border: '1px solid rgba(255, 255, 255, 0.07)',
+        background: 'var(--bg-surface)',
+        border: '1px solid var(--border-color)',
         borderRadius: 'var(--radius-md, 14px)',
         padding: '24px',
-        boxShadow: '0 8px 32px rgba(0,0,0,0.15)'
+        boxShadow: 'var(--shadow-sm)'
       }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '18px', borderBottom: '1px solid rgba(255, 255, 255, 0.06)', paddingBottom: '12px', flexWrap: 'wrap', gap: '10px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '18px', borderBottom: '1px solid var(--border-color)', paddingBottom: '12px', flexWrap: 'wrap', gap: '10px' }}>
           <div>
             <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px' }}>
               🥤 Required Protein Shake & Proof Photo
@@ -216,8 +200,8 @@ export default function NightForm({
             gap: '12px',
             padding: '14px 18px',
             borderRadius: '10px',
-            background: proteinShake.taken ? 'rgba(34, 197, 94, 0.12)' : 'rgba(255, 255, 255, 0.03)',
-            border: `1px solid ${proteinShake.taken ? 'rgba(34, 197, 94, 0.4)' : 'rgba(255, 255, 255, 0.07)'}`,
+            background: proteinShake.taken ? 'var(--color-success-subtle)' : 'var(--bg-subtle)',
+            border: `1px solid ${proteinShake.taken ? 'var(--color-success-border)' : 'var(--border-color)'}`,
             cursor: 'pointer',
             userSelect: 'none'
           }}>
@@ -238,7 +222,7 @@ export default function NightForm({
                 <img 
                   src={proteinShake.photoUrl.startsWith('http') ? proteinShake.photoUrl : `${API_URL || ''}${proteinShake.photoUrl}`} 
                   alt="protein shake proof" 
-                  style={{ width: '64px', height: '64px', objectFit: 'cover', borderRadius: '8px', border: '1px solid rgba(255, 255, 255, 0.2)' }} 
+                  style={{ width: '64px', height: '64px', objectFit: 'cover', borderRadius: '8px', border: '1px solid var(--border-color)' }} 
                 />
                 <label className="btn btn-secondary btn-sm" style={{ cursor: 'pointer', margin: 0 }}>
                   📷 Change Photo
@@ -257,14 +241,13 @@ export default function NightForm({
 
       {/* Card 2: Supplement Stack & Digestive Wellness */}
       <div style={{
-        background: 'rgba(255, 255, 255, 0.02)',
-        backdropFilter: 'blur(16px)',
-        border: '1px solid rgba(255, 255, 255, 0.07)',
+        background: 'var(--bg-surface)',
+        border: '1px solid var(--border-color)',
         borderRadius: 'var(--radius-md, 14px)',
         padding: '24px',
-        boxShadow: '0 8px 32px rgba(0,0,0,0.15)'
+        boxShadow: 'var(--shadow-sm)'
       }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '18px', borderBottom: '1px solid rgba(255, 255, 255, 0.06)', paddingBottom: '12px', flexWrap: 'wrap', gap: '10px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '18px', borderBottom: '1px solid var(--border-color)', paddingBottom: '12px', flexWrap: 'wrap', gap: '10px' }}>
           <div>
             <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px' }}>
               💊 Supplement Stack & Bio-Metrics
@@ -312,8 +295,8 @@ export default function NightForm({
                   gap: '10px',
                   padding: '12px 16px',
                   borderRadius: '10px',
-                  background: isChecked ? 'rgba(99, 102, 241, 0.12)' : 'rgba(255, 255, 255, 0.03)',
-                  border: `1px solid ${isChecked ? 'rgba(99, 102, 241, 0.4)' : 'rgba(255, 255, 255, 0.07)'}`,
+                  background: isChecked ? 'var(--primary-subtle)' : 'var(--bg-subtle)',
+                  border: `1px solid ${isChecked ? 'var(--primary)' : 'var(--border-color)'}`,
                   cursor: 'pointer',
                   transition: 'all 0.2s ease',
                   userSelect: 'none'
@@ -353,14 +336,13 @@ export default function NightForm({
 
       {/* Card 3: Training & Workouts */}
       <div style={{
-        background: 'rgba(255, 255, 255, 0.02)',
-        backdropFilter: 'blur(16px)',
-        border: '1px solid rgba(255, 255, 255, 0.07)',
+        background: 'var(--bg-surface)',
+        border: '1px solid var(--border-color)',
         borderRadius: 'var(--radius-md, 14px)',
         padding: '24px',
-        boxShadow: '0 8px 32px rgba(0,0,0,0.15)'
+        boxShadow: 'var(--shadow-sm)'
       }}>
-        <div style={{ marginBottom: '18px', borderBottom: '1px solid rgba(255, 255, 255, 0.06)', paddingBottom: '12px' }}>
+        <div style={{ marginBottom: '18px', borderBottom: '1px solid var(--border-color)', paddingBottom: '12px' }}>
           <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px' }}>
             ⚡ Activity & Workouts
           </h3>
@@ -382,8 +364,8 @@ export default function NightForm({
               justifyContent: 'space-between',
               padding: '10px 14px',
               borderRadius: 'var(--radius-sm, 8px)',
-              background: nightData.trainingDay === 'Yes' ? 'rgba(16, 185, 129, 0.12)' : 'rgba(255, 255, 255, 0.03)',
-              border: `1px solid ${nightData.trainingDay === 'Yes' ? 'rgba(16, 185, 129, 0.3)' : 'rgba(255, 255, 255, 0.08)'}`,
+              background: nightData.trainingDay === 'Yes' ? 'var(--color-success-subtle)' : 'var(--bg-subtle)',
+              border: `1px solid ${nightData.trainingDay === 'Yes' ? 'var(--color-success-border)' : 'var(--border-color)'}`,
               cursor: 'pointer',
               height: '42px',
               boxSizing: 'border-box',
@@ -396,7 +378,7 @@ export default function NightForm({
                 type="checkbox"
                 checked={nightData.trainingDay === 'Yes'}
                 onChange={(e) => setNightData({...nightData, trainingDay: e.target.checked ? 'Yes' : 'No'})}
-                style={{ width: '18px', height: '18px', cursor: 'pointer', accentColor: 'var(--accent-green, #10b981)' }}
+                style={{ width: '18px', height: '18px', cursor: 'pointer', accentColor: 'var(--color-success)' }}
               />
             </label>
           </div>
@@ -427,8 +409,8 @@ export default function NightForm({
               justifyContent: 'space-between',
               padding: '10px 14px',
               borderRadius: 'var(--radius-sm, 8px)',
-              background: nightData.cardioPerformed === 'Yes' ? 'rgba(6, 182, 212, 0.12)' : 'rgba(255, 255, 255, 0.03)',
-              border: `1px solid ${nightData.cardioPerformed === 'Yes' ? 'rgba(6, 182, 212, 0.3)' : 'rgba(255, 255, 255, 0.08)'}`,
+              background: nightData.cardioPerformed === 'Yes' ? 'var(--color-info-subtle)' : 'var(--bg-subtle)',
+              border: `1px solid ${nightData.cardioPerformed === 'Yes' ? 'var(--color-info-border)' : 'var(--border-color)'}`,
               cursor: 'pointer',
               height: '42px',
               boxSizing: 'border-box',

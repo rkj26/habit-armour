@@ -159,7 +159,7 @@ export default function TopicBankSection({
                         </div>
                       ) : (
                         itemQuestions.map((q, qIdx) => (
-                          <div key={q.id} style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-md)', padding: '10px 12px' }}>
+                          <div key={q.id} style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-md)', padding: '10px 12px' }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
                               <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
                                 <span className="badge" style={{ fontSize: '0.7rem', background: 'rgba(99, 102, 241, 0.15)', color: '#6366f1', fontWeight: 700 }}>#{qIdx + 1}</span>

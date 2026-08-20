@@ -45,11 +45,10 @@ const getSmartTooltipStyle = (hoveredPoint, containerWidth = 500) => {
     left: `${leftPos}px`,
     top: `${topPos}px`,
     background: 'rgba(15, 23, 42, 0.92)',
-    backdropFilter: 'blur(12px)',
-    border: '1px solid rgba(255, 255, 255, 0.12)',
+    border: '1px solid var(--border-color)',
     borderRadius: 'var(--radius-sm)',
     padding: '8px 12px',
-    boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
+    boxShadow: 'var(--shadow-sm)',
     zIndex: 50,
     pointerEvents: 'none',
     minWidth: '135px'
@@ -273,13 +272,12 @@ export default function DashboardView({ stats, history, config }) {
         {/* Compliance Card */}
         <div className="metric-card" style={{
           position: 'relative',
-          background: 'rgba(255, 255, 255, 0.02)',
-          backdropFilter: 'blur(16px) saturate(180%)',
-          border: '1px solid rgba(255, 255, 255, 0.07)',
-          borderLeft: '4px solid var(--accent-green, #10b981)',
+          background: 'var(--bg-surface)',
+          border: '1px solid var(--border-color)',
+          borderLeft: '4px solid var(--color-success)',
           padding: '20px 18px',
           borderRadius: 'var(--radius-md)',
-          boxShadow: '0 8px 32px 0 rgba(0, 0, 0, 0.2)',
+          boxShadow: 'var(--shadow-sm)',
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center'
@@ -293,7 +291,7 @@ export default function DashboardView({ stats, history, config }) {
           </div>
           <div style={{
             background: 'rgba(16, 185, 129, 0.1)',
-            color: 'var(--accent-green, #10b981)',
+            color: 'var(--color-success)',
             padding: '12px',
             borderRadius: '50%',
             fontSize: '1.4rem',
@@ -308,13 +306,12 @@ export default function DashboardView({ stats, history, config }) {
         {/* Active Streak Card */}
         <div className="metric-card" style={{
           position: 'relative',
-          background: 'rgba(255, 255, 255, 0.02)',
-          backdropFilter: 'blur(16px) saturate(180%)',
-          border: '1px solid rgba(255, 255, 255, 0.07)',
-          borderLeft: '4px solid var(--accent-red, #ef4444)',
+          background: 'var(--bg-surface)',
+          border: '1px solid var(--border-color)',
+          borderLeft: '4px solid var(--color-danger)',
           padding: '20px 18px',
           borderRadius: 'var(--radius-md)',
-          boxShadow: '0 8px 32px 0 rgba(0, 0, 0, 0.2)',
+          boxShadow: 'var(--shadow-sm)',
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center'
@@ -326,7 +323,7 @@ export default function DashboardView({ stats, history, config }) {
           </div>
           <div style={{
             background: 'rgba(239, 68, 68, 0.1)',
-            color: 'var(--accent-red, #ef4444)',
+            color: 'var(--color-danger)',
             padding: '12px',
             borderRadius: '50%',
             fontSize: '1.4rem',
@@ -341,13 +338,12 @@ export default function DashboardView({ stats, history, config }) {
         {/* Avg Waking Weight Card */}
         <div className="metric-card" style={{
           position: 'relative',
-          background: 'rgba(255, 255, 255, 0.02)',
-          backdropFilter: 'blur(16px) saturate(180%)',
-          border: '1px solid rgba(255, 255, 255, 0.07)',
-          borderLeft: '4px solid var(--accent-purple, #a855f7)',
+          background: 'var(--bg-surface)',
+          border: '1px solid var(--border-color)',
+          borderLeft: '4px solid var(--color-accent)',
           padding: '20px 18px',
           borderRadius: 'var(--radius-md)',
-          boxShadow: '0 8px 32px 0 rgba(0, 0, 0, 0.2)',
+          boxShadow: 'var(--shadow-sm)',
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center'
@@ -365,7 +361,7 @@ export default function DashboardView({ stats, history, config }) {
           </div>
           <div style={{
             background: 'rgba(168, 85, 247, 0.1)',
-            color: 'var(--accent-purple, #a855f7)',
+            color: 'var(--color-accent)',
             padding: '12px',
             borderRadius: '50%',
             fontSize: '1.4rem',
@@ -380,13 +376,12 @@ export default function DashboardView({ stats, history, config }) {
         {/* Sleep Card */}
         <div className="metric-card" style={{
           position: 'relative',
-          background: 'rgba(255, 255, 255, 0.02)',
-          backdropFilter: 'blur(16px) saturate(180%)',
-          border: '1px solid rgba(255, 255, 255, 0.07)',
+          background: 'var(--bg-surface)',
+          border: '1px solid var(--border-color)',
           borderLeft: '4px solid var(--accent-cyan, #06b6d4)',
           padding: '20px 18px',
           borderRadius: 'var(--radius-md)',
-          boxShadow: '0 8px 32px 0 rgba(0, 0, 0, 0.2)',
+          boxShadow: 'var(--shadow-sm)',
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center'
@@ -417,13 +412,12 @@ export default function DashboardView({ stats, history, config }) {
         {/* Steps Card */}
         <div className="metric-card" style={{
           position: 'relative',
-          background: 'rgba(255, 255, 255, 0.02)',
-          backdropFilter: 'blur(16px) saturate(180%)',
-          border: '1px solid rgba(255, 255, 255, 0.07)',
-          borderLeft: '4px solid var(--accent-purple, #a855f7)',
+          background: 'var(--bg-surface)',
+          border: '1px solid var(--border-color)',
+          borderLeft: '4px solid var(--color-accent)',
           padding: '20px 18px',
           borderRadius: 'var(--radius-md)',
-          boxShadow: '0 8px 32px 0 rgba(0, 0, 0, 0.2)',
+          boxShadow: 'var(--shadow-sm)',
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center'
@@ -439,7 +433,7 @@ export default function DashboardView({ stats, history, config }) {
           </div>
           <div style={{
             background: 'rgba(168, 85, 247, 0.1)',
-            color: 'var(--accent-purple, #a855f7)',
+            color: 'var(--color-accent)',
             padding: '12px',
             borderRadius: '50%',
             fontSize: '1.4rem',
@@ -454,13 +448,12 @@ export default function DashboardView({ stats, history, config }) {
         {/* Calories Card */}
         <div className="metric-card" style={{
           position: 'relative',
-          background: 'rgba(255, 255, 255, 0.02)',
-          backdropFilter: 'blur(16px) saturate(180%)',
-          border: '1px solid rgba(255, 255, 255, 0.07)',
+          background: 'var(--bg-surface)',
+          border: '1px solid var(--border-color)',
           borderLeft: '4px solid #f59e0b',
           padding: '20px 18px',
           borderRadius: 'var(--radius-md)',
-          boxShadow: '0 8px 32px 0 rgba(0, 0, 0, 0.2)',
+          boxShadow: 'var(--shadow-sm)',
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center'
@@ -491,8 +484,8 @@ export default function DashboardView({ stats, history, config }) {
 
       {/* Macronutrient Split Ratio Banner */}
       <div className="glass-card" style={{
-        background: 'rgba(255, 255, 255, 0.015)',
-        border: '1px solid rgba(255, 255, 255, 0.06)',
+        background: 'var(--bg-surface)',
+        border: '1px solid var(--border-color)',
         padding: '18px 24px',
         borderRadius: 'var(--radius-md)',
         marginBottom: '24px',
@@ -510,14 +503,14 @@ export default function DashboardView({ stats, history, config }) {
             </span>
           </div>
           <div style={{ display: 'flex', gap: '16px', fontSize: '0.8rem', fontWeight: 600 }}>
-            <span style={{ color: 'var(--accent-purple)' }}>● Protein {macroRatio.proteinPct}%</span>
+            <span style={{ color: 'var(--color-accent)' }}>● Protein {macroRatio.proteinPct}%</span>
             <span style={{ color: 'var(--accent-cyan)' }}>● Carbs {macroRatio.carbsPct}%</span>
             <span style={{ color: '#f59e0b' }}>● Fats {macroRatio.fatsPct}%</span>
           </div>
         </div>
 
         <div className="macro-ratio-bar">
-          <div className="macro-ratio-segment" style={{ width: `${macroRatio.proteinPct}%`, background: 'var(--accent-purple)' }} title={`Protein: ${macroRatio.proteinPct}%`} />
+          <div className="macro-ratio-segment" style={{ width: `${macroRatio.proteinPct}%`, background: 'var(--color-accent)' }} title={`Protein: ${macroRatio.proteinPct}%`} />
           <div className="macro-ratio-segment" style={{ width: `${macroRatio.carbsPct}%`, background: 'var(--accent-cyan)' }} title={`Carbs: ${macroRatio.carbsPct}%`} />
           <div className="macro-ratio-segment" style={{ width: `${macroRatio.fatsPct}%`, background: '#f59e0b' }} title={`Fats: ${macroRatio.fatsPct}%`} />
         </div>
@@ -535,18 +528,18 @@ export default function DashboardView({ stats, history, config }) {
         }}>
           {/* Weight and Sleep Line Chart */}
           <div className="chart-card glass-card" style={{
-            background: 'rgba(255, 255, 255, 0.01)',
-            border: '1px solid rgba(255, 255, 255, 0.06)',
+            background: 'var(--bg-surface)',
+            border: '1px solid var(--border-color)',
             padding: '24px',
             borderRadius: 'var(--radius-md)',
-            boxShadow: '0 10px 40px rgba(0,0,0,0.15)',
+            boxShadow: 'var(--shadow-sm)',
             position: 'relative'
           }}>
             <div className="chart-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
               <h3 className="chart-title" style={{ margin: 0, fontSize: '1.05rem', fontWeight: 700, fontFamily: 'var(--font-heading)' }}>Weight & Sleep Trend ({timeRange})</h3>
               <div className="chart-legend" style={{ display: 'flex', gap: '14px', fontSize: '0.8rem' }}>
                 <span className="legend-item" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <span className="legend-color" style={{ background: 'var(--accent-purple)', width: '8px', height: '8px', borderRadius: '50%' }}></span>Weight (kg)
+                  <span className="legend-color" style={{ background: 'var(--color-accent)', width: '8px', height: '8px', borderRadius: '50%' }}></span>Weight (kg)
                 </span>
                 <span className="legend-item" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <span className="legend-color" style={{ background: 'var(--accent-cyan)', width: '8px', height: '8px', borderRadius: '50%' }}></span>Sleep (hrs)
@@ -599,8 +592,8 @@ export default function DashboardView({ stats, history, config }) {
                   <svg viewBox={`0 0 ${w} ${h}`} style={{ overflow: 'visible' }}>
                     <defs>
                       <linearGradient id="purpleGlow" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="var(--accent-purple)" stopOpacity="0.25"/>
-                        <stop offset="100%" stopColor="var(--accent-purple)" stopOpacity="0.0"/>
+                        <stop offset="0%" stopColor="var(--color-accent)" stopOpacity="0.25"/>
+                        <stop offset="100%" stopColor="var(--color-accent)" stopOpacity="0.0"/>
                       </linearGradient>
                       <linearGradient id="cyanGlow" x1="0" y1="0" x2="0" y2="1">
                         <stop offset="0%" stopColor="var(--accent-cyan)" stopOpacity="0.25"/>
@@ -614,12 +607,12 @@ export default function DashboardView({ stats, history, config }) {
                       y1={yTargetWeight} 
                       x2={w - padR} 
                       y2={yTargetWeight} 
-                      stroke="var(--accent-purple)" 
+                      stroke="var(--color-accent)" 
                       strokeWidth="1.5" 
                       strokeDasharray="2 3" 
                       opacity="0.3"
                     />
-                    <text x={padL + 10} y={yTargetWeight - 4} fill="var(--accent-purple)" opacity="0.5" fontSize="7" fontWeight="600" style={{ letterSpacing: '0.5px' }}>TARGET WEIGHT ({targetWeight}KG)</text>
+                    <text x={padL + 10} y={yTargetWeight - 4} fill="var(--color-accent)" opacity="0.5" fontSize="7" fontWeight="600" style={{ letterSpacing: '0.5px' }}>TARGET WEIGHT ({targetWeight}KG)</text>
 
                     {/* Shaded Optimal Sleep Zone */}
                     {sMin <= 9 && sMax >= 7 && (
@@ -640,7 +633,7 @@ export default function DashboardView({ stats, history, config }) {
                     {/* Grid lines */}
                     {[0, 1, 2, 3, 4].map(idx => {
                       const y = padT + (idx / 4) * gH;
-                      return <line key={idx} x1={padL} y1={y} x2={w - padR} y2={y} stroke="rgba(255, 255, 255, 0.04)" strokeWidth="1" />;
+                      return <line key={idx} x1={padL} y1={y} x2={w - padR} y2={y} stroke="var(--border-subtle)" strokeWidth="1" />;
                     })}
 
                     {/* Shaded Area Fades */}
@@ -652,7 +645,7 @@ export default function DashboardView({ stats, history, config }) {
                     )}
 
                     {/* Path Lines */}
-                    <path d={pathW} fill="none" stroke="var(--accent-purple)" strokeWidth="2.5" style={{ filter: 'drop-shadow(0px 3px 6px rgba(168, 85, 247, 0.35))' }} />
+                    <path d={pathW} fill="none" stroke="var(--color-accent)" strokeWidth="2.5" style={{ filter: 'drop-shadow(0px 3px 6px rgba(168, 85, 247, 0.35))' }} />
                     <path d={pathS} fill="none" stroke="var(--accent-cyan)" strokeWidth="2.5" style={{ filter: 'drop-shadow(0px 3px 6px rgba(6, 182, 212, 0.35))' }} />
 
                     {/* Interactive dots */}
@@ -660,7 +653,7 @@ export default function DashboardView({ stats, history, config }) {
                       const showLabel = coords.length <= 10 || i % Math.ceil(coords.length / 8) === 0;
                       return (
                         <g key={i}>
-                          <circle cx={c.x} cy={c.yW} r="3.5" fill="var(--bg-surface)" stroke="var(--accent-purple)" strokeWidth="2" />
+                          <circle cx={c.x} cy={c.yW} r="3.5" fill="var(--bg-surface)" stroke="var(--color-accent)" strokeWidth="2" />
                           <circle cx={c.x} cy={c.yS} r="3.5" fill="var(--bg-surface)" stroke="var(--accent-cyan)" strokeWidth="2" />
                           {showLabel && <text x={c.x} y={h - 10} textAnchor="middle" fill="var(--text-secondary)" fontSize="8" fontWeight="500">{c.date}</text>}
                         </g>
@@ -690,7 +683,7 @@ export default function DashboardView({ stats, history, config }) {
                             y: Math.min(c.yW, c.yS),
                             date: pts[i].date,
                             lines: [
-                              { label: 'Weight', val: `${c.wVal} kg`, color: 'var(--accent-purple)' },
+                              { label: 'Weight', val: `${c.wVal} kg`, color: 'var(--color-accent)' },
                               { label: 'Sleep', val: `${c.sVal} hrs`, color: 'var(--accent-cyan)' }
                             ]
                           });
@@ -704,7 +697,7 @@ export default function DashboardView({ stats, history, config }) {
               
               {hoveredPoint && hoveredPoint.chartId === 'weight-sleep' && (
                 <div style={getSmartTooltipStyle(hoveredPoint)}>
-                  <div className="tooltip-date" style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 600, borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '4px', marginBottom: '4px' }}>{hoveredPoint.date}</div>
+                  <div className="tooltip-date" style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 600, borderBottom: '1px solid var(--border-color)', paddingBottom: '4px', marginBottom: '4px' }}>{hoveredPoint.date}</div>
                   {hoveredPoint.lines.map((l, i) => (
                     <div key={i} style={{ display: 'flex', gap: '8px', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.75rem', margin: '2px 0' }}>
                       <span style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--text-secondary)' }}>
@@ -721,11 +714,11 @@ export default function DashboardView({ stats, history, config }) {
 
           {/* Calories Intake Bar Chart */}
           <div className="chart-card glass-card" style={{
-            background: 'rgba(255, 255, 255, 0.01)',
-            border: '1px solid rgba(255, 255, 255, 0.06)',
+            background: 'var(--bg-surface)',
+            border: '1px solid var(--border-color)',
             padding: '24px',
             borderRadius: 'var(--radius-md)',
-            boxShadow: '0 10px 40px rgba(0,0,0,0.15)',
+            boxShadow: 'var(--shadow-sm)',
             position: 'relative'
           }}>
             <div className="chart-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
@@ -779,7 +772,7 @@ export default function DashboardView({ stats, history, config }) {
 
                     {[0, 1, 2, 3, 4].map(idx => {
                       const y = padT + (idx / 4) * gH;
-                      return <line key={idx} x1={padL} y1={y} x2={w - padR} y2={y} stroke="rgba(255, 255, 255, 0.04)" strokeWidth="1" />;
+                      return <line key={idx} x1={padL} y1={y} x2={w - padR} y2={y} stroke="var(--border-subtle)" strokeWidth="1" />;
                     })}
 
                     <line x1={padL} y1={yTarget} x2={w - padR} y2={yTarget} stroke="rgba(6, 182, 212, 0.25)" strokeWidth="1.5" strokeDasharray="3 3" />
@@ -835,7 +828,7 @@ export default function DashboardView({ stats, history, config }) {
 
               {hoveredPoint && hoveredPoint.chartId === 'calories-only' && (
                 <div style={getSmartTooltipStyle(hoveredPoint)}>
-                  <div className="tooltip-date" style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 600, borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '4px', marginBottom: '4px' }}>{hoveredPoint.date}</div>
+                  <div className="tooltip-date" style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 600, borderBottom: '1px solid var(--border-color)', paddingBottom: '4px', marginBottom: '4px' }}>{hoveredPoint.date}</div>
                   {hoveredPoint.lines.map((l, i) => (
                     <div key={i} style={{ display: 'flex', gap: '8px', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.75rem', margin: '2px 0' }}>
                       <span style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--text-secondary)' }}>
@@ -852,18 +845,18 @@ export default function DashboardView({ stats, history, config }) {
 
           {/* Macronutrient Breakdown Line Chart */}
           <div className="chart-card glass-card" style={{
-            background: 'rgba(255, 255, 255, 0.01)',
-            border: '1px solid rgba(255, 255, 255, 0.06)',
+            background: 'var(--bg-surface)',
+            border: '1px solid var(--border-color)',
             padding: '24px',
             borderRadius: 'var(--radius-md)',
-            boxShadow: '0 10px 40px rgba(0,0,0,0.15)',
+            boxShadow: 'var(--shadow-sm)',
             position: 'relative'
           }}>
             <div className="chart-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
               <h3 className="chart-title" style={{ margin: 0, fontSize: '1.05rem', fontWeight: 700, fontFamily: 'var(--font-heading)' }}>Macronutrient Breakdown</h3>
               <div className="chart-legend" style={{ display: 'flex', gap: '12px', fontSize: '0.8rem' }}>
                 <span className="legend-item" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                  <span className="legend-color" style={{background: 'var(--accent-purple)', width: '8px', height: '8px', borderRadius: '50%'}}></span>Protein
+                  <span className="legend-color" style={{background: 'var(--color-accent)', width: '8px', height: '8px', borderRadius: '50%'}}></span>Protein
                 </span>
                 <span className="legend-item" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                   <span className="legend-color" style={{background: 'var(--accent-cyan)', width: '8px', height: '8px', borderRadius: '50%'}}></span>Carbs
@@ -916,23 +909,23 @@ export default function DashboardView({ stats, history, config }) {
                   <svg viewBox={`0 0 ${w} ${h}`} style={{ overflow: 'visible' }}>
                     {[0, 1, 2, 3, 4].map(idx => {
                       const y = padT + (idx / 4) * gH;
-                      return <line key={idx} x1={padL} y1={y} x2={w - padR} y2={y} stroke="rgba(255, 255, 255, 0.04)" strokeWidth="1" />;
+                      return <line key={idx} x1={padL} y1={y} x2={w - padR} y2={y} stroke="var(--border-subtle)" strokeWidth="1" />;
                     })}
 
-                    <line x1={padL} y1={yTargetProtein} x2={w - padR} y2={yTargetProtein} stroke="var(--accent-purple)" strokeWidth="1.5" strokeDasharray="2 3" opacity="0.3" />
-                    <text x={padL + 10} y={yTargetProtein - 4} fill="var(--accent-purple)" opacity="0.5" fontSize="7" fontWeight="600" style={{ letterSpacing: '0.5px' }}>TARGET PROTEIN ({targetProtein}G)</text>
+                    <line x1={padL} y1={yTargetProtein} x2={w - padR} y2={yTargetProtein} stroke="var(--color-accent)" strokeWidth="1.5" strokeDasharray="2 3" opacity="0.3" />
+                    <text x={padL + 10} y={yTargetProtein - 4} fill="var(--color-accent)" opacity="0.5" fontSize="7" fontWeight="600" style={{ letterSpacing: '0.5px' }}>TARGET PROTEIN ({targetProtein}G)</text>
 
-                    <path d={pathP} fill="none" stroke="var(--accent-purple)" strokeWidth="2" style={{ filter: 'drop-shadow(0px 2px 4px rgba(168, 85, 247, 0.3))' }} />
+                    <path d={pathP} fill="none" stroke="var(--color-accent)" strokeWidth="2" style={{ filter: 'drop-shadow(0px 2px 4px rgba(168, 85, 247, 0.3))' }} />
                     <path d={pathC} fill="none" stroke="var(--accent-cyan)" strokeWidth="2" style={{ filter: 'drop-shadow(0px 2px 4px rgba(6, 182, 212, 0.3))' }} />
-                    <path d={pathF} fill="none" stroke="#f59e0b" strokeWidth="2" style={{ filter: 'drop-shadow(0px 2px 4px rgba(245, 158, 11, 0.3))' }} />
+                    <path d={pathF} fill="none" stroke="var(--color-warning)" strokeWidth="2" style={{ filter: 'drop-shadow(0px 2px 4px rgba(245, 158, 11, 0.3))' }} />
 
                     {coords.map((c, i) => {
                       const showLabel = coords.length <= 10 || i % Math.ceil(coords.length / 8) === 0;
                       return (
                         <g key={i}>
-                          <circle cx={c.x} cy={c.yProt} r="3" fill="var(--bg-surface)" stroke="var(--accent-purple)" strokeWidth="1.5" />
+                          <circle cx={c.x} cy={c.yProt} r="3" fill="var(--bg-surface)" stroke="var(--color-accent)" strokeWidth="1.5" />
                           <circle cx={c.x} cy={c.yCarb} r="3" fill="var(--bg-surface)" stroke="var(--accent-cyan)" strokeWidth="1.5" />
-                          <circle cx={c.x} cy={c.yFat} r="3" fill="var(--bg-surface)" stroke="#f59e0b" strokeWidth="1.5" />
+                          <circle cx={c.x} cy={c.yFat} r="3" fill="var(--bg-surface)" stroke="var(--color-warning)" strokeWidth="1.5" />
                           {showLabel && <text x={c.x} y={h - 10} textAnchor="middle" fill="var(--text-secondary)" fontSize="8" fontWeight="500">{c.date}</text>}
                         </g>
                       );
@@ -957,7 +950,7 @@ export default function DashboardView({ stats, history, config }) {
                             y: Math.min(c.yProt, c.yCarb, c.yFat),
                             date: pts[i].date,
                             lines: [
-                              { label: 'Protein', val: `${c.pVal} g`, color: 'var(--accent-purple)' },
+                              { label: 'Protein', val: `${c.pVal} g`, color: 'var(--color-accent)' },
                               { label: 'Carbs', val: `${c.cVal} g`, color: 'var(--accent-cyan)' },
                               { label: 'Fats', val: `${c.fVal} g`, color: '#f59e0b' }
                             ]
@@ -972,7 +965,7 @@ export default function DashboardView({ stats, history, config }) {
 
               {hoveredPoint && hoveredPoint.chartId === 'macros' && (
                 <div style={getSmartTooltipStyle(hoveredPoint)}>
-                  <div className="tooltip-date" style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 600, borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '4px', marginBottom: '4px' }}>{hoveredPoint.date}</div>
+                  <div className="tooltip-date" style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 600, borderBottom: '1px solid var(--border-color)', paddingBottom: '4px', marginBottom: '4px' }}>{hoveredPoint.date}</div>
                   {hoveredPoint.lines.map((l, i) => (
                     <div key={i} style={{ display: 'flex', gap: '8px', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.75rem', margin: '2px 0' }}>
                       <span style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--text-secondary)' }}>
@@ -989,11 +982,11 @@ export default function DashboardView({ stats, history, config }) {
 
           {/* Daily Steps Bar Chart */}
           <div className="chart-card glass-card" style={{
-            background: 'rgba(255, 255, 255, 0.01)',
-            border: '1px solid rgba(255, 255, 255, 0.06)',
+            background: 'var(--bg-surface)',
+            border: '1px solid var(--border-color)',
             padding: '24px',
             borderRadius: 'var(--radius-md)',
-            boxShadow: '0 10px 40px rgba(0,0,0,0.15)',
+            boxShadow: 'var(--shadow-sm)',
             position: 'relative'
           }}>
             <div className="chart-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
@@ -1003,7 +996,7 @@ export default function DashboardView({ stats, history, config }) {
                   <span className="legend-color" style={{ background: 'var(--accent-cyan)', width: '8px', height: '8px', borderRadius: '50%' }}></span>Steps
                 </span>
                 <span className="legend-item" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <span className="legend-color" style={{ background: 'var(--accent-red)', width: '8px', height: '8px', borderRadius: '50%' }}></span>Goal
+                  <span className="legend-color" style={{ background: 'var(--color-danger)', width: '8px', height: '8px', borderRadius: '50%' }}></span>Goal
                 </span>
               </div>
             </div>
@@ -1041,8 +1034,8 @@ export default function DashboardView({ stats, history, config }) {
                   <svg viewBox={`0 0 ${w} ${h}`} style={{ overflow: 'visible' }}>
                     <defs>
                       <linearGradient id="barRedGlow" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="var(--accent-red)" stopOpacity="0.6"/>
-                        <stop offset="100%" stopColor="var(--accent-red)" stopOpacity="0.1"/>
+                        <stop offset="0%" stopColor="var(--color-danger)" stopOpacity="0.6"/>
+                        <stop offset="100%" stopColor="var(--color-danger)" stopOpacity="0.1"/>
                       </linearGradient>
                       <linearGradient id="barCyanGlow" x1="0" y1="0" x2="0" y2="1">
                         <stop offset="0%" stopColor="var(--accent-cyan)" stopOpacity="0.6"/>
@@ -1052,11 +1045,11 @@ export default function DashboardView({ stats, history, config }) {
 
                     {[0, 1, 2, 3, 4].map(idx => {
                       const y = padT + (idx / 4) * gH;
-                      return <line key={idx} x1={padL} y1={y} x2={w - padR} y2={y} stroke="rgba(255, 255, 255, 0.04)" strokeWidth="1" />;
+                      return <line key={idx} x1={padL} y1={y} x2={w - padR} y2={y} stroke="var(--border-subtle)" strokeWidth="1" />;
                     })}
 
-                    <line x1={padL} y1={yGoal} x2={w - padR} y2={yGoal} stroke="var(--accent-red)" strokeWidth="1.5" strokeDasharray="3 3" style={{ filter: 'drop-shadow(0 0 2px var(--accent-red))' }} />
-                    <text x={w - padR - 110} y={yGoal - 4} fill="var(--accent-red)" opacity="0.6" fontSize="7" fontWeight="600" style={{ letterSpacing: '0.5px' }}>DAILY STEP GOAL ({targetSteps.toLocaleString()})</text>
+                    <line x1={padL} y1={yGoal} x2={w - padR} y2={yGoal} stroke="var(--color-danger)" strokeWidth="1.5" strokeDasharray="3 3" style={{ filter: 'drop-shadow(0 0 2px var(--color-danger))' }} />
+                    <text x={w - padR - 110} y={yGoal - 4} fill="var(--color-danger)" opacity="0.6" fontSize="7" fontWeight="600" style={{ letterSpacing: '0.5px' }}>DAILY STEP GOAL ({targetSteps.toLocaleString()})</text>
 
                     {coords.map((c, i) => (
                       <rect
@@ -1079,7 +1072,7 @@ export default function DashboardView({ stats, history, config }) {
                     })}
 
                     <text x={5} y={padT + 5} fill="var(--text-muted)" fontSize="8" fontWeight="600">{Math.round(maxSteps).toLocaleString()}</text>
-                    <text x={5} y={yGoal + 3} fill="var(--accent-red)" opacity="0.75" fontSize="8" fontWeight="600">{(targetSteps / 1000).toFixed(0)}k</text>
+                    <text x={5} y={yGoal + 3} fill="var(--color-danger)" opacity="0.75" fontSize="8" fontWeight="600">{(targetSteps / 1000).toFixed(0)}k</text>
                     <text x={5} y={padT + gH + 5} fill="var(--text-muted)" fontSize="8" fontWeight="600">0</text>
 
                     {coords.map((c, i) => (
@@ -1098,7 +1091,7 @@ export default function DashboardView({ stats, history, config }) {
                             y: c.yBar,
                             date: pts[i].date,
                             lines: [
-                              { label: 'Steps', val: c.sVal.toLocaleString(), color: c.sVal >= targetSteps ? 'var(--accent-cyan)' : 'var(--accent-red)' }
+                              { label: 'Steps', val: c.sVal.toLocaleString(), color: c.sVal >= targetSteps ? 'var(--accent-cyan)' : 'var(--color-danger)' }
                             ]
                           });
                         }}
@@ -1111,7 +1104,7 @@ export default function DashboardView({ stats, history, config }) {
 
               {hoveredPoint && hoveredPoint.chartId === 'steps' && (
                 <div style={getSmartTooltipStyle(hoveredPoint)}>
-                  <div className="tooltip-date" style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 600, borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '4px', marginBottom: '4px' }}>{hoveredPoint.date}</div>
+                  <div className="tooltip-date" style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 600, borderBottom: '1px solid var(--border-color)', paddingBottom: '4px', marginBottom: '4px' }}>{hoveredPoint.date}</div>
                   {hoveredPoint.lines.map((l, i) => (
                     <div key={i} style={{ display: 'flex', gap: '8px', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.75rem', margin: '2px 0' }}>
                       <span style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--text-secondary)' }}>
@@ -1128,18 +1121,18 @@ export default function DashboardView({ stats, history, config }) {
 
           {/* Compliance History Bar Chart */}
           <div className="chart-card glass-card" style={{
-            background: 'rgba(255, 255, 255, 0.01)',
-            border: '1px solid rgba(255, 255, 255, 0.06)',
+            background: 'var(--bg-surface)',
+            border: '1px solid var(--border-color)',
             padding: '24px',
             borderRadius: 'var(--radius-md)',
-            boxShadow: '0 10px 40px rgba(0,0,0,0.15)',
+            boxShadow: 'var(--shadow-sm)',
             position: 'relative'
           }}>
             <div className="chart-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
               <h3 className="chart-title" style={{ margin: 0, fontSize: '1.05rem', fontWeight: 700, fontFamily: 'var(--font-heading)' }}>Habit Compliance History</h3>
               <div className="chart-legend" style={{ display: 'flex', gap: '14px', fontSize: '0.8rem' }}>
                 <span className="legend-item" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <span className="legend-color" style={{ background: 'var(--accent-green, #10b981)', width: '8px', height: '8px', borderRadius: '50%' }}></span>Completed Habits
+                  <span className="legend-color" style={{ background: 'var(--color-success)', width: '8px', height: '8px', borderRadius: '50%' }}></span>Completed Habits
                 </span>
               </div>
             </div>
@@ -1193,18 +1186,18 @@ export default function DashboardView({ stats, history, config }) {
                   <svg viewBox={`0 0 ${w} ${h}`} style={{ overflow: 'visible' }}>
                     <defs>
                       <linearGradient id="barGreenGlow" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="var(--accent-green, #10b981)" stopOpacity="0.8"/>
-                        <stop offset="100%" stopColor="var(--accent-green, #10b981)" stopOpacity="0.15"/>
+                        <stop offset="0%" stopColor="var(--color-success)" stopOpacity="0.8"/>
+                        <stop offset="100%" stopColor="var(--color-success)" stopOpacity="0.15"/>
                       </linearGradient>
                       <linearGradient id="barPurpleGlow" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="var(--accent-purple, #a855f7)" stopOpacity="0.8"/>
-                        <stop offset="100%" stopColor="var(--accent-purple, #a855f7)" stopOpacity="0.15"/>
+                        <stop offset="0%" stopColor="var(--color-accent)" stopOpacity="0.8"/>
+                        <stop offset="100%" stopColor="var(--color-accent)" stopOpacity="0.15"/>
                       </linearGradient>
                     </defs>
 
                     {[0, 1, 2, 3, 4].map(idx => {
                       const y = padT + (idx / 4) * gH;
-                      return <line key={idx} x1={padL} y1={y} x2={w - padR} y2={y} stroke="rgba(255, 255, 255, 0.04)" strokeWidth="1" />;
+                      return <line key={idx} x1={padL} y1={y} x2={w - padR} y2={y} stroke="var(--border-subtle)" strokeWidth="1" />;
                     })}
 
                     {coords.map((c, i) => {
@@ -1255,20 +1248,20 @@ export default function DashboardView({ stats, history, config }) {
                         onMouseEnter={() => {
                           const isAnkiDone = c.p.ankiCompleted || c.p.ankiManualOverride;
                           const lines = [
-                            { label: 'Morning Log', val: c.p.morningCompleted ? '✅ Done' : '❌ Missed', color: c.p.morningCompleted ? 'var(--accent-green)' : 'var(--accent-red)' },
-                            { label: 'Morning Journal', val: c.p.morningJournalCompleted ? '✅ Done' : '❌ Missed', color: c.p.morningJournalCompleted ? 'var(--accent-green)' : 'var(--accent-red)' },
-                            { label: 'Evening Log', val: c.p.nightCompleted ? '✅ Done' : '❌ Missed', color: c.p.nightCompleted ? 'var(--accent-green)' : 'var(--accent-red)' },
-                            { label: 'Evening Journal', val: c.p.nightJournalCompleted ? '✅ Done' : '❌ Missed', color: c.p.nightJournalCompleted ? 'var(--accent-green)' : 'var(--accent-red)' }
+                            { label: 'Morning Log', val: c.p.morningCompleted ? '✅ Done' : '❌ Missed', color: c.p.morningCompleted ? 'var(--color-success)' : 'var(--color-danger)' },
+                            { label: 'Morning Journal', val: c.p.morningJournalCompleted ? '✅ Done' : '❌ Missed', color: c.p.morningJournalCompleted ? 'var(--color-success)' : 'var(--color-danger)' },
+                            { label: 'Evening Log', val: c.p.nightCompleted ? '✅ Done' : '❌ Missed', color: c.p.nightCompleted ? 'var(--color-success)' : 'var(--color-danger)' },
+                            { label: 'Evening Journal', val: c.p.nightJournalCompleted ? '✅ Done' : '❌ Missed', color: c.p.nightJournalCompleted ? 'var(--color-success)' : 'var(--color-danger)' }
                           ];
                           if (config.gymLockEnabled) {
-                            lines.push({ label: 'Gym Workout', val: c.p.gymCompleted ? '✅ Done' : '❌ Missed', color: c.p.gymCompleted ? 'var(--accent-green)' : 'var(--accent-red)' });
+                            lines.push({ label: 'Gym Workout', val: c.p.gymCompleted ? '✅ Done' : '❌ Missed', color: c.p.gymCompleted ? 'var(--color-success)' : 'var(--color-danger)' });
                           }
                           if (config.ankiLockEnabled) {
-                            lines.push({ label: 'Anki Reviews', val: isAnkiDone ? '✅ Done' : '❌ Missed', color: isAnkiDone ? 'var(--accent-green)' : 'var(--accent-red)' });
+                            lines.push({ label: 'Anki Reviews', val: isAnkiDone ? '✅ Done' : '❌ Missed', color: isAnkiDone ? 'var(--color-success)' : 'var(--color-danger)' });
                           }
                           const isPracticeDone = c.p.practiceCompleted || c.p.practiceManualOverride;
                           if (config.practiceLockEnabled) {
-                            lines.push({ label: 'Consistent Practice', val: isPracticeDone ? '✅ Done' : '❌ Missed', color: isPracticeDone ? 'var(--accent-green)' : 'var(--accent-red)' });
+                            lines.push({ label: 'Consistent Practice', val: isPracticeDone ? '✅ Done' : '❌ Missed', color: isPracticeDone ? 'var(--color-success)' : 'var(--color-danger)' });
                           }
                           setHoveredPoint({
                             chartId: 'compliance',
@@ -1287,7 +1280,7 @@ export default function DashboardView({ stats, history, config }) {
 
               {hoveredPoint && hoveredPoint.chartId === 'compliance' && (
                 <div style={getSmartTooltipStyle(hoveredPoint)}>
-                  <div className="tooltip-date" style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 600, borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '4px', marginBottom: '4px' }}>{hoveredPoint.date}</div>
+                  <div className="tooltip-date" style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 600, borderBottom: '1px solid var(--border-color)', paddingBottom: '4px', marginBottom: '4px' }}>{hoveredPoint.date}</div>
                   {hoveredPoint.lines.map((l, i) => (
                     <div key={i} style={{ display: 'flex', gap: '8px', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.7rem', margin: '2px 0' }}>
                       <span style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--text-secondary)' }}>
@@ -1349,11 +1342,11 @@ export default function DashboardView({ stats, history, config }) {
             {/* Weekly Spec Line Chart */}
             {weeklyLogs.length >= 2 && (
               <div className="chart-card glass-card" style={{
-                background: 'rgba(255, 255, 255, 0.01)',
-                border: '1px solid rgba(255, 255, 255, 0.06)',
+                background: 'var(--bg-surface)',
+                border: '1px solid var(--border-color)',
                 padding: '20px 24px',
                 borderRadius: 'var(--radius-md)',
-                boxShadow: '0 10px 40px rgba(0,0,0,0.15)',
+                boxShadow: 'var(--shadow-sm)',
                 marginBottom: '24px',
                 position: 'relative'
               }}>
@@ -1398,22 +1391,22 @@ export default function DashboardView({ stats, history, config }) {
                       <svg viewBox={`0 0 ${w} ${h}`} style={{ overflow: 'visible' }}>
                         <defs>
                           <linearGradient id="purpleSpecGlow" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="0%" stopColor="var(--accent-purple)" stopOpacity="0.3"/>
-                            <stop offset="100%" stopColor="var(--accent-purple)" stopOpacity="0.0"/>
+                            <stop offset="0%" stopColor="var(--color-accent)" stopOpacity="0.3"/>
+                            <stop offset="100%" stopColor="var(--color-accent)" stopOpacity="0.0"/>
                           </linearGradient>
                         </defs>
 
                         {[0, 1, 2, 3].map(idx => {
                           const y = padT + (idx / 3) * gH;
-                          return <line key={idx} x1={padL} y1={y} x2={w - padR} y2={y} stroke="rgba(255, 255, 255, 0.04)" strokeWidth="1" />;
+                          return <line key={idx} x1={padL} y1={y} x2={w - padR} y2={y} stroke="var(--border-subtle)" strokeWidth="1" />;
                         })}
 
                         <path d={area} fill="url(#purpleSpecGlow)" style={{ pointerEvents: 'none' }} />
-                        <path d={path} fill="none" stroke="var(--accent-purple)" strokeWidth="2.5" style={{ filter: 'drop-shadow(0px 3px 6px rgba(168, 85, 247, 0.35))' }} />
+                        <path d={path} fill="none" stroke="var(--color-accent)" strokeWidth="2.5" style={{ filter: 'drop-shadow(0px 3px 6px rgba(168, 85, 247, 0.35))' }} />
 
                         {coords.map((c, i) => (
                           <g key={i}>
-                            <circle cx={c.x} cy={c.y} r="4" fill="var(--bg-surface)" stroke="var(--accent-purple)" strokeWidth="2" />
+                            <circle cx={c.x} cy={c.y} r="4" fill="var(--bg-surface)" stroke="var(--color-accent)" strokeWidth="2" />
                             <text x={c.x} y={h - 10} textAnchor="middle" fill="var(--text-secondary)" fontSize="8" fontWeight="500">{c.date.substring(5)}</text>
                             <text x={c.x} y={c.y - 8} textAnchor="middle" fill="var(--text-primary)" fontSize="8" fontWeight="700">{c.val}</text>
                           </g>
@@ -1436,32 +1429,32 @@ export default function DashboardView({ stats, history, config }) {
                 gap: '14px',
                 marginBottom: '24px'
               }}>
-                <div style={{ background: 'rgba(255, 255, 255, 0.02)', border: '1px solid rgba(255, 255, 255, 0.07)', borderLeft: '4px solid #a855f7', padding: '16px', borderRadius: 'var(--radius-sm)' }}>
+                <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-color)', borderLeft: '4px solid #a855f7', padding: '16px', borderRadius: 'var(--radius-sm)' }}>
                   <span style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: 600, display: 'block' }}>Start Weight</span>
                   <div style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--text-primary)', marginTop: '4px' }}>{latestWeekly.startWeight ? `${latestWeekly.startWeight} kg` : '-'}</div>
                   <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>w/c {latestWeekly.weekCommencing || 'latest'}</span>
                 </div>
 
-                <div style={{ background: 'rgba(255, 255, 255, 0.02)', border: '1px solid rgba(255, 255, 255, 0.07)', borderLeft: '4px solid #3b82f6', padding: '16px', borderRadius: 'var(--radius-sm)' }}>
+                <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-color)', borderLeft: '4px solid #3b82f6', padding: '16px', borderRadius: 'var(--radius-sm)' }}>
                   <span style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: 600, display: 'block' }}>Waist (Umbilical)</span>
                   <div style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--text-primary)', marginTop: '4px' }}>{latestWeekly.umbilical ? `${latestWeekly.umbilical} cm` : '-'}</div>
                 </div>
 
-                <div style={{ background: 'rgba(255, 255, 255, 0.02)', border: '1px solid rgba(255, 255, 255, 0.07)', borderLeft: '4px solid #10b981', padding: '16px', borderRadius: 'var(--radius-sm)' }}>
+                <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-color)', borderLeft: '4px solid #10b981', padding: '16px', borderRadius: 'var(--radius-sm)' }}>
                   <span style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: 600, display: 'block' }}>Biceps (L / R)</span>
                   <div style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--text-primary)', marginTop: '4px' }}>
                     {latestWeekly.bicepL || latestWeekly.bicepR ? `${latestWeekly.bicepL || '-'}/${latestWeekly.bicepR || '-'} cm` : '-'}
                   </div>
                 </div>
 
-                <div style={{ background: 'rgba(255, 255, 255, 0.02)', border: '1px solid rgba(255, 255, 255, 0.07)', borderLeft: '4px solid #f59e0b', padding: '16px', borderRadius: 'var(--radius-sm)' }}>
+                <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-color)', borderLeft: '4px solid #f59e0b', padding: '16px', borderRadius: 'var(--radius-sm)' }}>
                   <span style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: 600, display: 'block' }}>Quads (L / R)</span>
                   <div style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--text-primary)', marginTop: '4px' }}>
                     {latestWeekly.quadL || latestWeekly.quadR ? `${latestWeekly.quadL || '-'}/${latestWeekly.quadR || '-'} cm` : '-'}
                   </div>
                 </div>
 
-                <div style={{ background: 'rgba(255, 255, 255, 0.02)', border: '1px solid rgba(255, 255, 255, 0.07)', borderLeft: '4px solid #ec4899', padding: '16px', borderRadius: 'var(--radius-sm)' }}>
+                <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-color)', borderLeft: '4px solid #ec4899', padding: '16px', borderRadius: 'var(--radius-sm)' }}>
                   <span style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: 600, display: 'block' }}>Glutes & Chest</span>
                   <div style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--text-primary)', marginTop: '4px' }}>
                     G: {latestWeekly.glutes || '-'} | C: {latestWeekly.chest || '-'} cm
@@ -1472,11 +1465,11 @@ export default function DashboardView({ stats, history, config }) {
 
             {/* Weekly Log Table */}
             <div className="chart-card glass-card" style={{
-              background: 'rgba(255, 255, 255, 0.01)',
-              border: '1px solid rgba(255, 255, 255, 0.06)',
+              background: 'var(--bg-surface)',
+              border: '1px solid var(--border-color)',
               padding: '24px',
               borderRadius: 'var(--radius-md)',
-              boxShadow: '0 10px 40px rgba(0,0,0,0.15)',
+              boxShadow: 'var(--shadow-sm)',
               marginBottom: '24px'
             }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '10px' }}>
@@ -1491,7 +1484,7 @@ export default function DashboardView({ stats, history, config }) {
                 <div style={{ overflowX: 'auto' }}>
                   <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
                     <thead>
-                      <tr style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.1)', color: 'var(--text-muted)', textAlign: 'left' }}>
+                      <tr style={{ borderBottom: '1px solid var(--border-color)', color: 'var(--text-muted)', textAlign: 'left' }}>
                         <th style={{ padding: '10px' }}>Week Commencing</th>
                         <th style={{ padding: '10px' }}>Start Weight</th>
                         <th style={{ padding: '10px' }}>Umbilical (Waist)</th>
@@ -1507,7 +1500,7 @@ export default function DashboardView({ stats, history, config }) {
                       {[...weeklyLogs].reverse().map((wLog, i) => {
                         const w = wLog.weeklyData;
                         return (
-                          <tr key={i} style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.04)', color: 'var(--text-primary)' }}>
+                          <tr key={i} style={{ borderBottom: '1px solid var(--border-color)', color: 'var(--text-primary)' }}>
                             <td style={{ padding: '10px', fontWeight: 600 }}>{w.weekCommencing || wLog.date}</td>
                             <td style={{ padding: '10px' }}>{w.startWeight ? `${w.startWeight} kg` : '-'}</td>
                             <td style={{ padding: '10px' }}>{w.umbilical ? `${w.umbilical} cm` : '-'}</td>
@@ -1520,7 +1513,7 @@ export default function DashboardView({ stats, history, config }) {
                                 <div style={{ display: 'flex', gap: '6px' }}>
                                   {['front', 'back', 'sideLeft', 'sideRight', 'side'].map(p => w.photos[p] ? (
                                     <a key={p} href={w.photos[p]} target="_blank" rel="noreferrer" title={`${p} pose`}>
-                                      <img src={w.photos[p]} alt={p} style={{ width: '36px', height: '36px', objectFit: 'cover', borderRadius: '4px', border: '1px solid rgba(255,255,255,0.2)' }} />
+                                      <img src={w.photos[p]} alt={p} style={{ width: '36px', height: '36px', objectFit: 'cover', borderRadius: '4px', border: '1px solid var(--border-color)' }} />
                                     </a>
                                   ) : null)}
                                 </div>

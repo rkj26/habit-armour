@@ -10,7 +10,7 @@ export default function MorningReferenceCard({ status }) {
   if (!morningCompleted && !morningJournalCompleted) {
     return (
       <div className="glass-card" style={{ 
-        borderLeft: '4px solid var(--accent-red)', 
+        borderLeft: '4px solid var(--color-danger)', 
         background: 'rgba(239, 68, 68, 0.02)',
         padding: '16px 20px',
         marginBottom: '24px',

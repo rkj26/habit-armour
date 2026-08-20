@@ -32,6 +32,8 @@ export default function Navigation({
         { id: 'dashboard', label: 'Analytics Dashboard', icon: '📈' },
         { id: 'history', label: 'Log History', icon: '📜' },
         { id: 'settings', label: 'Settings & Schedules', icon: '⚙️' },
+        // Reference for every UI primitive. Dev server only -- stripped from production builds.
+        ...(import.meta.env.DEV ? [{ id: 'gallery', label: 'UI Gallery', icon: '🎨' }] : []),
       ]
     }
   ];

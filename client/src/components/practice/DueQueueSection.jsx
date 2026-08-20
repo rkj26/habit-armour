@@ -36,7 +36,7 @@ export default function DueQueueSection({
           </div>
         </div>
 
-        <div className="progress-bar-container" style={{ margin: '14px 0 6px 0', height: '8px', background: 'rgba(255,255,255,0.08)', borderRadius: '4px', overflow: 'hidden' }}>
+        <div className="progress-bar-container" style={{ margin: '14px 0 6px 0', height: '8px', background: 'var(--bg-subtle)', borderRadius: '4px', overflow: 'hidden' }}>
           <div
             className="progress-bar-fill"
             style={{
@@ -104,7 +104,7 @@ export default function DueQueueSection({
                 style={{
                   marginBottom: '20px',
                   border: groupCompleted ? '1px solid rgba(34, 197, 94, 0.3)' : '1px solid var(--border-color)',
-                  background: groupCompleted ? 'rgba(34, 197, 94, 0.03)' : 'var(--surface-color)',
+                  background: groupCompleted ? 'rgba(34, 197, 94, 0.03)' : 'var(--bg-surface)',
                   borderRadius: 'var(--radius-lg)',
                   overflow: 'hidden'
                 }}
@@ -118,7 +118,7 @@ export default function DueQueueSection({
                     justifyContent: 'space-between',
                     alignItems: 'center',
                     cursor: 'pointer',
-                    background: 'rgba(255, 255, 255, 0.02)',
+                    background: 'var(--bg-surface)',
                     borderBottom: isGroupExpanded ? '1px solid var(--border-color)' : 'none',
                     userSelect: 'none'
                   }}
@@ -165,7 +165,7 @@ export default function DueQueueSection({
                             padding: '16px',
                             borderRadius: 'var(--radius-md)',
                             border: isComplete ? '1px solid rgba(34, 197, 94, 0.3)' : '1px solid var(--border-color)',
-                            background: isComplete ? 'rgba(34, 197, 94, 0.04)' : 'rgba(255, 255, 255, 0.02)',
+                            background: isComplete ? 'var(--color-success-subtle)' : 'var(--bg-surface)',
                             position: 'relative'
                           }}
                         >

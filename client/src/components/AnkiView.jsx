@@ -252,7 +252,7 @@ export default function AnkiView({ API_URL, status, onRefreshStatus }) {
           <div style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.9rem' }}>
               <thead>
-                <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.1)', color: '#94a3b8' }}>
+                <tr style={{ borderBottom: '1px solid var(--border-color)', color: '#94a3b8' }}>
                   <th style={{ padding: '0.75rem 0.5rem' }}>Deck Name</th>
                   <th style={{ padding: '0.75rem 0.5rem', textAlign: 'center' }}>Review Due</th>
                   <th style={{ padding: '0.75rem 0.5rem', textAlign: 'center' }}>Learning</th>
@@ -273,7 +273,7 @@ export default function AnkiView({ API_URL, status, onRefreshStatus }) {
                     <tr 
                       key={deck.deck_id || deck.name} 
                       style={{ 
-                        borderBottom: '1px solid rgba(255,255,255,0.05)',
+                        borderBottom: '1px solid var(--border-color)',
                         backgroundColor: isCleared ? 'transparent' : 'rgba(239, 68, 68, 0.05)'
                       }}
                     >
@@ -325,14 +325,13 @@ export default function AnkiView({ API_URL, status, onRefreshStatus }) {
           right: 0,
           bottom: 0,
           backgroundColor: 'rgba(0,0,0,0.7)',
-          backdropFilter: 'blur(4px)',
           display: 'flex',
           justifyContent: 'center',
           alignItems: 'center',
           zIndex: 9999,
           padding: '1rem'
         }}>
-          <div className="glass-card" style={{ width: '100%', maxWidth: '500px', padding: '1.75rem', border: '1px solid rgba(255,255,255,0.15)' }}>
+          <div className="glass-card" style={{ width: '100%', maxWidth: '500px', padding: '1.75rem', border: '1px solid var(--border-color)' }}>
             <h2 style={{ margin: '0 0 0.5rem 0', fontSize: '1.25rem' }}>📱 Manual Anki Review Override</h2>
             <p style={{ fontSize: '0.85rem', color: '#94a3b8', margin: '0 0 1.25rem 0' }}>
               If you finished your daily reviews on AnkiMobile (iOS/Android) or AnkiWeb without syncing to desktop Anki, submit this override to clear your daily habit lock.

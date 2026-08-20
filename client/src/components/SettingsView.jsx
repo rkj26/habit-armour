@@ -3,9 +3,6 @@ import React from 'react';
 export default function SettingsView({
   config,
   handleConfigChange,
-  testingSync,
-  testSheetSync,
-  syncStatusMsg,
   saveConfig
 }) {
   const [newSuppInput, setNewSuppInput] = React.useState('');
@@ -177,7 +174,7 @@ export default function SettingsView({
               key={preset}
               type="button"
               className="btn btn-link"
-              style={{ fontSize: '0.78rem', padding: '2px 8px', background: 'rgba(255,255,255,0.05)', borderRadius: '6px' }}
+              style={{ fontSize: '0.78rem', padding: '2px 8px', background: 'var(--bg-subtle)', borderRadius: '6px' }}
               onClick={() => addWebsite(preset)}
               disabled={allowedWebsitesList.includes(preset)}
             >
@@ -308,21 +305,6 @@ export default function SettingsView({
           </div>
         )}
 
-        {(config.journalStorage === 'gdoc' || config.journalStorage === 'both') && (
-          <div className="form-group">
-            <label className="form-label">Google Doc URL or ID</label>
-            <input 
-              type="text" 
-              className="form-input" 
-              name="googleDocId" 
-              value={config.googleDocId || ''} 
-              onChange={handleConfigChange} 
-              placeholder="e.g. https://docs.google.com/document/d/.../edit"
-              required
-            />
-            <span className="sub-label">We'll append journal entries to this document via Google Apps Script.</span>
-          </div>
-        )}
       </div>
 
 
@@ -495,8 +477,8 @@ export default function SettingsView({
                       alignItems: 'center',
                       gap: '8px',
                       padding: '6px 12px',
-                      background: 'rgba(255, 255, 255, 0.06)',
-                      border: '1px solid rgba(255, 255, 255, 0.12)',
+                      background: 'var(--bg-subtle)',
+                      border: '1px solid var(--border-color)',
                       borderRadius: '20px',
                       fontSize: '0.85rem',
                       fontWeight: 500
@@ -665,8 +647,8 @@ export default function SettingsView({
                 alignItems: 'center',
                 gap: '8px',
                 padding: '6px 12px',
-                background: 'rgba(255, 255, 255, 0.06)',
-                border: '1px solid rgba(255, 255, 255, 0.12)',
+                background: 'var(--bg-subtle)',
+                border: '1px solid var(--border-color)',
                 borderRadius: '20px',
                 fontSize: '0.85rem',
                 fontWeight: 500

@@ -57,7 +57,7 @@ export default function PerformanceSection({
         <h3 style={{ fontSize: '1.1rem', fontWeight: 700, margin: '0 0 14px 0' }}>🏆 Topic Mastery Progress</h3>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
           {topics.map(t => (
-            <div key={t.itemId} style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-md)', padding: '12px 16px' }}>
+            <div key={t.itemId} style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-md)', padding: '12px 16px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
                 <div>
                   <span className={`badge ${t.type === 'paper' ? 'badge-paper' : 'badge-topic'}`} style={{ fontSize: '0.68rem', marginRight: '8px' }}>
@@ -73,7 +73,7 @@ export default function PerformanceSection({
                   </span>
                 </div>
               </div>
-              <div style={{ height: '6px', background: 'rgba(255,255,255,0.08)', borderRadius: '3px', overflow: 'hidden' }}>
+              <div style={{ height: '6px', background: 'var(--bg-subtle)', borderRadius: '3px', overflow: 'hidden' }}>
                 <div
                   style={{
                     height: '100%',
@@ -97,7 +97,7 @@ export default function PerformanceSection({
             const fullQ = allQuestions.find(orig => orig.id === q.questionId) || q;
 
             return (
-              <div key={q.questionId} style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-md)', padding: '12px 16px' }}>
+              <div key={q.questionId} style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-md)', padding: '12px 16px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px', marginBottom: '8px' }}>
                   <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
                     <span className="badge badge-difficulty" style={{ fontSize: '0.7rem' }}>{q.difficulty}</span>
@@ -105,7 +105,7 @@ export default function PerformanceSection({
                     <span className="badge" style={{
                       fontSize: '0.7rem',
                       fontWeight: 700,
-                      background: q.statusTier === 'Mastered' ? 'rgba(34, 197, 94, 0.15)' : q.statusTier === 'Proficient' ? 'rgba(59, 130, 246, 0.15)' : q.statusTier === 'Developing' ? 'rgba(234, 179, 8, 0.15)' : 'rgba(255,255,255,0.05)',
+                      background: q.statusTier === 'Mastered' ? 'rgba(34, 197, 94, 0.15)' : q.statusTier === 'Proficient' ? 'rgba(59, 130, 246, 0.15)' : q.statusTier === 'Developing' ? 'var(--color-warning-subtle)' : 'var(--bg-subtle)',
                       color: q.statusTier === 'Mastered' ? '#22c55e' : q.statusTier === 'Proficient' ? '#3b82f6' : q.statusTier === 'Developing' ? '#eab308' : 'var(--text-muted)'
                     }}>
                       {q.statusTier}
