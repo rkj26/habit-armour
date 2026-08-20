@@ -55,6 +55,7 @@ export default function App() {
     practiceLockEnabled: true,
     practiceLockStartHour: 21,
     practiceMinDueToUnlock: 1,
+    practiceNewCardsPerDay: 2,
     supplementsList: ['Vitamin D3', 'Vitamin K2', 'Omega-3', 'Creatine'],
     enforceSupplementsBlocker: true
   });

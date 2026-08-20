@@ -4,7 +4,8 @@ import json
 import base64
 import httpx
 from datetime import datetime, timedelta
-from typing import Dict, Any, Tuple, Optional, List
+from typing import Dict, Any, Tuple, Optional, List, Set
+from sqlmodel import Session, select
 from app.config import settings, get_local_date_string
 from app.models.study import StudyItem, StudyQuestion, StudyAttempt
 from app.models.daily_entry import DailyEntry
@@ -503,3 +504,473 @@ Respond with strict JSON matching this exact structure:
         raw_text = data["candidates"][0]["content"]["parts"][0]["text"]
         parsed = clean_and_parse_gemini_json(raw_text)
         return parsed.get("atomicQuestions", [])
+
+
+# -----------------------------------------------------------------------------
+# Domain Business Logic: Due Queue Pacing, Performance Analytics, Attempts
+# -----------------------------------------------------------------------------
+
+SECTION_RANK = {
+    "Section: Foundations": 0,
+    "Section: Value Optimisation": 1,
+    "Section: Policy Optimisation": 2,
+    "Section: RLHF / RLAIF / RLVR": 3,
+    "Section: Papers": 4,
+}
+
+def get_due_practice_queue(
+    session: Session,
+    today: Optional[str] = None,
+    config: Optional[Any] = None
+) -> Dict[str, Any]:
+    """
+    Computes the paced due queue grouped by topic ladder ('one box per topic').
+    - Real-time retrievability R(t, S) is computed for all due cards.
+    - In-progress topics (any prior attempt history) are always shown in full.
+    - New topics (never attempted) are capped at practiceNewCardsPerDay and sorted in syllabus order.
+    """
+    from app.pillars.status import get_effective_config
+    if today is None:
+        today = get_local_date_string()
+    if config is None:
+        config = get_effective_config(session)
+
+    daily_target = getattr(config, "practiceDailyTarget", 5) or 5
+    new_topics_per_day = getattr(config, "practiceNewCardsPerDay", 2) or 2
+
+    # Fetch today's entry to determine completion status
+    entry = session.exec(select(DailyEntry).where(DailyEntry.date == today)).first()
+    completed_ids = (entry.practiceCompletedQuestionIds or []) if entry else []
+    completed_today = len(completed_ids)
+
+    all_active_count = len(session.exec(select(StudyQuestion.id).where(StudyQuestion.active == True)).all())
+
+    questions = session.exec(
+        select(StudyQuestion).where(
+            StudyQuestion.active == True,
+            StudyQuestion.dueDate <= today
+        )
+    ).all()
+
+    due_list = []
+    for q in questions:
+        item = session.exec(select(StudyItem).where(StudyItem.id == q.itemId)).first()
+
+        # Calculate current elapsed days and retrievability
+        elapsed = 0
+        if q.lastReviewedAt:
+            try:
+                last_d = datetime.fromisoformat(q.lastReviewedAt.replace("Z", "+00:00")).date()
+                today_d = datetime.strptime(today, "%Y-%m-%d").date()
+                elapsed = max(0, (today_d - last_d).days)
+            except Exception:
+                elapsed = 0
+        r_current = compute_retrievability(elapsed, q.stability) if (q.stability and q.stability > 0) else (1.0 if (q.repetitions or 0) > 0 else 0.0)
+
+        is_completed_today = q.id in completed_ids
+
+        due_list.append({
+            "id": q.id,
+            "itemId": q.itemId,
+            "itemType": q.itemType,
+            "prompt": q.prompt,
+            "answerTemplate": q.answerTemplate,
+            "difficulty": q.difficulty,
+            "source": q.source,
+            "active": q.active,
+            "order": q.order or 0,
+            "completedToday": is_completed_today,
+            "fsrs": {
+                "stability": q.stability or 0.0,
+                "difficulty": q.fsrsDifficulty or 5.0,
+                "retrievability": r_current,
+                "lapses": q.lapses or 0,
+                "state": q.state or 0,
+                "repetitions": q.repetitions or 0,
+                "intervalDays": q.intervalDays or 0,
+                "dueDate": q.dueDate,
+                "lastReviewedAt": q.lastReviewedAt
+            },
+            "sm2": {
+                "easeFactor": q.easeFactor or 2.5,
+                "repetitions": q.repetitions or 0,
+                "intervalDays": q.intervalDays or 0,
+                "dueDate": q.dueDate,
+                "lastReviewedAt": q.lastReviewedAt
+            },
+            "itemTitle": item.title if item else "Unknown",
+            "itemTags": item.tags if item else [],
+            "itemNotes": item.notes if item else "",
+            "itemPaper": item.paper if item else None,
+            "hasModelSolution": bool(q.modelSolution),
+            "modelSolution": q.modelSolution,
+            "keyTakeaways": q.keyTakeaways or []
+        })
+
+    # Sort due list:
+    # 1. Uncompleted today first
+    # 2. Previously reviewed cards (repetitions > 0) by lowest Retrievability R first
+    # 3. New cards (repetitions == 0)
+    due_list.sort(key=lambda x: (
+        1 if x["completedToday"] else 0,
+        0 if x["fsrs"]["repetitions"] > 0 else 1,
+        x["fsrs"]["retrievability"],
+        x["order"]
+    ))
+
+    # A topic counts as "in progress" if it has ANY real attempt history at all
+    started_item_ids = {row for row in session.exec(select(StudyAttempt.itemId).distinct()).all()}
+
+    groups_map: Dict[str, Dict[str, Any]] = {}
+    group_order: List[str] = []
+    for q in due_list:
+        iid = q["itemId"]
+        if iid not in groups_map:
+            groups_map[iid] = {
+                "itemId": iid,
+                "itemTitle": q["itemTitle"],
+                "itemTags": q["itemTags"],
+                "itemType": q["itemType"],
+                "answerTemplate": q["answerTemplate"],
+                "questions": []
+            }
+            group_order.append(iid)
+        groups_map[iid]["questions"].append(q)
+
+    review_groups = []
+    new_groups = []
+    for iid in group_order:
+        g = groups_map[iid]
+        g["questions"].sort(key=lambda x: x["order"])
+        g["completedTodayCount"] = sum(1 for x in g["questions"] if x["completedToday"])
+        g["dueCount"] = len(g["questions"])
+        is_review = iid in started_item_ids
+        g["isReview"] = is_review
+        if is_review:
+            reps_now = [x["fsrs"]["retrievability"] for x in g["questions"] if x["fsrs"]["repetitions"] > 0]
+            g["mostUrgentRetrievability"] = min(reps_now) if reps_now else 0.0
+            review_groups.append(g)
+        else:
+            g["sectionTag"] = next((t for t in (g["itemTags"] or []) if t.startswith("Section:")), None)
+            new_groups.append(g)
+
+    review_groups.sort(key=lambda g: g["mostUrgentRetrievability"])
+    new_groups.sort(key=lambda g: (SECTION_RANK.get(g["sectionTag"], 5), g["itemTitle"]))
+
+    shown_new_groups = new_groups[:new_topics_per_day]
+    queued_new_groups = new_groups[new_topics_per_day:]
+
+    due_groups = review_groups + shown_new_groups
+    paced_due_list = [q for g in due_groups for q in g["questions"]]
+    target_met = completed_today >= daily_target
+
+    return {
+        "today": today,
+        "dueCount": len(paced_due_list),
+        "totalDueBacklog": len(due_list),
+        "queuedNewTopicsCount": len(queued_new_groups),
+        "newTopicsPerDay": new_topics_per_day,
+        "dailyTarget": daily_target,
+        "completedToday": completed_today,
+        "targetMet": target_met,
+        "totalBankCount": all_active_count,
+        "dueQuestions": paced_due_list,
+        "dueGroups": due_groups
+    }
+
+
+def record_practice_attempt(
+    session: Session,
+    question: StudyQuestion,
+    item: StudyItem,
+    answer_markdown: str,
+    eval_res: Dict[str, Any],
+    today: Optional[str] = None
+) -> Dict[str, Any]:
+    """
+    Records an evaluation attempt, updates FSRS & SM-2 memory parameters,
+    caches model solutions if needed, and marks DailyEntry practice progress.
+    """
+    from app.pillars.status import get_effective_config, get_or_create_today_entry
+
+    if today is None:
+        today = get_local_date_string()
+
+    score = max(0.0, min(10.0, float(eval_res.get("score", 0.0))))
+    grade = score_to_fsrs_grade(score)
+
+    # Compute new FSRS state
+    fsrs_res = compute_next_fsrs(
+        current_stability=question.stability,
+        current_difficulty=question.fsrsDifficulty or 5.0,
+        current_reps=question.repetitions,
+        current_lapses=question.lapses or 0,
+        current_state=question.state or 0,
+        last_reviewed_at=question.lastReviewedAt,
+        grade=grade,
+        today_str=today
+    )
+
+    question.stability = fsrs_res["stability"]
+    question.fsrsDifficulty = fsrs_res["fsrsDifficulty"]
+    question.repetitions = fsrs_res["repetitions"]
+    question.lapses = fsrs_res["lapses"]
+    question.state = fsrs_res["state"]
+    question.intervalDays = fsrs_res["intervalDays"]
+    question.dueDate = fsrs_res["dueDate"]
+    question.easeFactor = fsrs_res["easeFactor"]
+    question.lastReviewedAt = datetime.utcnow().isoformat()
+
+    # Cache model solution in DB forever if not already present
+    if not question.modelSolution and eval_res.get("idealAnswer"):
+        question.modelSolution = eval_res.get("idealAnswer")
+        question.keyTakeaways = eval_res.get("keyImprovements", [])
+    session.add(question)
+
+    # Save Attempt log
+    attempt_id = f"att_{int(datetime.now().timestamp() * 1000)}"
+    attempt = StudyAttempt(
+        id=attempt_id,
+        questionId=question.id,
+        itemId=question.itemId,
+        answerMarkdown=answer_markdown,
+        evaluation={
+            "score": score,
+            "grade": grade,
+            "fsrs": fsrs_res,
+            "quality": score_to_sm2_quality(score),
+            "rubric": eval_res.get("rubric", {}),
+            "critique": eval_res.get("critique", ""),
+            "flaggedIssues": eval_res.get("flaggedIssues", []),
+            "idealAnswer": eval_res.get("idealAnswer", ""),
+            "keyImprovements": eval_res.get("keyImprovements", [])
+        },
+        geminiModel="gemini-2.5-flash"
+    )
+    session.add(attempt)
+
+    # Update Daily Entry
+    entry = get_or_create_today_entry(session, today)
+    answered_ids = list(entry.practiceCompletedQuestionIds or [])
+    if question.id not in answered_ids:
+        answered_ids.append(question.id)
+    entry.practiceCompletedQuestionIds = answered_ids
+    entry.practiceCompletedCount = len(answered_ids)
+
+    # Calculate remaining due
+    due_qs = session.exec(
+        select(StudyQuestion).where(
+            StudyQuestion.active == True,
+            StudyQuestion.dueDate <= today
+        )
+    ).all()
+    entry.practiceDueCount = len(due_qs)
+
+    config = get_effective_config(session)
+    entry.practiceCompleted = is_practice_satisfied(entry, len(due_qs), config.practiceMinDueToUnlock)
+    session.add(entry)
+    session.commit()
+    session.refresh(attempt)
+    session.refresh(question)
+
+    return {
+        "success": True,
+        "attempt": attempt.dict(),
+        "updatedQuestion": question.dict(),
+        "item": item.dict(),
+        "fsrs": fsrs_res,
+        "sm2": {
+            "easeFactor": question.easeFactor,
+            "repetitions": question.repetitions,
+            "intervalDays": question.intervalDays,
+            "dueDate": question.dueDate,
+            "lastReviewedAt": question.lastReviewedAt
+        },
+        "practiceCompletedToday": entry.practiceCompleted,
+        "remainingDueCount": entry.practiceDueCount,
+        "distinctCompletedToday": entry.practiceCompletedCount
+    }
+
+
+def get_performance_analytics(
+    session: Session,
+    today_str: Optional[str] = None
+) -> Dict[str, Any]:
+    """
+    Computes overall, topic-level, and question-level FSRS performance & mastery metrics.
+    """
+    if today_str is None:
+        today_str = get_local_date_string()
+
+    all_attempts = session.exec(select(StudyAttempt).order_by(StudyAttempt.submittedAt.asc())).all()
+    all_questions = session.exec(select(StudyQuestion)).all()
+    all_items = session.exec(select(StudyItem)).all()
+
+    items_map = {it.id: it for it in all_items}
+
+    # Group attempts by question
+    question_attempts: Dict[str, List[StudyAttempt]] = {}
+    for att in all_attempts:
+        question_attempts.setdefault(att.questionId, []).append(att)
+
+    question_metrics = []
+    for q in all_questions:
+        if not q.active and q.id not in question_attempts:
+            continue
+        atts = question_attempts.get(q.id, [])
+        scores = [float(a.evaluation.get("score", 0.0)) for a in atts if a.evaluation and "score" in a.evaluation]
+        avg_score = round(sum(scores) / len(scores), 1) if scores else 0.0
+        latest_score = scores[-1] if scores else None
+
+        # Mastery Status based on FSRS stability and academic score
+        if not scores:
+            status_tier = "Not Started"
+        elif avg_score >= 8.5 and (latest_score is not None and latest_score >= 8.0):
+            status_tier = "Mastered"
+        elif avg_score >= 7.0:
+            status_tier = "Proficient"
+        elif avg_score >= 5.0:
+            status_tier = "Developing"
+        else:
+            status_tier = "Needs Work"
+
+        # Calculate current elapsed days and retrievability
+        elapsed = 0
+        if q.lastReviewedAt:
+            try:
+                last_d = datetime.fromisoformat(q.lastReviewedAt.replace("Z", "+00:00")).date()
+                today_d = datetime.strptime(today_str, "%Y-%m-%d").date()
+                elapsed = max(0, (today_d - last_d).days)
+            except Exception:
+                elapsed = 0
+        r_current = compute_retrievability(elapsed, q.stability) if q.stability > 0 else (1.0 if q.repetitions > 0 else 0.0)
+
+        item = items_map.get(q.itemId)
+        question_metrics.append({
+            "questionId": q.id,
+            "prompt": q.prompt,
+            "itemId": q.itemId,
+            "itemTitle": item.title if item else "Unknown",
+            "itemType": q.itemType,
+            "difficulty": q.difficulty,
+            "source": q.source,
+            "active": q.active,
+            "totalAttempts": len(atts),
+            "scores": scores,
+            "recentScores": scores[-5:] if scores else [],
+            "averageScore": avg_score,
+            "latestScore": latest_score,
+            "statusTier": status_tier,
+            "fsrs": {
+                "stability": q.stability,
+                "difficulty": q.fsrsDifficulty or 5.0,
+                "retrievability": r_current,
+                "lapses": q.lapses or 0,
+                "state": q.state or 0,
+                "repetitions": q.repetitions,
+                "intervalDays": q.intervalDays,
+                "dueDate": q.dueDate,
+                "lastReviewedAt": q.lastReviewedAt
+            },
+            "easeFactor": q.easeFactor,
+            "repetitions": q.repetitions,
+            "intervalDays": q.intervalDays,
+            "dueDate": q.dueDate,
+            "lastAttemptedAt": atts[-1].submittedAt if atts else None,
+            "hasModelSolution": bool(q.modelSolution)
+        })
+
+    # Overall metrics
+    all_scores = [float(a.evaluation.get("score", 0.0)) for a in all_attempts if a.evaluation and "score" in a.evaluation]
+    overall_avg = round(sum(all_scores) / len(all_scores), 1) if all_scores else 0.0
+    mastered_count = sum(1 for qm in question_metrics if qm["statusTier"] == "Mastered")
+    proficient_count = sum(1 for qm in question_metrics if qm["statusTier"] == "Proficient")
+    developing_count = sum(1 for qm in question_metrics if qm["statusTier"] == "Developing")
+    needs_work_count = sum(1 for qm in question_metrics if qm["statusTier"] == "Needs Work")
+
+    stabilities = [qm["fsrs"]["stability"] for qm in question_metrics if qm["active"] and qm["fsrs"]["stability"] > 0]
+    avg_stability = round(sum(stabilities) / len(stabilities), 1) if stabilities else 0.0
+
+    # Topic level summaries
+    topic_metrics = []
+    for it in all_items:
+        it_qs = [qm for qm in question_metrics if qm["itemId"] == it.id and qm["active"]]
+        it_scores = [s for qm in it_qs for s in qm["scores"]]
+        it_avg = round(sum(it_scores) / len(it_scores), 1) if it_scores else 0.0
+        it_mastered = sum(1 for qm in it_qs if qm["statusTier"] == "Mastered")
+        topic_metrics.append({
+            "itemId": it.id,
+            "title": it.title,
+            "type": it.type,
+            "tags": it.tags or [],
+            "questionCount": len(it_qs),
+            "attemptCount": len(it_scores),
+            "averageScore": it_avg,
+            "masteredCount": it_mastered,
+            "masteryRate": round((it_mastered / len(it_qs) * 100), 1) if it_qs else 0.0
+        })
+
+    return {
+        "summary": {
+            "totalQuestions": len([q for q in all_questions if q.active]),
+            "totalAttempts": len(all_attempts),
+            "overallAverageScore": overall_avg,
+            "averageStabilityDays": avg_stability,
+            "algorithm": "FSRS-5 (DSR Model)",
+            "masteredCount": mastered_count,
+            "proficientCount": proficient_count,
+            "developingCount": developing_count,
+            "needsWorkCount": needs_work_count
+        },
+        "questions": question_metrics,
+        "topics": topic_metrics
+    }
+
+
+def balance_backlog_schedule(
+    session: Session,
+    cards_per_day: int = 5,
+    today: Optional[str] = None
+) -> Dict[str, Any]:
+    """
+    Distributes unreviewed cards across future days to balance study volume.
+    """
+    if today is None:
+        today = get_local_date_string()
+
+    all_questions = session.exec(select(StudyQuestion).where(StudyQuestion.active == True)).all()
+    if not all_questions:
+        return {"success": True, "message": "No active questions found in Study Bank.", "staggeredCount": 0}
+
+    reviewed_cards = [q for q in all_questions if (q.repetitions or 0) > 0]
+    unreviewed_cards = [q for q in all_questions if (q.repetitions or 0) == 0]
+
+    unreviewed_cards.sort(key=lambda q: (q.itemId, 0 if q.difficulty == "Easy" else 1 if q.difficulty == "Medium" else 2))
+
+    day_offset = 0
+    reviewed_due_today = [q for q in reviewed_cards if q.dueDate <= today]
+    assigned_today = len(reviewed_due_today)
+
+    staggered_count = 0
+    for q in unreviewed_cards:
+        if assigned_today >= cards_per_day:
+            day_offset += 1
+            assigned_today = 0
+
+        target_date = add_days_to_date_string(today, day_offset)
+        q.dueDate = target_date
+        session.add(q)
+        staggered_count += 1
+        assigned_today += 1
+
+    session.commit()
+    days_span = day_offset + 1
+    return {
+        "success": True,
+        "message": f"Successfully balanced {staggered_count} cards across {days_span} days ({cards_per_day} cards/day).",
+        "staggeredCount": staggered_count,
+        "daysSpan": days_span,
+        "cardsPerDay": cards_per_day,
+        "todayDueCount": min(cards_per_day, len(all_questions))
+    }
+

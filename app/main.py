@@ -26,11 +26,19 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# CORS
+# CORS - local-only app, no cookies/auth in use. In practice the Vite dev
+# server proxies /api and /uploads to port 3000 (see client/vite.config.js),
+# and the deployed app serves client + API same-origin, so this mostly guards
+# against a stray browser tab on another origin hitting the local API directly.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
+    allow_origins=[
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+    ],
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )

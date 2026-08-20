@@ -590,6 +590,20 @@ export default function SettingsView({
               />
               <span className="sub-label">Daily practice target (0 = clear all due queue; 1 = at least 1 session required).</span>
             </div>
+
+            <div className="form-group">
+              <label className="form-label">New Topic Areas Per Day</label>
+              <input
+                type="number"
+                className="form-input"
+                name="practiceNewCardsPerDay"
+                value={config.practiceNewCardsPerDay !== undefined ? config.practiceNewCardsPerDay : 2}
+                onChange={handleConfigChange}
+                min="0"
+                max="10"
+              />
+              <span className="sub-label">How many brand-new topic ladders get introduced per day (each shown as one grouped box). Topics you've already started always keep showing their due reviews in full, regardless of this cap.</span>
+            </div>
           </div>
         )}
       </div>
