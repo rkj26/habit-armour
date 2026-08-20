@@ -22,15 +22,24 @@ if [ -z "$PYTHON_BIN" ]; then
 fi
 echo "Using Python: $PYTHON_BIN"
 
-# 2. Load port from .env if present
+# 2. Load port and bind host from .env if present
 PORT=3000
+HOST=127.0.0.1
 if [ -f "$REPO_DIR/.env" ]; then
   ENV_PORT=$(grep -v '^#' "$REPO_DIR/.env" | grep -E '^PORT=' | cut -d= -f2- | tr -d '[:space:]')
   if [ ! -z "$ENV_PORT" ]; then
     PORT="$ENV_PORT"
   fi
+  ENV_HOST=$(grep -v '^#' "$REPO_DIR/.env" | grep -E '^HOST=' | cut -d= -f2- | tr -d '[:space:]')
+  if [ ! -z "$ENV_HOST" ]; then
+    HOST="$ENV_HOST"
+  fi
 fi
 echo "Configured Port: $PORT"
+echo "Bind Host: $HOST"
+if [ "$HOST" != "127.0.0.1" ] && [ "$HOST" != "localhost" ]; then
+  echo "  ⚠️  The API has no auth layer. Binding to $HOST exposes every endpoint to your network."
+fi
 
 # 3. Build React Client Assets
 if [ -d "$REPO_DIR/client" ]; then
@@ -69,7 +78,13 @@ if [ ! -d "$APP_DIR/.venv" ]; then
 fi
 
 "$APP_DIR/.venv/bin/pip" install --upgrade pip --quiet
-"$APP_DIR/.venv/bin/pip" install -r "$APP_DIR/requirements.txt" --quiet
+# Prefer the pinned lockfile so deploys are reproducible; fall back to loose pins.
+if [ -f "$APP_DIR/requirements.lock.txt" ]; then
+  echo "Installing pinned dependencies from requirements.lock.txt..."
+  "$APP_DIR/.venv/bin/pip" install -r "$APP_DIR/requirements.lock.txt" --quiet
+else
+  "$APP_DIR/.venv/bin/pip" install -r "$APP_DIR/requirements.txt" --quiet
+fi
 
 # 6. Run SQLite Migration
 echo "Migrating data to SQLite in $APP_DIR..."
@@ -86,6 +101,7 @@ launchctl unload "$PLIST_DIR/com.user.habitlock.plist" 2>/dev/null
 echo "Generating launchd plist files..."
 sed -e "s|{{HOME_DIR}}|$HOME|g" \
     -e "s|{{PORT}}|$PORT|g" \
+    -e "s|{{HOST}}|$HOST|g" \
     "$REPO_DIR/com.user.habitserver.plist.template" > "$PLIST_DIR/com.user.habitserver.plist"
 
 sed -e "s|{{HOME_DIR}}|$HOME|g" \

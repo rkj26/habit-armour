@@ -5,12 +5,14 @@ Monitors local habit status and enforces kiosk / screen locking when overdue.
 Designed for non-disruptive, reliable kiosk operation without page reloads.
 """
 
-import time
+import ctypes
 import os
 import subprocess
-import ctypes
-import httpx
+import time
 from datetime import datetime
+from urllib.parse import urlparse
+
+import httpx
 from AppKit import NSWorkspace
 
 PORT = int(os.environ.get("PORT", "3000"))
@@ -18,34 +20,55 @@ API_URL = f"http://127.0.0.1:{PORT}/api/status"
 FRONTEND_URL = f"http://127.0.0.1:{PORT}"
 
 ALLOWED_APPS = {
-    "Anki", "Obsidian", "Antigravity IDE", "Terminal", "iTerm2", "Alacritty", "Ghostty",
-    "Typora", "Visual Studio Code", "Code", "TextEdit", "Notes"
+    "Anki",
+    "Obsidian",
+    "Antigravity IDE",
+    "Terminal",
+    "iTerm2",
+    "Alacritty",
+    "Ghostty",
+    "Typora",
+    "Visual Studio Code",
+    "Code",
+    "TextEdit",
+    "Notes",
 }
 
-ALLOWED_BROWSERS = {
-    "Google Chrome", "Safari", "Arc", "Brave Browser", "Microsoft Edge", "Firefox", "Opera", "Orion", "Vivaldi"
-}
+# Browsers whose active tab URL can actually be read via AppleScript. Anything
+# outside this set can't be checked, so it can't be allowed during a lock --
+# listing e.g. Firefox as "allowed" without a URL script silently guaranteed a
+# re-lock even on a whitelisted site.
+ALLOWED_BROWSERS = {"Google Chrome", "Safari", "Arc", "Brave Browser", "Microsoft Edge"}
+
+UNVERIFIABLE_BROWSERS = {"Firefox", "Opera", "Orion", "Vivaldi", "Zen Browser", "LibreWolf", "Tor Browser"}
 
 DEFAULT_ALLOWED_URL_HOSTS = {
-    f"localhost:{PORT}", f"127.0.0.1:{PORT}",
-    "localhost:5173", "localhost:5174",
-    "127.0.0.1:5173", "127.0.0.1:5174",
+    f"localhost:{PORT}",
+    f"127.0.0.1:{PORT}",
+    "localhost:5173",
+    "localhost:5174",
+    "127.0.0.1:5173",
+    "127.0.0.1:5174",
     "myfitnesspal.com",
     "gemini.google.com",
     "claude.ai",
     "chatgpt.com",
     "chat.openai.com",
     "anthropic.com",
-    "arxiv.org"
+    "arxiv.org",
 }
+
 
 def log(msg: str):
     print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {msg}", flush=True)
 
+
 def lock_mac_screen():
     """Triggers macOS native lock screen cleanly using login.framework SACLockScreenImmediate."""
     try:
-        login_framework = ctypes.cdll.LoadLibrary("/System/Library/PrivateFrameworks/login.framework/Versions/Current/login")
+        login_framework = ctypes.cdll.LoadLibrary(
+            "/System/Library/PrivateFrameworks/login.framework/Versions/Current/login"
+        )
         if hasattr(login_framework, "SACLockScreenImmediate"):
             login_framework.SACLockScreenImmediate()
             return
@@ -59,25 +82,31 @@ def lock_mac_screen():
             return
         except Exception:
             pass
-            
+
     try:
         subprocess.run(
-            ["osascript", "-e", 'tell application "System Events" to keystroke "q" using {control down, command down}'],
-            capture_output=True, timeout=2.0
+            [
+                "osascript",
+                "-e",
+                'tell application "System Events" to keystroke "q" using {control down, command down}',
+            ],
+            capture_output=True,
+            timeout=2.0,
         )
     except Exception:
         pass
+
 
 def is_screen_locked() -> bool:
     """Checks if macOS console screen is currently locked."""
     try:
         res = subprocess.run(
-            ["ioreg", "-n", "Root", "-d1", "-a"],
-            capture_output=True, text=True, timeout=2.0
+            ["ioreg", "-n", "Root", "-d1", "-a"], capture_output=True, text=True, timeout=2.0
         )
         return "<key>IOConsoleLocked</key><true/>" in res.stdout.replace("\n", "").replace(" ", "")
     except Exception:
         return False
+
 
 def get_frontmost_app() -> str:
     """Native Cocoa query for frontmost active application name."""
@@ -87,6 +116,7 @@ def get_frontmost_app() -> str:
         return app.localizedName() if app else ""
     except Exception:
         return ""
+
 
 def get_active_browser_url(app_name: str) -> str:
     """Retrieves active tab URL for supported browsers via AppleScript."""
@@ -101,35 +131,63 @@ def get_active_browser_url(app_name: str) -> str:
         script = 'tell application "Microsoft Edge" to if (count of windows) > 0 then return URL of active tab of front window'
     elif app_name == "Arc":
         script = 'tell application "Arc" to if (count of windows) > 0 then return URL of active tab of front window'
-        
+
     if not script:
         return ""
-        
+
     try:
         res = subprocess.run(["osascript", "-e", script], capture_output=True, text=True, timeout=2.0)
         return res.stdout.strip()
     except Exception:
         return ""
 
+
+def host_matches(netloc: str, allowed_entry: str) -> bool:
+    """Exact host match, or a subdomain of the allowed entry. Never a substring."""
+    entry = allowed_entry.strip().lower().lstrip(".")
+    if not entry:
+        return False
+    if ":" in entry:
+        return netloc == entry
+    bare_host = netloc.split(":")[0]
+    return bare_host == entry or bare_host.endswith("." + entry)
+
+
 def is_allowed_url(url: str, dynamic_allowed=None) -> bool:
+    """
+    Whitelist check against the URL's host only. A substring test over the whole
+    URL let any page through as long as an allowed host appeared anywhere in it
+    (e.g. youtube.com/results?search_query=claude.ai, or claude.ai.evil.com).
+    """
     if not url:
         return False
+    parsed = urlparse(url.strip())
+    if parsed.scheme not in ("http", "https"):
+        return False
+    netloc = parsed.netloc.lower()
+    if "@" in netloc:  # strip userinfo, e.g. https://claude.ai@evil.com/
+        netloc = netloc.rsplit("@", 1)[-1]
+    if not netloc:
+        return False
+
     allowed_set = set(DEFAULT_ALLOWED_URL_HOSTS)
     if dynamic_allowed and isinstance(dynamic_allowed, list):
         for host in dynamic_allowed:
             if host and isinstance(host, str) and host.strip():
                 allowed_set.add(host.strip().lower())
-    url_lower = url.lower()
-    return any(host in url_lower for host in allowed_set)
+    return any(host_matches(netloc, entry) for entry in allowed_set)
+
 
 def send_notification(msg: str):
     try:
         subprocess.run(
             ["osascript", "-e", f'display notification "{msg}" with title "Habit Armour"'],
-            capture_output=True, timeout=2.0
+            capture_output=True,
+            timeout=2.0,
         )
     except Exception:
         pass
+
 
 def open_habit_armour_once():
     """Opens Habit Armour URL once when entering lock state."""
@@ -138,6 +196,7 @@ def open_habit_armour_once():
     except Exception:
         pass
 
+
 def activate_app(app_name: str):
     """Brings an application to the front WITHOUT reloading or refreshing any URLs."""
     if not app_name:
@@ -145,10 +204,12 @@ def activate_app(app_name: str):
     try:
         subprocess.run(
             ["osascript", "-e", f'tell application "{app_name}" to activate'],
-            capture_output=True, timeout=1.5
+            capture_output=True,
+            timeout=1.5,
         )
     except Exception:
         pass
+
 
 def main():
     log(f"Habit Armour PyObjC Lock Agent started on port {PORT}...")
@@ -165,7 +226,7 @@ def main():
                 log(f"Server returned HTTP {res.status_code}. Retrying in 10s...")
                 time.sleep(10)
                 continue
-                
+
             data = res.json()
             current_allowed_websites = data.get("allowedWebsites", [])
         except Exception as e:
@@ -222,34 +283,45 @@ def main():
                 front_app = get_frontmost_app()
                 is_allowed = False
                 active_url = ""
+                violation_detail = ""
 
                 # 1. Standalone allowed productivity apps
                 if front_app in ALLOWED_APPS:
                     is_allowed = True
                     consecutive_violations = 0
 
-                # 2. Supported Browsers
+                # 2. Browsers whose active tab URL we can read
                 elif front_app in ALLOWED_BROWSERS:
                     active_url = get_active_browser_url(front_app)
                     if is_allowed_url(active_url, current_allowed_websites):
                         is_allowed = True
                         consecutive_violations = 0
                     else:
-                        # User is on a disallowed URL or empty tab
-                        is_allowed = False
+                        violation_detail = f"URL not on whitelist: '{active_url or 'unknown/blank tab'}'"
+
+                # 3. Browsers with no URL script -- fail closed, but say why
+                elif front_app in UNVERIFIABLE_BROWSERS:
+                    violation_detail = (
+                        f"cannot read the active tab of {front_app}; "
+                        f"use {', '.join(sorted(ALLOWED_BROWSERS))} during a lock"
+                    )
+                else:
+                    violation_detail = "app is not on the allowlist"
 
                 if is_allowed:
                     consecutive_violations = 0
                     time.sleep(1.5)
                 else:
                     consecutive_violations += 1
-                    log(f"Kiosk violation #{consecutive_violations}: active app is [{front_app}] (URL: {active_url})")
+                    log(f"Kiosk violation #{consecutive_violations}: [{front_app}] -- {violation_detail}")
 
                     # Require 3 consecutive violations (~4.5 seconds) before re-locking,
                     # preventing accidental alt-tab / notification focus re-locks while strictly
                     # enforcing lock against unallowed websites.
                     if consecutive_violations >= 3:
-                        log(f"Sustained violation detected in [{front_app}] (URL: '{active_url}'). Re-locking screen...")
+                        log(
+                            f"Sustained violation in [{front_app}] -- {violation_detail}. Re-locking screen..."
+                        )
                         lock_mac_screen()
                         was_locked = True
                         consecutive_violations = 0
@@ -262,6 +334,7 @@ def main():
             browser_opened_for_lock = False
             consecutive_violations = 0
             time.sleep(5)
+
 
 if __name__ == "__main__":
     main()

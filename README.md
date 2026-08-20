@@ -81,6 +81,8 @@ cd habit-armour
 
 # 2. Configure .env with your API keys
 cp .env.example .env
+# The API has no auth layer, so it binds to 127.0.0.1 by default.
+# Set HOST=0.0.0.0 only if you need the iOS remote-status URL.
 
 # 3. Run the installer (sets up virtualenv, SQLite, builds client, and registers macOS launchd daemons)
 ./install.sh
@@ -91,6 +93,9 @@ cp .env.example .env
 ```bash
 # Run server in development mode
 npm run dev
+
+# Run the test suite
+pytest
 
 # Run lock agent manually in test mode
 npm run agent
