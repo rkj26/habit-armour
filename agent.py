@@ -19,20 +19,36 @@ PORT = int(os.environ.get("PORT", "3000"))
 API_URL = f"http://127.0.0.1:{PORT}/api/status"
 FRONTEND_URL = f"http://127.0.0.1:{PORT}"
 
-# Standalone desktop apps strictly allowed during lock mode to complete habits/reviews:
-# - Anki: for flashcard reviews
-# - Obsidian: for local journal notes
-# - Typora: for drafting math proofs and recall answers
+# Standalone desktop apps allowed during lock mode to complete habits/reviews:
 ALLOWED_APPS = {
     "Anki",
     "Obsidian",
     "Typora",
+    "TextEdit",
+    "Notes",
 }
 
-# Browsers whose active tab URL can actually be read via AppleScript. Anything
-# outside this set can't be checked, so it can't be allowed during a lock --
-# listing e.g. Firefox as "allowed" without a URL script silently guaranteed a
-# re-lock even on a whitelisted site.
+# macOS system processes, lock screen window, and UI overlays that should never trigger violations
+SYSTEM_APPS = {
+    "loginwindow",
+    "SecurityAgent",
+    "ScreenSaverEngine",
+    "CoreServicesUIAgent",
+    "ControlCenter",
+    "NotificationCenter",
+    "SystemUIServer",
+    "Dock",
+    "Spotlight",
+    "WindowServer",
+    "WindowManager",
+    "TextInputMenuAgent",
+    "TextInputSwitcher",
+    "System Settings",
+    "Finder",
+    "",
+}
+
+# Browsers whose active tab URL can actually be read via AppleScript.
 ALLOWED_BROWSERS = {"Google Chrome", "Safari", "Arc", "Brave Browser", "Microsoft Edge"}
 
 UNVERIFIABLE_BROWSERS = {"Firefox", "Opera", "Orion", "Vivaldi", "Zen Browser", "LibreWolf", "Tor Browser"}
@@ -94,6 +110,9 @@ def lock_mac_screen():
 
 def is_screen_locked() -> bool:
     """Checks if macOS console screen is currently locked."""
+    front = get_frontmost_app()
+    if front in {"loginwindow", "SecurityAgent", "ScreenSaverEngine"}:
+        return True
     try:
         res = subprocess.run(
             ["ioreg", "-n", "Root", "-d1", "-a"], capture_output=True, text=True, timeout=2.0
@@ -119,13 +138,15 @@ def get_active_browser_url(app_name: str) -> str:
     if app_name == "Safari":
         script = 'tell application "Safari" to if (count of documents) > 0 then return URL of front document'
     elif app_name == "Google Chrome":
-        script = 'tell application "Google Chrome" to if (count of windows) > 0 then return URL of active tab of front window'
+        script = 'tell application "Google Chrome" to if (count of windows) > 0 then return URL of active tab of window 1'
     elif app_name == "Brave Browser":
-        script = 'tell application "Brave Browser" to if (count of windows) > 0 then return URL of active tab of front window'
+        script = 'tell application "Brave Browser" to if (count of windows) > 0 then return URL of active tab of window 1'
     elif app_name == "Microsoft Edge":
-        script = 'tell application "Microsoft Edge" to if (count of windows) > 0 then return URL of active tab of front window'
+        script = 'tell application "Microsoft Edge" to if (count of windows) > 0 then return URL of active tab of window 1'
     elif app_name == "Arc":
-        script = 'tell application "Arc" to if (count of windows) > 0 then return URL of active tab of front window'
+        script = (
+            'tell application "Arc" to if (count of windows) > 0 then return URL of active tab of window 1'
+        )
 
     if not script:
         return ""
@@ -209,7 +230,7 @@ def activate_app(app_name: str):
 def main():
     log(f"Habit Armour PyObjC Lock Agent started on port {PORT}...")
     client = httpx.Client(timeout=3.0)
-    screen_was_locked = False
+    was_locked = False
     consecutive_violations = 0
     current_allowed_websites = []
 
@@ -232,13 +253,14 @@ def main():
         reason = data.get("reason", "Overdue habit requirements")
 
         if locked:
-            log(f"LOCK ACTIVATED: {reason}")
-            send_notification("Habit lock active! Complete your logs to unlock.")
-            open_habit_armour_once()
-            if not is_screen_locked():
-                lock_mac_screen()
-            screen_was_locked = True
-            consecutive_violations = 0
+            if not was_locked:
+                log(f"LOCK ACTIVATED: {reason}")
+                send_notification("Habit lock active! Complete your logs to unlock.")
+                open_habit_armour_once()
+                if not is_screen_locked():
+                    lock_mac_screen()
+                was_locked = True
+                consecutive_violations = 0
 
             # Kiosk enforcement loop
             while True:
@@ -249,7 +271,7 @@ def main():
                         current_allowed_websites = status_data.get("allowedWebsites", [])
                         if not status_data.get("locked"):
                             log("STATUS: Habits completed or override applied. Mac unlocked!")
-                            screen_was_locked = False
+                            was_locked = False
                             consecutive_violations = 0
                             break
                 except Exception:
@@ -257,18 +279,18 @@ def main():
 
                 # If physical screen is currently locked, wait and monitor
                 if is_screen_locked():
-                    screen_was_locked = True
+                    was_locked = True
                     consecutive_violations = 0
-                    time.sleep(1.5)
+                    time.sleep(2.0)
                     continue
 
-                # Screen was just unlocked by user: open Habit Armour and grant 6s focus grace
-                if screen_was_locked:
-                    log("Screen unlocked by user. Opening Habit Armour...")
+                # Screen was just unlocked by user: open Habit Armour and grant 10s focus grace
+                if was_locked:
+                    log("Screen unlocked by user. Focusing Habit Armour...")
                     open_habit_armour_once()
-                    screen_was_locked = False
+                    was_locked = False
                     consecutive_violations = 0
-                    time.sleep(6)
+                    time.sleep(10.0)
                     continue
 
                 # Check active application
@@ -277,21 +299,22 @@ def main():
                 active_url = ""
                 violation_detail = ""
 
-                # 1. Standalone allowed productivity apps for habits
-                if front_app in ALLOWED_APPS:
+                # 1. System processes, lock screens, and UI overlays
+                if front_app in SYSTEM_APPS or front_app in ALLOWED_APPS:
                     is_allowed = True
                     consecutive_violations = 0
 
-                # 2. Browsers whose active tab URL we can verify
+                # 3. Browsers whose active tab URL we can verify
                 elif front_app in ALLOWED_BROWSERS:
                     active_url = get_active_browser_url(front_app)
-                    if is_allowed_url(active_url, current_allowed_websites):
+                    # If URL is currently loading or blank during transition, treat as safe
+                    if not active_url or is_allowed_url(active_url, current_allowed_websites):
                         is_allowed = True
                         consecutive_violations = 0
                     else:
-                        violation_detail = f"URL not on whitelist: '{active_url or 'unknown/blank tab'}'"
+                        violation_detail = f"URL not on whitelist: '{active_url}'"
 
-                # 3. Browsers with no URL script -- fail closed
+                # 4. Browsers with no URL script -- fail closed
                 elif front_app in UNVERIFIABLE_BROWSERS:
                     violation_detail = (
                         f"cannot read active tab of {front_app}; "
@@ -302,25 +325,25 @@ def main():
 
                 if is_allowed:
                     consecutive_violations = 0
-                    time.sleep(1.5)
+                    time.sleep(2.0)
                 else:
                     consecutive_violations += 1
                     log(f"Kiosk violation #{consecutive_violations}: {violation_detail}")
 
-                    # 2 consecutive violations (~3 seconds of distraction) triggers immediate re-lock
-                    if consecutive_violations >= 2:
+                    # Require 4 consecutive violations (~8 seconds of continuous distraction) to re-lock
+                    if consecutive_violations >= 4:
                         log(
                             f"Sustained violation in [{front_app}] -- {violation_detail}. Re-locking screen..."
                         )
                         lock_mac_screen()
-                        screen_was_locked = True
+                        was_locked = True
                         consecutive_violations = 0
-                        time.sleep(2)
+                        time.sleep(3.0)
                     else:
-                        time.sleep(1.5)
+                        time.sleep(2.0)
 
         else:
-            screen_was_locked = False
+            was_locked = False
             consecutive_violations = 0
             time.sleep(5)
 
