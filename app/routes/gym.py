@@ -80,7 +80,7 @@ async def get_hevy_templates():
     if not key:
         raise HTTPException(status_code=400, detail="HEVY_API_KEY is not configured in .env")
 
-    url = "https://api.hevyapp.com/v1/workout_templates"
+    url = "https://api.hevyapp.com/v1/exercise_templates?page=1&pageSize=100"
     headers = {"api-key": key, "Accept": "application/json"}
 
     async with httpx.AsyncClient(timeout=10.0) as client:
@@ -97,11 +97,12 @@ async def upload_hevy_workout(payload: HevyWorkoutUpload, session: Session = Dep
         raise HTTPException(status_code=400, detail="HEVY_API_KEY is not configured in .env")
 
     url = "https://api.hevyapp.com/v1/workouts"
-    headers = {"api-key": key, "Content-Type": "application/json"}
+    headers = {"api-key": key, "Content-Type": "application/json", "Accept": "application/json"}
 
     async with httpx.AsyncClient(timeout=15.0) as client:
         body = payload.model_dump(exclude_none=True)
-        res = await client.post(url, headers=headers, json=body)
+        workout_payload = body if "workout" in body else {"workout": body}
+        res = await client.post(url, headers=headers, json=workout_payload)
         if res.status_code not in (200, 201):
             raise HTTPException(status_code=res.status_code, detail=f"Failed to post workout: {res.text}")
 
