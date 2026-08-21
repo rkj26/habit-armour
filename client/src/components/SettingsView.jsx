@@ -30,13 +30,17 @@ const DEFAULT_SITES = ['myfitnesspal.com', 'gemini.google.com', 'claude.ai', 'ch
 const SITE_PRESETS = [...DEFAULT_SITES, 'wandb.ai']
 const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
 
-function Field({ id, label, hint, invalid, children }) {
+function Field({ id, label, hint, invalid, className, children }) {
   return (
-    <div className="grid gap-2">
-      <Label htmlFor={id}>{label}</Label>
+    <div className={cn('flex flex-col gap-1.5 justify-start', className)}>
+      <Label htmlFor={id} className="text-sm font-medium text-foreground">
+        {label}
+      </Label>
       {children}
       {hint && (
-        <p className={cn('text-xs', invalid ? 'text-destructive' : 'text-muted-foreground')}>{hint}</p>
+        <p className={cn('text-xs leading-normal', invalid ? 'text-destructive' : 'text-muted-foreground')}>
+          {hint}
+        </p>
       )}
     </div>
   )
@@ -46,15 +50,15 @@ function Field({ id, label, hint, invalid, children }) {
  * Hours were nine bare 0-23 number boxes. You think about these in clock time,
  * so they render as clock time; the stored value is still the integer hour.
  */
-function HourField({ name, label, hint, value, fallback, onChange, includeMidnightEnd = false }) {
+function HourField({ name, label, hint, value, fallback, onChange, includeMidnightEnd = false, className }) {
   const hours = Array.from({ length: includeMidnightEnd ? 25 : 24 }, (_, h) => h)
   return (
-    <Field id={name} label={label} hint={hint}>
+    <Field id={name} label={label} hint={hint} className={className}>
       <Select
-        value={String(value !== undefined ? value : fallback)}
+        value={String(value !== undefined && value !== null ? value : fallback)}
         onValueChange={(v) => onChange({ target: { name, type: 'number', value: v } })}
       >
-        <SelectTrigger id={name} className="w-full">
+        <SelectTrigger id={name} className="w-full h-9">
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
@@ -69,14 +73,15 @@ function HourField({ name, label, hint, value, fallback, onChange, includeMidnig
   )
 }
 
-function NumField({ name, label, hint, value, fallback, onChange, ...props }) {
+function NumField({ name, label, hint, value, fallback, onChange, className, ...props }) {
   return (
-    <Field id={name} label={label} hint={hint}>
+    <Field id={name} label={label} hint={hint} className={className}>
       <Input
         id={name}
         name={name}
         type="number"
-        value={value !== undefined ? value : fallback}
+        className="h-9 w-full"
+        value={value !== undefined && value !== null ? value : fallback}
         onChange={onChange}
         {...props}
       />
@@ -84,10 +89,10 @@ function NumField({ name, label, hint, value, fallback, onChange, ...props }) {
   )
 }
 
-function TextField({ name, label, hint, value, onChange, ...props }) {
+function TextField({ name, label, hint, value, onChange, className, ...props }) {
   return (
-    <Field id={name} label={label} hint={hint} invalid={props['aria-invalid']}>
-      <Input id={name} name={name} value={value} onChange={onChange} {...props} />
+    <Field id={name} label={label} hint={hint} invalid={props['aria-invalid']} className={className}>
+      <Input id={name} name={name} className="h-9 w-full" value={value || ''} onChange={onChange} {...props} />
     </Field>
   )
 }
@@ -95,9 +100,9 @@ function TextField({ name, label, hint, value, onChange, ...props }) {
 /** Switch reports a boolean, so it is adapted to the change-event shape config state expects. */
 function SwitchRow({ name, label, description, checked, onChange }) {
   return (
-    <div className="flex items-start justify-between gap-4 rounded-lg border p-4">
-      <div className="grid gap-1">
-        <Label htmlFor={name} className="cursor-pointer">
+    <div className="flex items-center justify-between gap-4 rounded-lg border p-4">
+      <div className="flex flex-col gap-1">
+        <Label htmlFor={name} className="cursor-pointer text-sm font-medium text-foreground">
           {label}
         </Label>
         {description && <p className="text-muted-foreground text-xs">{description}</p>}
@@ -142,10 +147,10 @@ function AddForm({ onSubmit, value, setValue, placeholder, cta }) {
         onSubmit(value)
         setValue('')
       }}
-      className="flex max-w-md gap-2"
+      className="flex w-full max-w-md items-center gap-2"
     >
-      <Input placeholder={placeholder} value={value} onChange={(e) => setValue(e.target.value)} />
-      <Button type="submit" variant="secondary" className="shrink-0">
+      <Input placeholder={placeholder} value={value} onChange={(e) => setValue(e.target.value)} className="h-9 flex-1" />
+      <Button type="submit" variant="secondary" className="h-9 shrink-0">
         <Plus className="size-4" />
         {cta}
       </Button>
@@ -204,44 +209,40 @@ export default function SettingsView({ config, handleConfigChange, saveConfig })
                 then locks the Mac.
               </CardDescription>
             </CardHeader>
-            <CardContent className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-              <div className="grid grid-cols-2 gap-3">
-                <HourField
-                    name="morningStart"
-                    label="Morning start"
-                    value={config.morningStart}
-                    fallback={5}
-                    onChange={handleConfigChange}
-                  />
-                <HourField
-                    name="morningEnd"
-                    label="Morning end"
-                    value={config.morningEnd}
-                    fallback={12}
-                    onChange={handleConfigChange}
-                  />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <HourField
-                    name="nightStart"
-                    label="Night start"
-                    value={config.nightStart}
-                    fallback={20}
-                    onChange={handleConfigChange}
-                  />
-                <HourField
-                    name="nightEnd"
-                    label="Night end"
-                    value={config.nightEnd}
-                    fallback={24}
-                    onChange={handleConfigChange}
-                    includeMidnightEnd
-                  />
-              </div>
+            <CardContent className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
+              <HourField
+                name="morningStart"
+                label="Morning start"
+                value={config.morningStart}
+                fallback={5}
+                onChange={handleConfigChange}
+              />
+              <HourField
+                name="morningEnd"
+                label="Morning end"
+                value={config.morningEnd}
+                fallback={12}
+                onChange={handleConfigChange}
+              />
+              <HourField
+                name="nightStart"
+                label="Night start"
+                value={config.nightStart}
+                fallback={20}
+                onChange={handleConfigChange}
+              />
+              <HourField
+                name="nightEnd"
+                label="Night end"
+                value={config.nightEnd}
+                fallback={24}
+                onChange={handleConfigChange}
+                includeMidnightEnd
+              />
               <NumField
                 name="gracePeriodSec"
-                label="Grace period (seconds)"
-                hint="Warning countdown before the device locks."
+                label="Grace period (sec)"
+                hint="Warning before lock."
                 value={config.gracePeriodSec}
                 fallback={120}
                 onChange={handleConfigChange}
@@ -277,7 +278,7 @@ export default function SettingsView({ config, handleConfigChange, saveConfig })
                       value={String(config.weeklyLockDay ?? 0)}
                       onValueChange={(v) => setList('weeklyLockDay', parseInt(v, 10))}
                     >
-                      <SelectTrigger id="weeklyLockDay" className="w-full">
+                      <SelectTrigger id="weeklyLockDay" className="w-full h-9">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -325,17 +326,17 @@ export default function SettingsView({ config, handleConfigChange, saveConfig })
                 <>
                   <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                     <HourField
-                    name="gymLockStartHour"
-                    label="Lock start hour"
-                    hint="Locks at this hour if the day is still inactive."
-                    value={config.gymLockStartHour}
-                    fallback={21}
-                    onChange={handleConfigChange}
-                  />
+                      name="gymLockStartHour"
+                      label="Lock start hour"
+                      hint="Cutoff hour if inactive."
+                      value={config.gymLockStartHour}
+                      fallback={21}
+                      onChange={handleConfigChange}
+                    />
                     <NumField
                       name="gymMinDurationMinutes"
-                      label="Min workout minutes"
-                      hint="Shorter workouts fail verification."
+                      label="Min workout mins"
+                      hint="Minimum session length."
                       value={config.gymMinDurationMinutes}
                       fallback={30}
                       onChange={handleConfigChange}
@@ -344,17 +345,17 @@ export default function SettingsView({ config, handleConfigChange, saveConfig })
                     <Field
                       id="gymWeeklyGoal"
                       label="Weekly active days"
-                      hint="Once hit, the rest of the week is unlocked."
+                      hint="Weekly active target."
                     >
                       <ToggleGroup
                         type="single"
                         variant="outline"
                         value={String(config.gymWeeklyGoal ?? 5)}
                         onValueChange={(v) => v && setList('gymWeeklyGoal', Number(v))}
-                        className="justify-start"
+                        className="h-9 justify-start"
                       >
                         {[1, 2, 3, 4, 5, 6, 7].map((d) => (
-                          <ToggleGroupItem key={d} value={String(d)} className="px-3">
+                          <ToggleGroupItem key={d} value={String(d)} className="px-3 h-9">
                             {d}
                           </ToggleGroupItem>
                         ))}
@@ -362,8 +363,8 @@ export default function SettingsView({ config, handleConfigChange, saveConfig })
                     </Field>
                     <NumField
                       name="gymMinSteps"
-                      label="Min steps for an active day"
-                      hint="Counts when no gym or cardio was logged."
+                      label="Min steps target"
+                      hint="Counts if gym not logged."
                       value={config.gymMinSteps}
                       fallback={13000}
                       onChange={handleConfigChange}
@@ -403,12 +404,12 @@ export default function SettingsView({ config, handleConfigChange, saveConfig })
                 <>
                   <div className="grid gap-4 sm:grid-cols-2">
                     <HourField
-                    name="ankiLockStartHour"
-                    label="Cutoff hour"
-                    value={config.ankiLockStartHour}
-                    fallback={21}
-                    onChange={handleConfigChange}
-                  />
+                      name="ankiLockStartHour"
+                      label="Cutoff hour"
+                      value={config.ankiLockStartHour}
+                      fallback={21}
+                      onChange={handleConfigChange}
+                    />
                     <TextField
                       name="ankiConnectUrl"
                       type="url"
@@ -420,7 +421,9 @@ export default function SettingsView({ config, handleConfigChange, saveConfig })
                     />
                   </div>
                   <div className="grid gap-3">
-                    <Label>Ignored decks ({ignoredDecks.length})</Label>
+                    <Label className="text-sm font-medium text-foreground">
+                      Ignored decks ({ignoredDecks.length})
+                    </Label>
                     <ChipList
                       items={ignoredDecks}
                       onRemove={(d) => removeFrom('ankiIgnoredDecks', ignoredDecks, d)}
@@ -458,6 +461,7 @@ export default function SettingsView({ config, handleConfigChange, saveConfig })
                   <HourField
                     name="practiceLockStartHour"
                     label="Cutoff hour"
+                    hint="Lock enforcement hour."
                     value={config.practiceLockStartHour}
                     fallback={21}
                     onChange={handleConfigChange}
@@ -465,7 +469,7 @@ export default function SettingsView({ config, handleConfigChange, saveConfig })
                   <NumField
                     name="practiceMinDueToUnlock"
                     label="Min proofs to unlock"
-                    hint="0 clears the whole due queue; 1 needs a single session."
+                    hint="0 clears queue; 1 needs a session."
                     value={config.practiceMinDueToUnlock}
                     fallback={1}
                     onChange={handleConfigChange}
@@ -475,7 +479,7 @@ export default function SettingsView({ config, handleConfigChange, saveConfig })
                   <NumField
                     name="practiceNewCardsPerDay"
                     label="New topics per day"
-                    hint="Brand-new ladders introduced daily."
+                    hint="New topic ladders introduced daily."
                     value={config.practiceNewCardsPerDay}
                     fallback={1}
                     onChange={handleConfigChange}
@@ -485,7 +489,7 @@ export default function SettingsView({ config, handleConfigChange, saveConfig })
                   <NumField
                     name="practiceReviewTopicsPerDay"
                     label="Review topics per day"
-                    hint="Started topics resurfaced, most overdue first."
+                    hint="Resurfaced topics reviewed daily."
                     value={config.practiceReviewTopicsPerDay}
                     fallback={1}
                     onChange={handleConfigChange}
@@ -563,13 +567,14 @@ export default function SettingsView({ config, handleConfigChange, saveConfig })
                 onSubmit={(v) => addTo('allowedWebsites', allowedSites, v, normaliseDomain)}
               />
               <div className="flex flex-wrap items-center gap-2">
-                <span className="text-muted-foreground text-xs">Presets</span>
+                <span className="text-muted-foreground text-xs font-medium">Presets</span>
                 {SITE_PRESETS.map((preset) => (
                   <Button
                     key={preset}
                     type="button"
                     variant="outline"
                     size="sm"
+                    className="h-8 text-xs"
                     disabled={allowedSites.includes(preset)}
                     onClick={() => addTo('allowedWebsites', allowedSites, preset, normaliseDomain)}
                   >
@@ -592,7 +597,7 @@ export default function SettingsView({ config, handleConfigChange, saveConfig })
                   value={config.journalStorage || 'none'}
                   onValueChange={(v) => setList('journalStorage', v)}
                 >
-                  <SelectTrigger id="journalStorage" className="w-full max-w-sm">
+                  <SelectTrigger id="journalStorage" className="w-full max-w-sm h-9">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
