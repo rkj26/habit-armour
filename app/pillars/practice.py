@@ -412,7 +412,7 @@ Respond with strict JSON matching this exact structure:
       "note": "precise mathematical breakdown of why this step is incomplete or what exact algebraic identity was skipped"
     }}
   ],
-  "idealAnswer": "Exemplary, definitive gold-standard master proof and derivation written in beautiful LaTeX ($...$ and $$...$$) and Markdown. Provide formal problem formulation, rigorous line-by-line derivations with algebraic justifications for every step, causal mechanism breakdown, failure modes, edge cases, and high-yield takeaways.",
+  "idealAnswer": "Exemplary, definitive gold-standard master proof and derivation written in beautiful LaTeX ($...$ for inline, $$...$$ for display blocks) and Markdown. All mathematical notation, equations, and variables MUST be wrapped in $...$ or $$...$$. Provide formal problem formulation, rigorous line-by-line derivations with algebraic justifications for every step, causal mechanism breakdown, failure modes, edge cases, and high-yield takeaways.",
   "keyImprovements": [
     "Concrete, high-yield technical takeaway 1 on what exact derivation step was missing...",
     "Concrete, high-yield technical takeaway 2 on how to elevate the proof to publication-ready rigor..."
@@ -450,7 +450,8 @@ async def generate_model_solution_with_gemini(item: StudyItem, question: StudyQu
 Provide an exemplary, definitive master model solution and mathematical proof for this active-recall practice question.
 
 STANDARDS FOR THE MASTER SOLUTION:
-- Publication-grade mathematical rigor using clean LaTeX formatting ($...$ and $$...$$).
+- Publication-grade mathematical rigor using clean LaTeX formatting.
+- CRITICAL LATEX DELIMITERS: Wrap EVERY single equation, variable, symbol, tensor dimension, or mathematical notation in LaTeX delimiters: `$ ... $` for inline math (e.g. `$V^\\pi(s)$`, `$\\nabla_\\theta J(\\theta)$`, `$X \\in \\mathbb{{R}}^{{B \\times L \\times D}}$`), and `$$ ... $$` for standalone equations and multi-line derivations. NEVER output raw unbracketed LaTeX commands outside `$` or `$$`. DO NOT wrap output in `\\documentclass` or ````latex```` blocks.
 - Every single algebraic step must be explicitly derived without skipping intermediate identities (e.g. log-derivative trick, score function, change of variables, expectation expansions).
 - State all assumptions, notation, tensor dimensions, and boundary conditions upfront.
 - Provide a deep causal breakdown: explain WHY each mathematical term exists and what concrete failure mode it prevents.
